@@ -136,14 +136,18 @@ func TestLicencePrivileges_CRUD(t *testing.T) {
 		resp := c.PATCH(base+"/"+towing.ID, map[string]interface{}{"expiresOn": "2030-01-31"})
 		requireStatus(t, resp, http.StatusOK)
 		var p privilegeBody
-		resp.JSON(&p)
+		if err := resp.JSON(&p); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if p.ExpiresOn == nil || *p.ExpiresOn != "2030-01-31" || p.Notes == nil {
 			t.Errorf("after patch: %+v", p)
 		}
 		resp = c.PATCH(base+"/"+towing.ID, map[string]interface{}{"notes": nil, "issuedOn": nil})
 		requireStatus(t, resp, http.StatusOK)
 		var cleared privilegeBody
-		resp.JSON(&cleared)
+		if err := resp.JSON(&cleared); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if cleared.Notes != nil || cleared.IssuedOn != nil || cleared.ExpiresOn == nil {
 			t.Errorf("after clearing: %+v", cleared)
 		}
@@ -380,14 +384,18 @@ func TestPrivileges_ExportImportAndAdmin(t *testing.T) {
 			LicensesImported          int `json:"licensesImported"`
 			LicencePrivilegesImported int `json:"licencePrivilegesImported"`
 		}
-		restore.JSON(&summary)
+		if err := restore.JSON(&summary); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "licensesImported", summary.LicensesImported, 1)
 		assertInt(t, "licencePrivilegesImported", summary.LicencePrivilegesImported, 3)
 
 		lr := dst.GET("/licenses")
 		requireStatus(t, lr, http.StatusOK)
 		var licenses []map[string]interface{}
-		lr.JSON(&licenses)
+		if err := lr.JSON(&licenses); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if len(licenses) != 1 {
 			t.Fatalf("licenses = %d, want 1", len(licenses))
 		}
@@ -428,7 +436,9 @@ func TestPrivileges_ExportImportAndAdmin(t *testing.T) {
 				ByKind map[string]int `json:"byKind"`
 			} `json:"licencePrivileges"`
 		}
-		resp.JSON(&s)
+		if err := resp.JSON(&s); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if s.LicencePrivileges.Total < 6 || s.LicencePrivileges.ByKind["CLOUD_FLYING"] < 2 || s.LicencePrivileges.ByKind["FI_S"] < 2 {
 			t.Errorf("licencePrivileges = %+v", s.LicencePrivileges)
 		}

@@ -75,7 +75,7 @@ func TestCustomReportAggregateScansSoaringMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	cols := []string{"k", "flights", "total", "pic", "dual", "dualGiven", "night", "ifr", "xc", "fstd", "landings", "launches", "outlandings", "tows"}
 	mock.ExpectQuery("WITH scoped AS").WillReturnRows(sqlmock.NewRows(cols).
 		AddRow("winch", 6, 48, 48, 0, 0, 0, 0, 0, 0, 6, 6, 0, 0).
@@ -99,7 +99,7 @@ func TestSoaringSeasonStatsEmptySkipsDetailQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"f", "l", "m", "o"}).AddRow(0, 0, 0, 0))
 
 	stats, err := NewSoaringRepository(db).SeasonStats(context.Background(), uuid.New(),
@@ -120,7 +120,7 @@ func TestSoaringSeasonStatsScansEverySection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	id := uuid.New()
 	day := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"f", "l", "m", "o"}).AddRow(8, 9, 243, 1))

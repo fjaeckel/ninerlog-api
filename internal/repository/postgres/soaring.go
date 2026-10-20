@@ -49,26 +49,26 @@ func (r *soaringRepository) SeasonStats(ctx context.Context, userID uuid.UUID, f
 		return stats, nil
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT LOWER(TRIM(COALESCE(f.launch_method, ''))), COALESCE(SUM(`+launchCountSQL+`), 0)
-		`+soaringFrom+`
-		`+scope+`
-		GROUP BY 1`, userID, from, to)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var method string
-		var n int
-		if err := rows.Scan(&method, &n); err != nil {
-			_ = rows.Close()
-			return nil, err
+	if err := func() error {
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT LOWER(TRIM(COALESCE(f.launch_method, ''))), COALESCE(SUM(`+launchCountSQL+`), 0)
+			`+soaringFrom+`
+			`+scope+`
+			GROUP BY 1`, userID, from, to)
+		if err != nil {
+			return err
 		}
-		stats.LaunchesByMethod[method] += n
-	}
-	err = rows.Err()
-	_ = rows.Close()
-	if err != nil {
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var method string
+			var n int
+			if err := rows.Scan(&method, &n); err != nil {
+				return err
+			}
+			stats.LaunchesByMethod[method] += n
+		}
+		return rows.Err()
+	}(); err != nil {
 		return nil, err
 	}
 

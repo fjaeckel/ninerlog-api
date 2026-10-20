@@ -64,7 +64,9 @@ func flightCount(t *testing.T, c *E2EClient) int {
 	resp := c.GET("/flights")
 	requireStatus(t, resp, http.StatusOK)
 	var page map[string]interface{}
-	resp.JSON(&page)
+	if err := resp.JSON(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	pg, _ := page["pagination"].(map[string]interface{})
 	return gi(pg, "total")
 }
@@ -171,14 +173,18 @@ func TestGliderFlights_Launches(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "launches", gi(f, "launches"), 6)
 		assertBool(t, "launchesOverride", gb(f, "launchesOverride"), true)
 		assertInt(t, "winch launch currency", winchLaunches(t, c), 6)
 
 		upd := c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"launches": nil, "landings": 1})
 		requireStatus(t, upd, http.StatusOK)
-		upd.JSON(&f)
+		if err := upd.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "launches after null", gi(f, "launches"), 1)
 		assertBool(t, "launchesOverride after null", gb(f, "launchesOverride"), false)
 		assertInt(t, "winch launch currency after null", winchLaunches(t, c), 1)
@@ -214,7 +220,9 @@ func TestGliderFlights_Launches(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "launches", gi(f, "launches"), 3)
 		assertBool(t, "launchesOverride", gb(f, "launchesOverride"), false)
 	})
@@ -241,27 +249,35 @@ func TestGliderFlights_FlightFacts(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertBool(t, "isOutlanding", gb(f, "isOutlanding"), true)
 		assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 0)
 		assertInt(t, "releaseHeightM", gi(f, "releaseHeightM"), 600)
 
 		get := c.GET("/flights/" + f["id"].(string))
 		requireStatus(t, get, http.StatusOK)
-		get.JSON(&f)
+		if err := get.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertBool(t, "isOutlanding after GET", gb(f, "isOutlanding"), true)
 		assertInt(t, "releaseHeightM after GET", gi(f, "releaseHeightM"), 600)
 
 		upd := c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"isOutlanding": false})
 		requireStatus(t, upd, http.StatusOK)
-		upd.JSON(&f)
+		if err := upd.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertBool(t, "isOutlanding cleared", gb(f, "isOutlanding"), false)
 		assertInt(t, "crossCountryTime re-derived", gi(f, "crossCountryTime"), 210)
 
 		search := c.GET("/flights?q=outlanding:true")
 		requireStatus(t, search, http.StatusOK)
 		var page map[string]interface{}
-		search.JSON(&page)
+		if err := search.JSON(&page); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if data, _ := page["data"].([]interface{}); len(data) != 0 {
 			t.Errorf("outlanding:true matched %d flights after clearing, want 0", len(data))
 		}
@@ -278,7 +294,9 @@ func TestGliderFlights_FlightFacts(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertBool(t, "isTowFlight", gb(f, "isTowFlight"), true)
 		assertBool(t, "isOutlanding", gb(f, "isOutlanding"), false)
 		if f["launchMethod"] != nil {
@@ -288,14 +306,18 @@ func TestGliderFlights_FlightFacts(t *testing.T) {
 		search := c.GET("/flights?q=towflight:true")
 		requireStatus(t, search, http.StatusOK)
 		var page map[string]interface{}
-		search.JSON(&page)
+		if err := search.JSON(&page); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if data, _ := page["data"].([]interface{}); len(data) != 1 {
 			t.Errorf("towflight:true matched %d flights, want 1", len(data))
 		}
 
 		upd := c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"isTowFlight": false})
 		requireStatus(t, upd, http.StatusOK)
-		upd.JSON(&f)
+		if err := upd.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertBool(t, "isTowFlight cleared", gb(f, "isTowFlight"), false)
 	})
 
@@ -324,13 +346,17 @@ func TestGliderFlights_FlightFacts(t *testing.T) {
 		resp := c.POST("/flights", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		id := f["id"].(string)
 		assertStatus(t, c.PUT("/flights/"+id, map[string]interface{}{"releaseHeightM": 20001}), http.StatusBadRequest)
 		upd := c.PUT("/flights/"+id, map[string]interface{}{"releaseHeightM": nil})
 		requireStatus(t, upd, http.StatusOK)
 		var cleared map[string]interface{}
-		upd.JSON(&cleared)
+		if err := upd.JSON(&cleared); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if cleared["releaseHeightM"] != nil {
 			t.Errorf("releaseHeightM = %v after null, want none", f["releaseHeightM"])
 		}

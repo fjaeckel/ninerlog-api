@@ -115,7 +115,9 @@ func createLicenceNumbered(t *testing.T, c *E2EClient, authority, licType, numbe
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var lic map[string]interface{}
-	resp.JSON(&lic)
+	if err := resp.JSON(&lic); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	return lic["id"].(string)
 }
 
@@ -249,7 +251,9 @@ func TestPilotProfile_Personas(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		if err := resp.JSON(&ac); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		for i := 0; i < 3; i++ {
 			createFlightCur(t, c, map[string]interface{}{
 				"date": pastDate(1100 + i*10), "aircraftReg": "D-ECLB", "aircraftType": "C172",

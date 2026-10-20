@@ -470,8 +470,9 @@ func TestGermanUL_KindlessFlightCountsForNeither(t *testing.T) {
 	})
 	requireStatus(t, resp, http.StatusCreated)
 	var ac map[string]interface{}
-	resp.JSON(&ac)
-
+	if err := resp.JSON(&ac); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	licID := createLicenseCur(t, c, "DULV", "UL")
 	trikeID := createULRatingCur(t, c, licID, "WEIGHT_SHIFT")
 	ppgID := createULRatingCur(t, c, licID, "POWERED_PARAGLIDER")

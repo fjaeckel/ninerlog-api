@@ -80,7 +80,7 @@ func (r *LicencePrivilegeRepository) list(ctx context.Context, query string, arg
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []*models.LicencePrivilege{}
 	for rows.Next() {
 		p, err := scanLicencePrivilege(rows)

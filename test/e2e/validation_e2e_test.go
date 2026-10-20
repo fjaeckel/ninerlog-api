@@ -435,8 +435,9 @@ func TestFlightTimePairValidation(t *testing.T) {
 		})
 		requireStatus(t, r, http.StatusCreated)
 		var created map[string]interface{}
-		r.JSON(&created)
-
+		if err := r.JSON(&created); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		r = c.PUT("/flights/"+created["id"].(string), map[string]interface{}{"isSimulator": false})
 		assertStatus(t, r, http.StatusBadRequest)
 		assertErrorContains(t, r, "are required")

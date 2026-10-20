@@ -13,7 +13,7 @@ func TestStatsByClass_SplitsUltralightByKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cols := []string{"class", "ul_kind", "flights", "minutes", "pic_minutes", "dual_minutes", "landings"}
 	mock.ExpectQuery("GROUP BY 1, 2").WillReturnRows(sqlmock.NewRows(cols).

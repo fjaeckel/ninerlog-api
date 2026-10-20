@@ -82,8 +82,9 @@ func TestReadiness(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var medical map[string]interface{}
-		resp.JSON(&medical)
-
+		if err := resp.JSON(&medical); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		saturday := nextSaturday()
 		report := getReadiness(t, c, url.Values{"date": {saturday}, "aircraftReg": {"d-1234"}, "passengers": {"true"}})
 		assertStr(t, "date", report["date"], saturday)

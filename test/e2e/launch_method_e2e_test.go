@@ -41,7 +41,9 @@ func TestLaunchMethod_Validation(t *testing.T) {
 		r := c.POST("/flights", gliderFlight(today(), "D-1234", "winch"))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		id, _ := f["id"].(string)
 		assertStatus(t, c.PUT("/flights/"+id, map[string]interface{}{"launchMethod": "catapult"}), http.StatusBadRequest)
 	})
@@ -68,7 +70,9 @@ func TestImportVereinsflieger_L2LaunchMethodsAndGliderClass(t *testing.T) {
 	upload := uploadCSV(t, c, "vereinsflieger.csv", file)
 	requireStatus(t, upload, http.StatusOK)
 	var up map[string]interface{}
-	upload.JSON(&up)
+	if err := upload.JSON(&up); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if up["format"] != "VEREINSFLIEGER_CSV" {
 		t.Fatalf("format = %v, want VEREINSFLIEGER_CSV", up["format"])
 	}
@@ -86,7 +90,9 @@ func TestImportVereinsflieger_L2LaunchMethodsAndGliderClass(t *testing.T) {
 	conf := c.POST("/imports/confirm", map[string]interface{}{"uploadToken": up["uploadToken"]})
 	requireStatus(t, conf, http.StatusCreated)
 	var result map[string]interface{}
-	conf.JSON(&result)
+	if err := conf.JSON(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if n, _ := result["importedCount"].(float64); n != 5 {
 		t.Fatalf("importedCount = %v, want 5 (an unknown S.-Art code must not fail the row): %s", result["importedCount"], conf.Body)
 	}
@@ -94,7 +100,9 @@ func TestImportVereinsflieger_L2LaunchMethodsAndGliderClass(t *testing.T) {
 	list := c.GET("/flights")
 	requireStatus(t, list, http.StatusOK)
 	var page map[string]interface{}
-	list.JSON(&page)
+	if err := list.JSON(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	got := map[string]int{}
 	for _, item := range page["data"].([]interface{}) {
 		f := item.(map[string]interface{})
@@ -113,7 +121,9 @@ func TestImportVereinsflieger_L2LaunchMethodsAndGliderClass(t *testing.T) {
 	fleet := c.GET("/aircraft")
 	requireStatus(t, fleet, http.StatusOK)
 	var fp map[string]interface{}
-	fleet.JSON(&fp)
+	if err := fleet.JSON(&fp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	classes := map[string]interface{}{}
 	for _, item := range fp["data"].([]interface{}) {
 		a := item.(map[string]interface{})
@@ -146,12 +156,16 @@ func TestImport_NeverOverwritesExistingAircraftClass(t *testing.T) {
 	upload := uploadCSV(t, c, "sheet.csv", file)
 	requireStatus(t, upload, http.StatusOK)
 	var up map[string]interface{}
-	upload.JSON(&up)
+	if err := upload.JSON(&up); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	requireStatus(t, c.POST("/imports/confirm", map[string]interface{}{"uploadToken": up["uploadToken"]}), http.StatusCreated)
 
 	fleet := c.GET("/aircraft")
 	var fp map[string]interface{}
-	fleet.JSON(&fp)
+	if err := fleet.JSON(&fp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	data := fp["data"].([]interface{})
 	if len(data) != 1 || data[0].(map[string]interface{})["aircraftClass"] != "TMG" {
 		t.Errorf("fleet = %s, want D-KLSG still TMG", fleet.Body)
@@ -198,13 +212,17 @@ func TestExportImportRoundTrip_LaunchMethod(t *testing.T) {
 			upload := uploadCSV(t, dst, "ninerlog_"+layout+".csv", string(exp.Body))
 			requireStatus(t, upload, http.StatusOK)
 			var up map[string]interface{}
-			upload.JSON(&up)
+			if err := upload.JSON(&up); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
 			requireStatus(t, dst.POST("/imports/confirm", map[string]interface{}{"uploadToken": up["uploadToken"]}), http.StatusCreated)
 
 			list := dst.GET("/flights")
 			requireStatus(t, list, http.StatusOK)
 			var page map[string]interface{}
-			list.JSON(&page)
+			if err := list.JSON(&page); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
 			data, _ := page["data"].([]interface{})
 			if len(data) != 1 {
 				t.Fatalf("imported %d flights, want 1", len(data))
@@ -219,7 +237,9 @@ func TestExportImportRoundTrip_LaunchMethod(t *testing.T) {
 
 			fleet := dst.GET("/aircraft")
 			var fp map[string]interface{}
-			fleet.JSON(&fp)
+			if err := fleet.JSON(&fp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
 			ac, _ := fp["data"].([]interface{})
 			if len(ac) != 1 || ac[0].(map[string]interface{})["aircraftClass"] != "GLIDER" {
 				t.Errorf("fleet = %s, want D-1234 as GLIDER", fleet.Body)
@@ -264,7 +284,9 @@ func TestJSONImport_LaunchMethod(t *testing.T) {
 		requireStatus(t, dst.POST("/imports/json", backup), http.StatusOK)
 		list := dst.GET("/flights")
 		var page map[string]interface{}
-		list.JSON(&page)
+		if err := list.JSON(&page); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		data, _ := page["data"].([]interface{})
 		if len(data) != 1 || data[0].(map[string]interface{})["launchMethod"] != "aerotow" {
 			t.Errorf("restored flights = %s, want one aerotow flight", list.Body)
@@ -283,7 +305,9 @@ func TestJSONImport_LaunchMethod(t *testing.T) {
 		}
 		list := dst.GET("/flights")
 		var page map[string]interface{}
-		list.JSON(&page)
+		if err := list.JSON(&page); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if data, _ := page["data"].([]interface{}); len(data) != 0 {
 			t.Errorf("an invalid flight was stored: %s", list.Body)
 		}
@@ -307,13 +331,17 @@ func TestImportVereinsflieger_A2NoLaunchMethodOnPoweredAircraft(t *testing.T) {
 	upload := uploadCSV(t, c, "vereinsflieger.csv", file)
 	requireStatus(t, upload, http.StatusOK)
 	var up map[string]interface{}
-	upload.JSON(&up)
+	if err := upload.JSON(&up); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	requireStatus(t, c.POST("/imports/confirm", map[string]interface{}{"uploadToken": up["uploadToken"]}), http.StatusCreated)
 
 	list := c.GET("/flights")
 	requireStatus(t, list, http.StatusOK)
 	var page map[string]interface{}
-	list.JSON(&page)
+	if err := list.JSON(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	for _, item := range page["data"].([]interface{}) {
 		f := item.(map[string]interface{})
 		switch f["aircraftReg"] {

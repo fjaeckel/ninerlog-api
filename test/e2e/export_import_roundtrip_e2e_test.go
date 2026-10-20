@@ -362,7 +362,9 @@ func flightsByDate(t *testing.T, c *E2EClient) map[string]map[string]interface{}
 	resp := c.GET("/flights?pageSize=100")
 	requireStatus(t, resp, http.StatusOK)
 	var page map[string]interface{}
-	resp.JSON(&page)
+	if err := resp.JSON(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	out := map[string]map[string]interface{}{}
 	data, _ := page["data"].([]interface{})
 	for _, d := range data {
@@ -441,7 +443,9 @@ func TestExportImportRoundTrip_GliderFlightFacts(t *testing.T) {
 		upload := uploadCSV(t, dest, "ninerlog_standard.csv", string(exportResp.Body))
 		requireStatus(t, upload, http.StatusOK)
 		var up map[string]interface{}
-		upload.JSON(&up)
+		if err := upload.JSON(&up); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		token, _ := up["uploadToken"].(string)
 		prev := dest.POST("/imports/preview", map[string]interface{}{
 			"uploadToken": token, "mappings": up["suggestedMappings"], "skipDuplicates": false,

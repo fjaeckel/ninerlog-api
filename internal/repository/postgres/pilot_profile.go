@@ -145,7 +145,7 @@ func (s *disciplineEvidenceSource) GetDisciplineFlightGroups(ctx context.Context
 	if err != nil {
 		return nil, fmt.Errorf("discipline flight groups: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var groups []models.DisciplineFlightGroup
 	for rows.Next() {

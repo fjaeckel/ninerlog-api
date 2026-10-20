@@ -14,7 +14,7 @@ var _ currency.DailyFlightDataProvider = (*currencyFlightDataProvider)(nil)
 
 // scanDailyProgress scans (date, progressSelect) rows.
 func scanDailyProgress(rows *sql.Rows) ([]currency.DailyProgress, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []currency.DailyProgress
 	for rows.Next() {
 		var d currency.DailyProgress
@@ -108,7 +108,7 @@ func (p *currencyFlightDataProvider) GetDailyLaunchCounts(ctx context.Context, u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []currency.DailyLaunches
 	for rows.Next() {
 		var d currency.DailyLaunches

@@ -45,7 +45,7 @@ func TestPilotProfileRepository_GetNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	userID := uuid.New()
 	mock.ExpectQuery(regexp.QuoteMeta("FROM pilot_profiles WHERE user_id = $1")).
 		WithArgs(userID).WillReturnError(sql.ErrNoRows)
@@ -73,7 +73,7 @@ func TestGetDisciplineFlightGroups_Scans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	userID := uuid.New()
 	d := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta("LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id")).

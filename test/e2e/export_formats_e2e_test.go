@@ -659,7 +659,9 @@ func TestExportPDFLicenceLogbook(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var lic map[string]interface{}
-		resp.JSON(&lic)
+		if err := resp.JSON(&lic); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		id := lic["id"].(string)
 		for _, r := range ratings {
 			r["issueDate"] = "2020-01-01"
@@ -812,7 +814,9 @@ func TestExportDisciplineLogbooks(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var lic map[string]interface{}
-		resp.JSON(&lic)
+		if err := resp.JSON(&lic); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		id := lic["id"].(string)
 		rating["issueDate"] = "2020-01-01"
 		requireStatus(t, c.POST(fmt.Sprintf("/licenses/%s/ratings", id), rating), http.StatusCreated)

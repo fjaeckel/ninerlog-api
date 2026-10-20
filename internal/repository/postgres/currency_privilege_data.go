@@ -71,7 +71,7 @@ func (p *currencyFlightDataProvider) GetActivityDays(ctx context.Context, userID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []currency.ActivityDay
 	for rows.Next() {
 		var d currency.ActivityDay

@@ -458,7 +458,7 @@ func (r *adminRepository) scanPilotProfileOverrides(ctx context.Context, overrid
 		slog.Error("admin stats: pilot_profiles overrides query failed", "error", err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var discipline, intent string
 		var count int
@@ -471,6 +471,9 @@ func (r *adminRepository) scanPilotProfileOverrides(ctx context.Context, overrid
 		}
 		overrides[discipline][intent] = count
 	}
+	if err := rows.Err(); err != nil {
+		slog.Error("admin stats: pilot_profiles overrides rows failed", "error", err)
+	}
 }
 
 // scanGroupedCounts fills dest from a (key, count) query, logging and leaving
@@ -481,7 +484,7 @@ func (r *adminRepository) scanGroupedCounts(ctx context.Context, query string, d
 		slog.Error("admin stats: grouped count query failed", "error", err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var key string
 		var count int
@@ -490,5 +493,8 @@ func (r *adminRepository) scanGroupedCounts(ctx context.Context, query string, d
 			continue
 		}
 		dest[key] = count
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("admin stats: grouped count rows failed", "error", err)
 	}
 }

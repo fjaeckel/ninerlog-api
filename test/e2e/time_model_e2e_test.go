@@ -24,7 +24,9 @@ func timeModelFlight(extra map[string]interface{}) map[string]interface{} {
 func assertErrorContains(t *testing.T, resp *Response, want string) {
 	t.Helper()
 	var body map[string]interface{}
-	resp.JSON(&body)
+	if err := resp.JSON(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if msg, _ := body["error"].(string); !strings.Contains(msg, want) {
 		t.Errorf("error %q does not contain %q", msg, want)
 	}
@@ -42,7 +44,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		fid = f["id"].(string)
 		assertInt(t, "totalTime", gi(f, "totalTime"), 42)
 		assertInt(t, "picTime", gi(f, "picTime"), 42)
@@ -57,7 +61,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		r := c.GET("/flights/" + fid)
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 42)
 		assertStr(t, "departureTime", f["departureTime"], "10:05:00")
 		assertStr(t, "arrivalTime", f["arrivalTime"], "10:47:00")
@@ -72,7 +78,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 45)
 	})
 
@@ -82,7 +90,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 70)
 		assertInt(t, "nightTime", gi(f, "nightTime"), 70)
 		assertInt(t, "takeoffsNight", gi(f, "takeoffsNight"), 1)
@@ -93,7 +103,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		r := c.PUT("/flights/"+fid, map[string]interface{}{"arrivalTime": "11:05"})
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 60)
 		assertInt(t, "picTime", gi(f, "picTime"), 60)
 	})
@@ -103,7 +115,9 @@ func TestTimeModel_TakeoffLandingOnly(t *testing.T) {
 		r := c.GET("/flights/" + fid)
 		requireStatus(t, r, http.StatusOK)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 60)
 	})
 
@@ -143,7 +157,9 @@ func TestTimeModel_BlockTimes(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 90)
 		if f["departureTime"] != nil || f["arrivalTime"] != nil {
 			t.Errorf("take-off/landing = %v/%v, want null", f["departureTime"], f["arrivalTime"])
@@ -157,13 +173,17 @@ func TestTimeModel_BlockTimes(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		fid := f["id"].(string)
 		assertInt(t, "totalTime", gi(f, "totalTime"), 90)
 
 		r = c.PUT("/flights/"+fid, map[string]interface{}{"arrivalTime": "09:00"})
 		requireStatus(t, r, http.StatusOK)
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime after landing change", gi(f, "totalTime"), 90)
 	})
 
@@ -180,7 +200,9 @@ func TestTimeModel_BlockTimes(t *testing.T) {
 		}))
 		requireStatus(t, r, http.StatusCreated)
 		var f map[string]interface{}
-		r.JSON(&f)
+		if err := r.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		r = c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"offBlockTime": nil, "onBlockTime": nil})
 		requireStatus(t, r, http.StatusBadRequest)
 		if !strings.Contains(string(r.Body), "offBlockTime and onBlockTime, or departureTime and arrivalTime, are required") {
@@ -209,7 +231,9 @@ func TestTimeModel_ImportTakeoffLandingOnly(t *testing.T) {
 		r := uploadCSV(t, c, "vereinsflieger.csv", content)
 		requireStatus(t, r, http.StatusOK)
 		var res map[string]interface{}
-		r.JSON(&res)
+		if err := r.JSON(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		uploadToken, _ = res["uploadToken"].(string)
 		if uploadToken == "" {
 			t.Fatalf("no uploadToken: %s", string(r.Body))
@@ -237,7 +261,9 @@ func TestTimeModel_ImportTakeoffLandingOnly(t *testing.T) {
 			t.Fatalf("confirm status %d: %s", r.StatusCode, string(r.Body))
 		}
 		var res map[string]interface{}
-		r.JSON(&res)
+		if err := r.JSON(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if got, _ := res["importedCount"].(float64); got != 1 {
 			t.Fatalf("importedCount = %v, want 1: %s", res["importedCount"], string(r.Body))
 		}
@@ -247,7 +273,9 @@ func TestTimeModel_ImportTakeoffLandingOnly(t *testing.T) {
 		r := c.GET("/flights")
 		requireStatus(t, r, http.StatusOK)
 		var list map[string]interface{}
-		r.JSON(&list)
+		if err := r.JSON(&list); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		data, _ := list["data"].([]interface{})
 		if len(data) != 1 {
 			t.Fatalf("got %d flights, want 1", len(data))
@@ -287,7 +315,9 @@ func TestTimeModel_FlightSessionTakeoffLandingOnly(t *testing.T) {
 		})
 		requireStatus(t, r, http.StatusOK)
 		var s map[string]interface{}
-		r.JSON(&s)
+		if err := r.JSON(&s); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "status", s["status"], "completed")
 		fid, _ := s["flightId"].(string)
 		if fid == "" {
@@ -297,7 +327,9 @@ func TestTimeModel_FlightSessionTakeoffLandingOnly(t *testing.T) {
 		fr := c.GET("/flights/" + fid)
 		requireStatus(t, fr, http.StatusOK)
 		var f map[string]interface{}
-		fr.JSON(&f)
+		if err := fr.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "totalTime", gi(f, "totalTime"), 38)
 		if f["offBlockTime"] != nil || f["onBlockTime"] != nil {
 			t.Errorf("block times = %v/%v, want null", f["offBlockTime"], f["onBlockTime"])

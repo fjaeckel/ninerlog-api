@@ -269,7 +269,9 @@ func TestSoaringStats_MarkGuard(t *testing.T) {
 		}})
 		requireStatus(t, resp, http.StatusOK)
 		var res soaringReportResult
-		resp.JSON(&res)
+		if err := resp.JSON(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "flights", res.Totals.Flights, 1)
 		assertInt(t, "launches", res.Totals.Launches, 0)
 	})

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"github.com/oapi-codegen/nullable"
 	"net/http"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 

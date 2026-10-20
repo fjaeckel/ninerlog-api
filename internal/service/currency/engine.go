@@ -214,16 +214,15 @@ func (rt *ratingRuntime) ulHoursCredit(ctx context.Context, kinds ...models.ULKi
 // ratingRuntime carries the per-evaluation state threaded through the engine
 // and into a rule's finalize strategy.
 type ratingRuntime struct {
-	rule     *ratingRule
-	rating   *models.ClassRating
-	license  *models.License
-	peers    []*models.ClassRating
-	classes  []models.ClassType
-	ul       *ulCredit
-	dp       FlightDataProvider
-	result   *ClassRatingCurrency
-	progress *Progress
-	since    time.Time
+	rule    *ratingRule
+	rating  *models.ClassRating
+	license *models.License
+	peers   []*models.ClassRating
+	classes []models.ClassType
+	ul      *ulCredit
+	dp      FlightDataProvider
+	result  *ClassRatingCurrency
+	since   time.Time
 }
 
 // fetchProgress aggregates flight data for the runtime's window and scope,

@@ -56,7 +56,9 @@ func TestULLogging_PoweredParagliderName(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		if err := resp.JSON(&ac); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "registration", ac["registration"], "PPG-VIPER")
 		requireWarnings(t, "aircraft", ac)
 
@@ -67,7 +69,9 @@ func TestULLogging_PoweredParagliderName(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "flight aircraftReg", f["aircraftReg"], "PPG-VIPER")
 		requireWarnings(t, "flight", f)
 	})
@@ -80,7 +84,9 @@ func TestULLogging_PoweredParagliderName(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		if err := resp.JSON(&ac); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "registration", ac["registration"], "APCO")
 
 		resp = c.POST("/flights", map[string]interface{}{
@@ -90,13 +96,17 @@ func TestULLogging_PoweredParagliderName(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "flight aircraftReg", f["aircraftReg"], "APCO")
 		id := f["id"].(string)
 
 		resp = c.PUT("/flights/"+id, map[string]interface{}{"remarks": "thermal soaring"})
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "updated aircraftReg", f["aircraftReg"], "APCO")
 	})
 
@@ -108,7 +118,9 @@ func TestULLogging_PoweredParagliderName(t *testing.T) {
 		})
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		if err := resp.JSON(&ac); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertStr(t, "registration", ac["registration"], "D-EABC")
 		requireWarnings(t, "aircraft", ac)
 	})
@@ -123,7 +135,9 @@ func TestULLogging_NightWarning(t *testing.T) {
 		resp := c.POST("/flights", ulNightFlight("D-MXYZ", map[string]interface{}{"nightTime": 20}))
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		requireWarnings(t, "flight", f, "ul_night_flight")
 		w := f["warnings"].([]interface{})[0].(map[string]interface{})
 		assertStr(t, "severity", w["severity"], "warning")
@@ -134,7 +148,9 @@ func TestULLogging_NightWarning(t *testing.T) {
 		get := c.GET("/flights/" + f["id"].(string))
 		requireStatus(t, get, http.StatusOK)
 		var stored map[string]interface{}
-		get.JSON(&stored)
+		if err := get.JSON(&stored); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		assertInt(t, "stored nightTime", gi(stored, "nightTime"), 20)
 		requireWarnings(t, "GET", stored)
 	})
@@ -143,7 +159,9 @@ func TestULLogging_NightWarning(t *testing.T) {
 		resp := c.POST("/flights", ulNightFlight("D-MXYZ", map[string]interface{}{"offBlockTime": "22:00", "onBlockTime": "23:00"}))
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if gi(f, "landingsNight") != 1 {
 			t.Fatalf("landingsNight = %v, want a derived night landing", f["landingsNight"])
 		}
@@ -154,12 +172,16 @@ func TestULLogging_NightWarning(t *testing.T) {
 		resp := c.POST("/flights", ulNightFlight("D-MXYZ", nil))
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		requireWarnings(t, "day flight", f)
 
 		resp = c.PUT("/flights/"+f["id"].(string), map[string]interface{}{"nightTime": 15})
 		requireStatus(t, resp, http.StatusOK)
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		requireWarnings(t, "updated flight", f, "ul_night_flight")
 	})
 
@@ -176,7 +198,9 @@ func TestULLogging_NightWarning(t *testing.T) {
 		var res struct {
 			Flights []map[string]interface{} `json:"flights"`
 		}
-		resp.JSON(&res)
+		if err := resp.JSON(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if len(res.Flights) != 2 {
 			t.Fatalf("created %d flights, want 2", len(res.Flights))
 		}
@@ -189,7 +213,9 @@ func TestULLogging_NightWarning(t *testing.T) {
 		resp := c.POST("/flights", ulNightFlight("D-EFGH", map[string]interface{}{"offBlockTime": "22:00", "onBlockTime": "23:00"}))
 		requireStatus(t, resp, http.StatusCreated)
 		var f map[string]interface{}
-		resp.JSON(&f)
+		if err := resp.JSON(&f); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		if gi(f, "nightTime") == 0 {
 			t.Fatalf("nightTime = 0, want a night flight")
 		}
@@ -211,7 +237,9 @@ func TestULLogging_MTOMWarnings(t *testing.T) {
 		resp := c.POST("/aircraft", body)
 		requireStatus(t, resp, http.StatusCreated)
 		var ac map[string]interface{}
-		resp.JSON(&ac)
+		if err := resp.JSON(&ac); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		return ac
 	}
 
@@ -229,7 +257,9 @@ func TestULLogging_MTOMWarnings(t *testing.T) {
 		resp := c.PATCH("/aircraft/"+ac["id"].(string), map[string]interface{}{"maxTakeoffMassKg": 601})
 		requireStatus(t, resp, http.StatusOK)
 		var got map[string]interface{}
-		resp.JSON(&got)
+		if err := resp.JSON(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
 		requireWarnings(t, "patched aircraft", got, "ul_mtom_exceeds_600")
 	})
 
