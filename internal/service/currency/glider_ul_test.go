@@ -243,10 +243,13 @@ func TestEASA_Passenger_IRWaiverAsOf(t *testing.T) {
 	}{
 		{"IR valid now waives night landings", context.Background(), 0},
 		{"IR expired on the date asked does not", withNow(context.Background(), dateAt(time.Now().AddDate(0, 0, 30))), 1},
+		{"IR valid on its expiry day waives night landings", withNow(context.Background(), dateAt(models.CalendarDate(expiry))), 0},
+		{"IR expired the day after its expiry date", withNow(context.Background(), dateAt(models.CalendarDate(expiry).AddDate(0, 0, 1))), 1},
 	}
+	dayIR := &models.ClassRating{ID: ir.ID, ClassType: models.ClassTypeIR, ExpiryDate: ptrTime(models.CalendarDate(expiry))}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pax := NewEASAEvaluator().EvaluatePassengerCurrency(tt.ctx, models.ClassTypeSEPLand, license, []*models.ClassRating{ir}, newMockFlightDataProvider())
+			pax := NewEASAEvaluator().EvaluatePassengerCurrency(tt.ctx, models.ClassTypeSEPLand, license, []*models.ClassRating{dayIR}, newMockFlightDataProvider())
 			if pax.NightRequired != tt.want {
 				t.Errorf("NightRequired = %d, want %d", pax.NightRequired, tt.want)
 			}

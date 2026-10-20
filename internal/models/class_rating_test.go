@@ -94,3 +94,22 @@ func TestClassTypeConstants(t *testing.T) {
 		}
 	}
 }
+
+func TestClassRatingIsExpiredAt_ValidThroughExpiryDay(t *testing.T) {
+	expiry := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
+	cr := &ClassRating{ExpiryDate: &expiry}
+	cases := []struct {
+		at   time.Time
+		want bool
+	}{
+		{time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC), false},
+		{time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC), false},
+		{time.Date(2026, 10, 12, 23, 59, 59, 0, time.UTC), false},
+		{time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC), true},
+	}
+	for _, c := range cases {
+		if got := cr.IsExpiredAt(c.at); got != c.want {
+			t.Errorf("IsExpiredAt(%s) = %v, want %v", c.at, got, c.want)
+		}
+	}
+}
