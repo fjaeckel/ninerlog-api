@@ -573,6 +573,17 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	// Fleet facts, including the aircraft created above.
 	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
 
+	var strictState *service.StrictState
+	if h.logbookService != nil {
+		state, err := h.logbookService.LoadState(c.Request.Context(), userID)
+		if err != nil {
+			slog.Error("import: failed to load logbook state", "user_id", userID, "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to import flights")
+			return
+		}
+		strictState = state
+	}
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !isSelected(rowIdx) {
@@ -603,20 +614,38 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		newFlight := buildImportedFlight(userID, flight, extras)
-		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
+		facts := fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)]
+		flightcalc.ApplyAutoCalculations(&newFlight, userName, facts)
+
+		if strictState != nil {
+			var exceeds *service.OverrideExceedsError
+			if err := h.logbookService.CheckDownwardOverridesWith(strictState, nil, &newFlight, userName, facts); errors.As(err, &exceeds) {
+				for _, field := range exceeds.Fields {
+					importErrors = append(importErrors, struct {
+						Field    string  `json:"field"`
+						Message  string  `json:"message"`
+						RawValue *string `json:"rawValue,omitempty"`
+						RowIndex int     `json:"rowIndex"`
+					}{Field: field, Message: overrideRowMessage, RowIndex: rowIdx})
+				}
+				errored++
+				continue
+			}
+		}
 
 		createOpts := service.FlightWriteOptions{}
 		if len(newFlight.CrewMembers) > 0 {
 			createOpts.Crew = &newFlight.CrewMembers
-			createOpts.BeforeWrite = func(ctx context.Context) error {
-				if err := crewLinker.Link(ctx, newFlight.CrewMembers); err != nil {
-					slog.Warn("import: failed to link crew members to contacts",
-						"flightId", newFlight.ID, "error", err)
-				}
-				return nil
+			createOpts.BeforeWrite = func(ctx context.Context, repos repository.TxRepos) error {
+				return crewLinker.LinkIn(ctx, repos.Contacts(), newFlight.CrewMembers)
 			}
 		}
 		err := h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, createOpts)
+		if err == nil {
+			crewLinker.Confirm()
+		} else {
+			crewLinker.Discard()
+		}
 		crewSaved := true
 		if err != nil && createOpts.Crew != nil && errors.Is(err, repository.ErrCrewWrite) {
 			crewErr := err
@@ -2130,3 +2159,6 @@ func importResultFromModel(rec *models.FlightImport) generated.ImportResult {
 		CreatedAt:      rec.CreatedAt,
 	}
 }
+
+// overrideRowMessage is the row error of an override above the calculated value.
+const overrideRowMessage = "A manual override may only reduce the calculated value"

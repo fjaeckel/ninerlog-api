@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
@@ -25,6 +26,12 @@ func (h *APIHandler) GetPublicSignatureInfo(c *gin.Context, token generated.Sign
 		return
 	}
 
+	fieldsHash, err := h.flightSignatureService.PublicFieldsHash(c.Request.Context(), flight)
+	if err != nil {
+		sendPublicSigningError(h, c, err)
+		return
+	}
+
 	info := generated.PublicSignatureInfo{
 		Status:       generated.PublicSignatureInfoStatus(sig.Status),
 		FlightDate:   openapi_types.Date{Time: flight.Date},
@@ -32,6 +39,7 @@ func (h *APIHandler) GetPublicSignatureInfo(c *gin.Context, token generated.Sign
 		AircraftType: flight.AircraftType,
 		TotalTime:    flight.TotalTime,
 		Route:        flight.Route,
+		FieldsHash:   fieldsHash,
 	}
 	dualTime := flight.DualTime
 	info.DualTime = &dualTime
@@ -53,7 +61,7 @@ func (h *APIHandler) CompletePublicSignature(c *gin.Context, token generated.Sig
 
 	sig, ownerEmail, ownerName, err := h.flightSignatureService.CompleteFromToken(
 		c.Request.Context(), token, req.SignerName, req.CredentialNumber, req.SignatureImage,
-		c.ClientIP(), c.Request.UserAgent(),
+		c.ClientIP(), c.Request.UserAgent(), req.FieldsHash,
 	)
 	if err != nil {
 		sendPublicSigningError(h, c, err)
@@ -73,6 +81,8 @@ func sendPublicSigningError(h *APIHandler, c *gin.Context, err error) {
 		h.sendError(c, http.StatusGone, "This signing link has expired")
 	case errors.Is(err, service.ErrSignatureTokenInvalid):
 		h.sendError(c, http.StatusNotFound, "This signing link is invalid or has already been used")
+	case errors.Is(err, service.ErrFlightChanged):
+		h.sendCodedError(c, http.StatusConflict, errcode.FlightChanged, "The flight was edited after you opened this page. Reload to review the current entry.")
 	case errors.Is(err, service.ErrSignerNameRequired), errors.Is(err, service.ErrSignatureImageRequired), errors.Is(err, service.ErrSignatureImageTooLarge):
 		h.sendError(c, http.StatusBadRequest, err.Error())
 	default:

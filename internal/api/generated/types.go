@@ -4869,6 +4869,9 @@ type ClassType string
 type CompleteSignatureRequest struct {
 	CredentialNumber *string `json:"credentialNumber,omitempty"`
 
+	// FieldsHash The `fieldsHash` the signer was shown. When present and the flight's signed fields have changed since, the request is refused with 409 `flight_changed` and nothing is recorded.
+	FieldsHash *string `json:"fieldsHash,omitempty"`
+
 	// SignatureImage PNG-encoded signature image, base64. Max 500KB decoded.
 	SignatureImage []byte `json:"signatureImage"`
 	SignerName     string `json:"signerName"`
@@ -7798,11 +7801,14 @@ type PassengerCurrencyUlKind string
 
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
 type PublicSignatureInfo struct {
-	AircraftReg  string             `json:"aircraftReg"`
-	AircraftType string             `json:"aircraftType"`
-	DualTime     *int               `json:"dualTime,omitempty"`
-	ExpiresAt    time.Time          `json:"expiresAt"`
-	FlightDate   openapi_types.Date `json:"flightDate"`
+	AircraftReg  string    `json:"aircraftReg"`
+	AircraftType string    `json:"aircraftType"`
+	DualTime     *int      `json:"dualTime,omitempty"`
+	ExpiresAt    time.Time `json:"expiresAt"`
+
+	// FieldsHash Hash of the signed fields of the flight as shown. Send it back as `fieldsHash` when completing the signature.
+	FieldsHash string             `json:"fieldsHash"`
+	FlightDate openapi_types.Date `json:"flightDate"`
 
 	// InstructorName Prefill, if the owner supplied one when creating the request.
 	InstructorName *string `json:"instructorName,omitempty"`
@@ -8870,7 +8876,7 @@ type ListFlightsParamsSortOrder string
 
 // DeleteFlightParams defines parameters for DeleteFlight.
 type DeleteFlightParams struct {
-	// Reason Why the flight is deleted; stored on the void record in strict mode
+	// Reason Why the flight is deleted; stored on the void record in strict mode. Defaults to the void reason of the flight's latest voided signature.
 	Reason *string `form:"reason,omitempty" json:"reason,omitempty"`
 }
 

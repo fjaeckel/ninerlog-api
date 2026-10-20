@@ -477,6 +477,19 @@ Signature responses carry `fieldsHash` (SHA-256 of the signed fields, stored whe
 completed) and `fieldsHashValid` (recomputed on `GET /flights/{id}/signatures[/{sid}]`;
 omitted when there is no hash).
 
+The public signing page `GET /sign/{token}` (`getPublicSignatureInfo`) returns `fieldsHash`, the
+hash of the flight as shown. `POST /sign/{token}` (`completePublicSignature`) accepts an
+optional `fieldsHash`; when it differs from the flight's current hash the answer is `409` with
+`code: flight_changed` and no signature is recorded. Without it the request behaves as before.
+
+The bulk deletes (`DELETE /users/me/data`, either scope, and `DELETE /flights/delete-all`)
+store a void record per flight in strict mode, flagged `isCorrection` for flights past their
+draft window, inside a certified range or that have carried a signature. A `DELETE
+/flights/{flightId}` without `reason` stores the void reason of the flight's latest voided
+signature. `POST /imports/confirm` reports an override above the calculated value under a Swiss
+licence as a row error naming the field (`nightTime`, `takeoffsNight`, ...), not as a failed
+import.
+
 ### Credentials
 CRUD on `/credentials` (medicals, language proficiency, clearances, and the German radio
 certificates `RADIO_BZF2`/`RADIO_BZF1`/`RADIO_AZF`). `GET /credentials` accepts

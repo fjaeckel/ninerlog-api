@@ -149,11 +149,11 @@ func (s *LogbookService) LastCorrectedAt(ctx context.Context, userID uuid.UUID) 
 	if !mode.Strict {
 		return nil, false, nil
 	}
-	all, err := s.repo.ListUserRevisions(ctx, userID)
+	last, err := s.repo.LastCorrections(ctx, userID)
 	if err != nil {
 		return nil, false, err
 	}
-	return lastCorrections(all), true, nil
+	return last, true, nil
 }
 
 func lastCorrections(revs []models.FlightRevision) map[uuid.UUID]time.Time {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,6 +54,7 @@ func newStrictFlightEnv(t *testing.T) *strictFlightEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	e := &strictFlightEnv{contacts: newMockContactRepo(), flights: newMockFlightRepo(), userID: uuid.New()}
+	e.flights.contacts = e.contacts
 	flightSvc := service.NewFlightService(e.flights, nil)
 	flightSvc.SetLogbookService(service.NewLogbookService(strictLogbookRepo{}, noLicenses{}, e.flights, noSignatures{}))
 	userRepo := newHandlerMockUserRepo()
@@ -129,6 +131,21 @@ func TestUpdateFlight_CreatesContactsOnlyForAcceptedUpdates(t *testing.T) {
 				t.Errorf("contacts created = %d, want %d", got, tt.wantContacts)
 			}
 		})
+	}
+}
+
+func TestUpdateFlight_FailedCrewWriteLeavesNoNewContact(t *testing.T) {
+	e := newStrictFlightEnv(t)
+	f := e.seed(t, time.Hour)
+	e.flights.crewWriteErr = errors.New("crew table unavailable")
+
+	w := e.put(e.userID, f.ID, `{"remarks":"x","crewMembers":[{"name":"New Crew","role":"Instructor"}]}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body %s", w.Code, w.Body.String())
+	}
+	if got := len(e.contacts.contacts); got != 0 {
+		t.Errorf("contacts created = %d, want 0", got)
 	}
 }
 

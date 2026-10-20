@@ -75,6 +75,8 @@ type Store struct {
 	// WipeCorrections are the flight ids the last wipe was told to delete as
 	// corrections.
 	WipeCorrections []uuid.UUID
+	// TxReads counts the strict-mode and licence reads served through Repos.
+	TxReads int
 }
 
 // Operation names accepted by FailAt.
@@ -364,4 +366,48 @@ func (t *tx) ImportCertification(ctx context.Context, c *models.LogbookCertifica
 	ensureID(&c.ID)
 	t.store.State.Certifications = append(t.store.State.Certifications, *c)
 	return true, nil
+}
+
+// Repos implements repository.RestoreTx. The repositories read the state the
+// transaction holds and count each read in Store.TxReads.
+func (t *tx) Repos() repository.TxRepos { return &repos{store: t.store} }
+
+type repos struct{ store *Store }
+
+func (r *repos) Contacts() repository.ContactRepository { return nil }
+
+func (r *repos) Logbook() repository.LogbookRepository { return &logbookRepo{store: r.store} }
+
+func (r *repos) Licenses() repository.LicenseRepository { return &licenseRepo{store: r.store} }
+
+type logbookRepo struct {
+	repository.LogbookRepository
+	store *Store
+}
+
+func (r *logbookRepo) GetMode(context.Context, uuid.UUID) (*models.LogbookMode, error) {
+	r.store.TxReads++
+	return &models.LogbookMode{Strict: r.store.State.Strict, Since: r.store.State.StrictSince}, nil
+}
+
+func (r *logbookRepo) LatestCertifiedThrough(context.Context, uuid.UUID) (*time.Time, error) {
+	r.store.TxReads++
+	var latest *time.Time
+	for _, c := range r.store.State.Certifications {
+		through := c.CertifiedThrough
+		if latest == nil || through.After(*latest) {
+			latest = &through
+		}
+	}
+	return latest, nil
+}
+
+type licenseRepo struct {
+	repository.LicenseRepository
+	store *Store
+}
+
+func (r *licenseRepo) GetByUserID(context.Context, uuid.UUID, *time.Time) ([]*models.License, error) {
+	r.store.TxReads++
+	return append([]*models.License(nil), r.store.State.Licenses...), nil
 }

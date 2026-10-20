@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -17,6 +18,9 @@ import (
 // SetLogbookService stores the strict logbook mode service.
 func (h *APIHandler) SetLogbookService(s *service.LogbookService) {
 	h.logbookService = s
+	if h.userDataService != nil {
+		h.userDataService.SetLogbookService(s)
+	}
 }
 
 func (h *APIHandler) logbookUnavailable(c *gin.Context) bool {
@@ -106,14 +110,18 @@ func (h *APIHandler) UpdateLogbookMode(c *gin.Context) {
 	if h.logbookUnavailable(c) {
 		return
 	}
-	var req struct {
-		Strict *bool `json:"strict"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Strict == nil {
+	body, err := c.GetRawData()
+	var req generated.UpdateLogbookModeJSONRequestBody
+	var keys map[string]json.RawMessage
+	if err != nil || json.Unmarshal(body, &req) != nil || json.Unmarshal(body, &keys) != nil {
 		h.sendError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	view, err := h.logbookService.SetStrict(c.Request.Context(), userID, *req.Strict)
+	if _, ok := keys["strict"]; !ok {
+		h.sendError(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	view, err := h.logbookService.SetStrict(c.Request.Context(), userID, req.Strict)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, "Failed to update logbook mode")
 		return

@@ -21,6 +21,11 @@ var (
 	// happened inside a flight write; the flight write was rolled back.
 	ErrCrewWrite = errors.New("crew write failed")
 
+	// ErrChangeRejected is returned by a flight write under a ChangeContext
+	// with RejectChange when it altered the flight or its crew; nothing was
+	// written.
+	ErrChangeRejected = errors.New("flight change rejected")
+
 	// ErrDocumentFileLimit is returned when an image would push a licence or
 	// credential past its per-document image cap.
 	ErrDocumentFileLimit = errors.New("document image limit reached")

@@ -3005,7 +3005,7 @@ paths:
         - name: reason
           in: query
           required: false
-          description: Why the flight is deleted; stored on the void record in strict mode
+          description: Why the flight is deleted; stored on the void record in strict mode. Defaults to the void reason of the flight's latest voided signature.
           schema:
             type: string
             maxLength: 500
@@ -3522,6 +3522,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           description: This signing link is invalid or has already been used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: The flight was edited after the signer was shown it (`code` is `flight_changed`); reload the signing page
           content:
             application/json:
               schema:
@@ -12903,6 +12909,7 @@ components:
         - aircraftReg
         - aircraftType
         - totalTime
+        - fieldsHash
         - expiresAt
       description: Deliberately minimal — no owner PII beyond the flight's own logged details.
       properties:
@@ -12927,6 +12934,9 @@ components:
         instructorName:
           type: [string, 'null']
           description: Prefill, if the owner supplied one when creating the request.
+        fieldsHash:
+          type: string
+          description: Hash of the signed fields of the flight as shown. Send it back as `fieldsHash` when completing the signature.
         expiresAt:
           type: string
           format: date-time
@@ -12948,6 +12958,9 @@ components:
           type: string
           format: byte
           description: PNG-encoded signature image, base64. Max 500KB decoded.
+        fieldsHash:
+          type: string
+          description: The `fieldsHash` the signer was shown. When present and the flight's signed fields have changed since, the request is refused with 409 `flight_changed` and nothing is recorded.
 
     # ── Reports / analytics ──────────────────────────────────────────────
     #

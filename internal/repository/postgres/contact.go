@@ -18,6 +18,15 @@ const contactColumns = `id, user_id, name, email, phone, notes, created_at, upda
 
 type ContactRepository struct {
 	db *sql.DB
+	tx *sql.Tx
+}
+
+// conn returns the transaction the repository is bound to, else the pool.
+func (r *ContactRepository) conn() queryExecer {
+	if r.tx != nil {
+		return r.tx
+	}
+	return r.db
 }
 
 func NewContactRepository(db *sql.DB) *ContactRepository {
@@ -52,7 +61,7 @@ func (r *ContactRepository) Create(ctx context.Context, contact *models.Contact)
 	contact.CreatedAt = now
 	contact.UpdatedAt = now
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.conn().ExecContext(ctx, query,
 		contact.ID, contact.UserID, contact.Name, contact.Email, contact.Phone, contact.Notes,
 		contact.CreatedAt, contact.UpdatedAt,
 	)
@@ -76,7 +85,7 @@ func (r *ContactRepository) FindOrCreateByName(ctx context.Context, userID uuid.
 	}
 
 	now := time.Now()
-	row := r.db.QueryRowContext(ctx, `
+	row := r.conn().QueryRowContext(ctx, `
 		INSERT INTO contacts (id, user_id, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $4)
 		ON CONFLICT (user_id, LOWER(name)) DO NOTHING
@@ -101,7 +110,7 @@ func (r *ContactRepository) FindOrCreateByName(ctx context.Context, userID uuid.
 
 func (r *ContactRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Contact, error) {
 	query := `SELECT ` + contactColumns + ` FROM contacts WHERE id = $1`
-	c, err := scanContact(r.db.QueryRowContext(ctx, query, id))
+	c, err := scanContact(r.conn().QueryRowContext(ctx, query, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
@@ -118,7 +127,7 @@ func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID, u
 	query += clause + " ORDER BY name"
 	args = append(args, clauseArgs...)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.conn().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +146,7 @@ func (r *ContactRepository) GetByUserID(ctx context.Context, userID uuid.UUID, u
 
 func (r *ContactRepository) GetByExactName(ctx context.Context, userID uuid.UUID, name string) (*models.Contact, error) {
 	query := `SELECT ` + contactColumns + ` FROM contacts WHERE user_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`
-	c, err := scanContact(r.db.QueryRowContext(ctx, query, userID, name))
+	c, err := scanContact(r.conn().QueryRowContext(ctx, query, userID, name))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrNotFound
 	}
@@ -156,7 +165,7 @@ func (r *ContactRepository) Search(ctx context.Context, userID uuid.UUID, query 
 		LIMIT $3
 	`
 	pattern := fmt.Sprintf("%%%s%%", query)
-	rows, err := r.db.QueryContext(ctx, sqlQuery, userID, pattern, limit)
+	rows, err := r.conn().QueryContext(ctx, sqlQuery, userID, pattern, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +189,7 @@ const contactUpdateQuery = `
 
 func (r *ContactRepository) Update(ctx context.Context, contact *models.Contact) error {
 	contact.UpdatedAt = time.Now()
-	result, err := r.db.ExecContext(ctx, contactUpdateQuery,
+	result, err := r.conn().ExecContext(ctx, contactUpdateQuery,
 		contact.Name, contact.Email, contact.Phone, contact.Notes, contact.UpdatedAt, contact.ID,
 	)
 	if isDuplicateName(err) {
@@ -268,7 +277,7 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 // RolesByContact returns the distinct crew roles each of the user's contacts
 // has been logged in, most-used first.
 func (r *ContactRepository) RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.conn().QueryContext(ctx, `
 		SELECT fcm.contact_id, fcm.role::text, COUNT(*)
 		FROM flight_crew_members fcm
 		JOIN flights f ON f.id = fcm.flight_id
@@ -295,7 +304,7 @@ func (r *ContactRepository) RolesByContact(ctx context.Context, userID uuid.UUID
 
 func (r *ContactRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM contacts WHERE id = $1`
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := r.conn().ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}

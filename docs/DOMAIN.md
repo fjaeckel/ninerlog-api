@@ -569,8 +569,10 @@ Two consequences for code: a logical user edit must be **one transaction** (the 
 and the crew replacement are done by `FlightRepository.UpdateWithCrew`, otherwise one edit
 would yield several revisions), and a new flight and its crew must be written in **one
 transaction** (`FlightRepository.CreateWithCrew`), so the "inserted in this transaction"
-check covers the crew rows too. Contacts are linked to the crew only after every check of the
-write has passed, so a rejected request creates no contacts.
+check covers the crew rows too. Contacts are linked to the crew inside the write transaction
+(`FlightWriteOptions.BeforeWrite`, run by the repository with contact and logbook
+repositories bound to that transaction), after every check of the write has passed, so a
+rejected request or a failed flight or crew write creates no contacts.
 
 ### Signed fields hash
 
@@ -581,6 +583,12 @@ and PIC names, and the crew sorted by role then name, serialised in a fixed fiel
 (`service.SignedFieldsHash`). Signature responses carry `fieldsHash` and a `fieldsHashValid`
 recomputed on read, so an entry edited after its signature was voided no longer matches the
 signature that was attested.
+
+The public signing page (`GET /sign/{token}`) returns the hash of the flight as it shows it
+(`fieldsHash`). The signer's `POST /sign/{token}` may send it back; when it no longer matches
+the flight's current hash the request is `409` with `code: flight_changed` and nothing is
+recorded, so a signature cannot attest fields the signer did not see. A request without
+`fieldsHash` completes as before.
 
 ### Exports
 

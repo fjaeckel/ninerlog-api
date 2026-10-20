@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
@@ -147,17 +148,15 @@ func (r *Restorer) Restore(ctx context.Context, userID uuid.UUID, p *Payload, mo
 		return nil, err
 	}
 
-	var classifier *service.DeleteClassifier
+	var classify repository.DeleteCorrections
 	if mode == RestoreModeReplace && r.logbook != nil {
-		if classifier, err = r.logbook.NewDeleteClassifier(ctx, userID); err != nil {
-			return nil, fmt.Errorf("load logbook state: %w", err)
-		}
+		classify = r.logbook.DeleteCorrections
 	}
 
 	var result *RestoreResult
 	err = r.store.InRestoreTx(restoreChangeContext(ctx, mode), userID, func(tx repository.RestoreTx) error {
 		var err error
-		result, err = plan.apply(ctx, tx, mode, classifier)
+		result, err = plan.apply(ctx, tx, mode, classify)
 		return err
 	})
 	if err != nil {
@@ -237,9 +236,9 @@ func checkVersion(v string) error {
 }
 
 // apply runs the refusal checks, the optional wipe and every insert in tx.
-// classifier, when set, flags the void records of wiped flights that are
-// corrections.
-func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode, classifier *service.DeleteClassifier) (*RestoreResult, error) {
+// classify, when set, flags the void records of wiped flights that are
+// corrections; it reads through the repositories of tx.
+func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode, classify repository.DeleteCorrections) (*RestoreResult, error) {
 	switch mode {
 	case RestoreModeRestore:
 		content, err := tx.CountContent(ctx, pl.userID)
@@ -258,12 +257,14 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 			return nil, ErrReplaceWouldDropAttachments
 		}
 		var corrections []uuid.UUID
-		if classifier != nil {
-			flights, err := tx.ListFlightTimings(ctx, pl.userID)
+		if classify != nil {
+			var err error
+			corrections, err = classify(ctx, tx.Repos(), pl.userID, func() ([]*models.Flight, error) {
+				return tx.ListFlightTimings(ctx, pl.userID)
+			})
 			if err != nil {
-				return nil, fmt.Errorf("list flights: %w", err)
+				return nil, fmt.Errorf("classify flights: %w", err)
 			}
-			corrections = classifier.Corrections(flights)
 		}
 		if err := tx.WipeContent(ctx, pl.userID, corrections); err != nil {
 			return nil, fmt.Errorf("wipe content: %w", err)

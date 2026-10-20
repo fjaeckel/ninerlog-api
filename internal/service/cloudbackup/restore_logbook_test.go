@@ -348,20 +348,26 @@ func TestRestore_FlightIDs(t *testing.T) {
 	})
 }
 
-type strictModeRepo struct{ repository.LogbookRepository }
+// outsideTxLogbookRepo and outsideTxLicences fail any read that does not go
+// through the restore transaction.
+type outsideTxLogbookRepo struct{ repository.LogbookRepository }
 
-func (strictModeRepo) GetMode(context.Context, uuid.UUID) (*models.LogbookMode, error) {
-	return &models.LogbookMode{Strict: true}, nil
+func (outsideTxLogbookRepo) GetMode(context.Context, uuid.UUID) (*models.LogbookMode, error) {
+	return nil, errors.New("strict mode read outside the restore transaction")
 }
 
-func (strictModeRepo) LatestCertifiedThrough(context.Context, uuid.UUID) (*time.Time, error) {
-	return nil, nil
+func (outsideTxLogbookRepo) LatestCertifiedThrough(context.Context, uuid.UUID) (*time.Time, error) {
+	return nil, errors.New("certification read outside the restore transaction")
 }
 
-type noLicences struct{ repository.LicenseRepository }
+type outsideTxLicences struct{ repository.LicenseRepository }
 
-func (noLicences) GetByUserID(context.Context, uuid.UUID, *time.Time) ([]*models.License, error) {
-	return nil, nil
+func (outsideTxLicences) GetByUserID(context.Context, uuid.UUID, *time.Time) ([]*models.License, error) {
+	return nil, errors.New("licence read outside the restore transaction")
+}
+
+func logbookServiceOutsideTx() *service.LogbookService {
+	return service.NewLogbookService(outsideTxLogbookRepo{}, outsideTxLicences{}, nil, nil)
 }
 
 func TestRestore_ReplaceClassifiesTheWipedFlights(t *testing.T) {
@@ -371,37 +377,53 @@ func TestRestore_ReplaceClassifiesTheWipedFlights(t *testing.T) {
 	future.Date = time.Now().UTC().AddDate(5, 0, 0)
 
 	tests := []struct {
-		name    string
-		strict  bool
-		want    []uuid.UUID
-		wantNil bool
+		name   string
+		strict bool
+		want   []uuid.UUID
 	}{
-		{"strict account flags flights past their window", true, []uuid.UUID{late.ID}, false},
-		{"standard account flags nothing", false, nil, true},
+		{"strict account flags flights past their window", true, []uuid.UUID{late.ID}},
+		{"standard account flags nothing", false, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := restorefake.New()
+			store.State.Strict = tt.strict
 			store.State.Flights = []*models.Flight{late, future}
 			restorer := NewRestorer(store)
-			if tt.strict {
-				restorer.SetLogbookService(service.NewLogbookService(strictModeRepo{}, noLicences{}, nil, nil))
-			}
+			restorer.SetLogbookService(logbookServiceOutsideTx())
 
 			_, err := restorer.Restore(context.Background(), uuid.New(), samplePayload(), RestoreModeReplace)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, store.WipeCorrections)
+			assert.Positive(t, store.TxReads, "the strict-mode state is read through the transaction")
 		})
 	}
+
+	t.Run("a signed flight is flagged whatever its date", func(t *testing.T) {
+		signed := sampleFlight(3, "D-ESGN")
+		signed.Date = time.Now().UTC().AddDate(5, 0, 0)
+		sigID := uuid.New()
+		signed.SignatureID = &sigID
+		store := restorefake.New()
+		store.State.Strict = true
+		store.State.Flights = []*models.Flight{signed}
+		restorer := NewRestorer(store)
+		restorer.SetLogbookService(logbookServiceOutsideTx())
+
+		_, err := restorer.Restore(context.Background(), uuid.New(), samplePayload(), RestoreModeReplace)
+		require.NoError(t, err)
+		assert.Equal(t, []uuid.UUID{signed.ID}, store.WipeCorrections)
+	})
 
 	t.Run("restore mode wipes nothing", func(t *testing.T) {
 		store := restorefake.New()
 		restorer := NewRestorer(store)
-		restorer.SetLogbookService(service.NewLogbookService(strictModeRepo{}, noLicences{}, nil, nil))
+		restorer.SetLogbookService(logbookServiceOutsideTx())
 
 		_, err := restorer.Restore(context.Background(), uuid.New(), samplePayload(), RestoreModeRestore)
 		require.NoError(t, err)
 		assert.Nil(t, store.WipeCorrections)
+		assert.Zero(t, store.TxReads)
 	})
 }
 

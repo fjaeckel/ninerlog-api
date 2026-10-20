@@ -29,6 +29,9 @@ var (
 	ErrSignatureTokenInvalid = errors.New("signature link is invalid")
 	// ErrSignatureTokenExpired means the token's expiry has passed.
 	ErrSignatureTokenExpired = errors.New("signature link has expired")
+	// ErrFlightChanged means the flight's signed fields differ from the hash
+	// the signer was shown.
+	ErrFlightChanged = errors.New("the flight changed since it was shown")
 
 	// ErrSignatureNotPending is returned by Resend/Revoke when the target
 	// signature is not (or no longer) in the 'pending' state.
@@ -430,10 +433,22 @@ func (s *FlightSignatureService) ResolveToken(ctx context.Context, token string)
 	return sig, flight, nil
 }
 
+// PublicFieldsHash returns the signed-fields hash of the flight as the
+// public signing page shows it.
+func (s *FlightSignatureService) PublicFieldsHash(ctx context.Context, flight *models.Flight) (string, error) {
+	h, err := s.fieldsHash(ctx, flight)
+	if err != nil {
+		return "", err
+	}
+	return *h, nil
+}
+
 // CompleteFromToken records the instructor's signature against a valid
-// pending token. Returns the completed signature plus the flight owner's
-// DB-sourced email/name for the confirmation mail.
-func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, signerName string, credentialNo *string, image []byte, signerIP, signerUA string) (sig *models.FlightSignature, ownerEmail, ownerName string, err error) {
+// pending token. A non-nil expectedHash that differs from the flight's
+// current signed-fields hash returns ErrFlightChanged and records nothing.
+// Returns the completed signature plus the flight owner's DB-sourced
+// email/name for the confirmation mail.
+func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, signerName string, credentialNo *string, image []byte, signerIP, signerUA string, expectedHash *string) (sig *models.FlightSignature, ownerEmail, ownerName string, err error) {
 	sig, err = s.lookupPendingByToken(ctx, token)
 	if err != nil {
 		return nil, "", "", err
@@ -467,6 +482,9 @@ func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, s
 	}
 	if sig.SignedFieldsHash, err = s.fieldsHash(ctx, flight); err != nil {
 		return nil, "", "", err
+	}
+	if expectedHash != nil && *expectedHash != *sig.SignedFieldsHash {
+		return nil, "", "", ErrFlightChanged
 	}
 	if err := s.sigRepo.Update(ctx, sig); err != nil {
 		return nil, "", "", err

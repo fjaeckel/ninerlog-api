@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -23,6 +24,8 @@ type fakeLogbookRepo struct {
 	current   map[uuid.UUID][2]json.RawMessage
 
 	getModeCalls          int
+	overviewCalls         int
+	lastCorrectionsCalls  int
 	currentStateCalls     int
 	currentStatesCalls    int
 	listRevisionsCalls    int
@@ -182,14 +185,40 @@ func (f *fakeLogbookRepo) ListVoided(_ context.Context, userID uuid.UUID) ([]mod
 	return out, nil
 }
 
-func (f *fakeLogbookRepo) CountVoided(_ context.Context, userID uuid.UUID) (int, error) {
-	n := 0
+func (f *fakeLogbookRepo) LastCorrections(_ context.Context, userID uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	f.lastCorrectionsCalls++
+	var mine []models.FlightRevision
 	for _, r := range f.revisions {
-		if r.UserID == userID && r.Kind == models.RevisionKindDelete {
-			n++
+		if r.UserID == userID {
+			mine = append(mine, r)
 		}
 	}
-	return n, nil
+	return lastCorrections(mine), nil
+}
+
+var voidedDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+func (f *fakeLogbookRepo) GetOverview(ctx context.Context, userID uuid.UUID) (*models.LogbookOverview, error) {
+	f.overviewCalls++
+	mode := f.mode(userID)
+	latest, err := f.LatestCertifiedThrough(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	voided, err := f.ListVoided(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	o := &models.LogbookOverview{LogbookMode: *mode, LatestCertifiedThrough: latest}
+	for _, r := range voided {
+		var snap struct {
+			Date string `json:"date"`
+		}
+		if json.Unmarshal(r.Snapshot, &snap) == nil && voidedDatePattern.MatchString(snap.Date) {
+			o.VoidedCount++
+		}
+	}
+	return o, nil
 }
 
 func (f *fakeLogbookRepo) ImportRevisions(_ context.Context, revs []models.FlightRevision) (int, error) {
@@ -207,11 +236,15 @@ next:
 	return stored, nil
 }
 
-// recordingFlightRepo records the change context of each write.
+// recordingFlightRepo records the change context of each write and stands in
+// for the database: a write runs the transaction hook first, and under
+// RejectChange it rolls back when the flight or its crew would change.
 type recordingFlightRepo struct {
 	*mockFlightRepo
-	writes []repository.ChangeContext
-	crews  [][]models.FlightCrewMember
+	writes    []repository.ChangeContext
+	crews     [][]models.FlightCrewMember
+	crewStore *fakeCrewRepo
+	hookRuns  int
 }
 
 func (r *recordingFlightRepo) record(ctx context.Context) {
@@ -219,12 +252,44 @@ func (r *recordingFlightRepo) record(ctx context.Context) {
 	r.writes = append(r.writes, cc)
 }
 
+// begin runs the transaction hook and applies RejectChange.
+func (r *recordingFlightRepo) begin(ctx context.Context, f *models.Flight, crew *[]models.FlightCrewMember) error {
+	if err := repository.RunTxHook(ctx, nil); err != nil {
+		return err
+	}
+	r.hookRuns++
+	if cc, _ := repository.ChangeContextFrom(ctx); cc.RejectChange {
+		stored, err := r.GetByID(ctx, f.ID)
+		if err != nil {
+			return err
+		}
+		if !sameFlightRows(stored, f) || (crew != nil && !models.SameCrew(r.crewStore.crew[f.ID], *crew)) {
+			return repository.ErrChangeRejected
+		}
+	}
+	return nil
+}
+
+func (r *recordingFlightRepo) CreateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	if err := repository.RunTxHook(ctx, nil); err != nil {
+		return err
+	}
+	r.hookRuns++
+	return r.mockFlightRepo.CreateWithCrew(ctx, f, crew)
+}
+
 func (r *recordingFlightRepo) Update(ctx context.Context, f *models.Flight) error {
+	if err := r.begin(ctx, f, nil); err != nil {
+		return err
+	}
 	r.record(ctx)
 	return r.mockFlightRepo.Update(ctx, f)
 }
 
 func (r *recordingFlightRepo) UpdateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	if err := r.begin(ctx, f, &crew); err != nil {
+		return err
+	}
 	r.record(ctx)
 	r.crews = append(r.crews, crew)
 	return r.mockFlightRepo.Update(ctx, f)
@@ -233,6 +298,19 @@ func (r *recordingFlightRepo) UpdateWithCrew(ctx context.Context, f *models.Flig
 func (r *recordingFlightRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	r.record(ctx)
 	return r.mockFlightRepo.Delete(ctx, id)
+}
+
+// sameFlightRows compares two flights on everything a revision records.
+func sameFlightRows(a, b *models.Flight) bool {
+	x, y := *a, *b
+	for _, f := range []*models.Flight{&x, &y} {
+		f.UpdatedAt = time.Time{}
+		f.CrewMembers = nil
+		f.SignatureID = nil
+	}
+	xj, _ := json.Marshal(x)
+	yj, _ := json.Marshal(y)
+	return string(xj) == string(yj)
 }
 
 type fakeCrewRepo struct {
@@ -282,6 +360,7 @@ func newLogbookEnv(t *testing.T, strict bool, licenceCountries ...string) *logbo
 		sigs:     newMockFlightSignatureRepo(),
 		crew:     &fakeCrewRepo{crew: map[uuid.UUID][]models.FlightCrewMember{}},
 	}
+	e.flights.crewStore = e.crew
 	e.logbook = NewLogbookService(e.lbRepo, e.licenses, e.flights, e.sigs)
 	e.logbook.now = func() time.Time { return testNow }
 	e.logbook.departureLon = func(string) (float64, bool) { return 0, false }
@@ -393,14 +472,35 @@ func TestLogbookService_GetModeReportsLicencesAndWindow(t *testing.T) {
 	}
 }
 
+func TestLogbookService_GetModeReadsModeCertificationAndVoidedInOneQuery(t *testing.T) {
+	e := newLogbookEnv(t, true, "CH")
+	e.lbRepo.certs = append(e.lbRepo.certs, models.LogbookCertification{UserID: e.userID, CertifiedThrough: testNow})
+
+	view, err := e.logbook.GetMode(context.Background(), e.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.lbRepo.overviewCalls != 1 || e.lbRepo.getModeCalls != 0 {
+		t.Errorf("overview calls = %d, GetMode calls = %d; want 1 and 0", e.lbRepo.overviewCalls, e.lbRepo.getModeCalls)
+	}
+	if view.LatestCertifiedThrough == nil || !view.LatestCertifiedThrough.Equal(testNow) {
+		t.Errorf("LatestCertifiedThrough = %v, want %v", view.LatestCertifiedThrough, testNow)
+	}
+}
+
 func TestLogbookService_GetModeCountsVoidedWhateverTheMode(t *testing.T) {
+	snapshot := func(date string) json.RawMessage {
+		return json.RawMessage(`{"id":"` + uuid.NewString() + `","date":"` + date + `"}`)
+	}
 	for _, strict := range []bool{true, false} {
 		e := newLogbookEnv(t, strict)
 		e.lbRepo.revisions = []models.FlightRevision{
-			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
-			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
-			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindUpdate},
-			{UserID: uuid.New(), FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete, Snapshot: snapshot("2026-03-01")},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete, Snapshot: snapshot("2026-03-02")},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete, Snapshot: snapshot("March 3rd")},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete, Snapshot: json.RawMessage(`{"id":"x"}`)},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindUpdate, Snapshot: snapshot("2026-03-04")},
+			{UserID: uuid.New(), FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete, Snapshot: snapshot("2026-03-05")},
 		}
 		view, err := e.logbook.GetMode(context.Background(), e.userID)
 		if err != nil {
@@ -908,5 +1008,9 @@ func TestLogbookService_LastCorrectedAt(t *testing.T) {
 	}
 	if len(got) != 1 || !got[flightID].Equal(newer) {
 		t.Fatalf("lastCorrectedAt = %v", got)
+	}
+	if e.lbRepo.lastCorrectionsCalls != 1 || e.lbRepo.listUserRevisionCalls != 0 {
+		t.Errorf("LastCorrections calls = %d, ListUserRevisions calls = %d; want the aggregate query only",
+			e.lbRepo.lastCorrectionsCalls, e.lbRepo.listUserRevisionCalls)
 	}
 }

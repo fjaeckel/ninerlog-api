@@ -25,7 +25,7 @@ func NewLogbookRepository(db *sql.DB) repository.LogbookRepository {
 
 func (r *logbookRepository) GetMode(ctx context.Context, userID uuid.UUID) (*models.LogbookMode, error) {
 	mode := &models.LogbookMode{}
-	err := r.db.QueryRowContext(ctx,
+	err := r.writer().QueryRowContext(ctx,
 		`SELECT strict_logbook, strict_logbook_since FROM users WHERE id = $1`, userID,
 	).Scan(&mode.Strict, &mode.Since)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -102,7 +102,7 @@ func (r *logbookRepository) RestoreStrictSince(ctx context.Context, userID uuid.
 }
 
 func (r *logbookRepository) ListModeEvents(ctx context.Context, userID uuid.UUID) ([]models.LogbookModeEvent, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT id, user_id, strict, trigger, license_id, created_at
 		   FROM logbook_mode_events WHERE user_id = $1 ORDER BY created_at, id`, userID)
 	if err != nil {
@@ -137,7 +137,7 @@ func (r *logbookRepository) ImportModeEvent(ctx context.Context, e *models.Logbo
 }
 
 func (r *logbookRepository) CreateCertification(ctx context.Context, c *models.LogbookCertification) error {
-	return r.db.QueryRowContext(ctx,
+	return r.writer().QueryRowContext(ctx,
 		`INSERT INTO logbook_certifications (user_id, certified_through) VALUES ($1, $2)
 		 RETURNING id, certified_at`, c.UserID, c.CertifiedThrough,
 	).Scan(&c.ID, &c.CertifiedAt)
@@ -159,7 +159,7 @@ func (r *logbookRepository) ImportCertification(ctx context.Context, c *models.L
 }
 
 func (r *logbookRepository) ListCertifications(ctx context.Context, userID uuid.UUID) ([]models.LogbookCertification, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT id, user_id, certified_through, certified_at
 		   FROM logbook_certifications WHERE user_id = $1
 		  ORDER BY certified_through DESC, certified_at DESC`, userID)
@@ -181,7 +181,7 @@ func (r *logbookRepository) ListCertifications(ctx context.Context, userID uuid.
 
 func (r *logbookRepository) LatestCertifiedThrough(ctx context.Context, userID uuid.UUID) (*time.Time, error) {
 	var latest sql.NullTime
-	if err := r.db.QueryRowContext(ctx,
+	if err := r.writer().QueryRowContext(ctx,
 		`SELECT MAX(certified_through) FROM logbook_certifications WHERE user_id = $1`, userID,
 	).Scan(&latest); err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func scanFlightRevisions(rows *sql.Rows) ([]models.FlightRevision, error) {
 
 func (r *logbookRepository) CurrentFlightState(ctx context.Context, userID, flightID uuid.UUID) (json.RawMessage, json.RawMessage, error) {
 	var snapshot, crew []byte
-	err := r.db.QueryRowContext(ctx,
+	err := r.writer().QueryRowContext(ctx,
 		`SELECT to_jsonb(f), flight_revision_crew(f.id) FROM flights f WHERE f.id = $1 AND f.user_id = $2`,
 		flightID, userID,
 	).Scan(&snapshot, &crew)
@@ -229,7 +229,7 @@ func (r *logbookRepository) CurrentFlightStates(ctx context.Context, userID uuid
 	if len(flightIDs) == 0 {
 		return out, nil
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT f.id, to_jsonb(f), flight_revision_crew(f.id) FROM flights f
 		  WHERE f.user_id = $1 AND f.id = ANY($2)`, userID, pq.Array(flightIDs))
 	if err != nil {
@@ -248,7 +248,7 @@ func (r *logbookRepository) CurrentFlightStates(ctx context.Context, userID uuid
 }
 
 func (r *logbookRepository) ListRevisions(ctx context.Context, userID, flightID uuid.UUID) ([]models.FlightRevision, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT `+flightRevisionColumns+` FROM flight_revisions
 		  WHERE user_id = $1 AND flight_id = $2 ORDER BY revision_no`, userID, flightID)
 	if err != nil {
@@ -258,7 +258,7 @@ func (r *logbookRepository) ListRevisions(ctx context.Context, userID, flightID 
 }
 
 func (r *logbookRepository) ListUserRevisions(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT `+flightRevisionColumns+` FROM flight_revisions
 		  WHERE user_id = $1 ORDER BY flight_id, revision_no`, userID)
 	if err != nil {
@@ -268,7 +268,7 @@ func (r *logbookRepository) ListUserRevisions(ctx context.Context, userID uuid.U
 }
 
 func (r *logbookRepository) ListVoided(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.writer().QueryContext(ctx,
 		`SELECT `+flightRevisionColumns+` FROM flight_revisions
 		  WHERE user_id = $1 AND kind = 'delete' ORDER BY changed_at DESC, id`, userID)
 	if err != nil {
@@ -277,11 +277,47 @@ func (r *logbookRepository) ListVoided(ctx context.Context, userID uuid.UUID) ([
 	return scanFlightRevisions(rows)
 }
 
-func (r *logbookRepository) CountVoided(ctx context.Context, userID uuid.UUID) (int, error) {
-	var n int
-	err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM flight_revisions WHERE user_id = $1 AND kind = 'delete'`, userID).Scan(&n)
-	return n, err
+func (r *logbookRepository) LastCorrections(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	rows, err := r.writer().QueryContext(ctx,
+		`SELECT flight_id, MAX(changed_at) FROM flight_revisions
+		  WHERE user_id = $1 AND kind = 'update' AND is_correction GROUP BY flight_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[uuid.UUID]time.Time{}
+	for rows.Next() {
+		var id uuid.UUID
+		var at time.Time
+		if err := rows.Scan(&id, &at); err != nil {
+			return nil, err
+		}
+		out[id] = at
+	}
+	return out, rows.Err()
+}
+
+func (r *logbookRepository) GetOverview(ctx context.Context, userID uuid.UUID) (*models.LogbookOverview, error) {
+	o := &models.LogbookOverview{}
+	var latest sql.NullTime
+	err := r.writer().QueryRowContext(ctx, `
+		SELECT u.strict_logbook, u.strict_logbook_since,
+		       (SELECT MAX(c.certified_through) FROM logbook_certifications c WHERE c.user_id = u.id),
+		       (SELECT COUNT(*) FROM flight_revisions v
+		         WHERE v.user_id = u.id AND v.kind = 'delete'
+		           AND v.snapshot->>'date' ~ '^\d{4}-\d{2}-\d{2}$')
+		  FROM users u WHERE u.id = $1`, userID,
+	).Scan(&o.Strict, &o.Since, &latest, &o.VoidedCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if latest.Valid {
+		o.LatestCertifiedThrough = &latest.Time
+	}
+	return o, nil
 }
 
 func (r *logbookRepository) ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error) {

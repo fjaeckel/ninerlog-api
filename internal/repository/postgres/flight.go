@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -233,6 +234,9 @@ func (r *flightRepository) CreateWithCrew(ctx context.Context, flight *models.Fl
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := repository.RunTxHook(ctx, &txRepos{tx: tx}); err != nil {
+		return err
+	}
 	if err := insertFlightRow(ctx, tx, flight); err != nil {
 		return err
 	}
@@ -379,31 +383,77 @@ func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, op
 }
 
 func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) error {
-	tx, err := beginChangeTx(ctx, r.db)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := updateFlightRow(ctx, tx, flight); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return r.update(ctx, flight, nil)
 }
 
 // UpdateWithCrew updates the flight and replaces its crew in one transaction.
 func (r *flightRepository) UpdateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	return r.update(ctx, flight, &crew)
+}
+
+func (r *flightRepository) update(ctx context.Context, flight *models.Flight, crew *[]models.FlightCrewMember) error {
 	tx, err := beginChangeTx(ctx, r.db)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := repository.RunTxHook(ctx, &txRepos{tx: tx}); err != nil {
+		return err
+	}
+
+	cc, _ := repository.ChangeContextFrom(ctx)
+	var pre *flightPreImage
+	if cc.RejectChange {
+		if pre, err = readFlightPreImage(ctx, tx, flight.ID); err != nil {
+			return err
+		}
+	}
 	if err := updateFlightRow(ctx, tx, flight); err != nil {
 		return err
 	}
-	if err := replaceCrewMembers(ctx, tx, flight.ID, crew); err != nil {
-		return err
+	if crew != nil {
+		if err := replaceCrewMembers(ctx, tx, flight.ID, *crew); err != nil {
+			return err
+		}
+	}
+	if pre != nil {
+		changed, err := pre.changed(ctx, tx, flight.ID)
+		if err != nil {
+			return err
+		}
+		if changed {
+			return repository.ErrChangeRejected
+		}
 	}
 	return tx.Commit()
+}
+
+// flightPreImage is a flight row and its crew as the revision triggers
+// snapshot them.
+type flightPreImage struct {
+	flight []byte
+	crew   []byte
+}
+
+func readFlightPreImage(ctx context.Context, tx *sql.Tx, id uuid.UUID) (*flightPreImage, error) {
+	pre := &flightPreImage{}
+	err := tx.QueryRowContext(ctx,
+		`SELECT to_jsonb(f), flight_revision_crew(f.id) FROM flights f WHERE f.id = $1 FOR UPDATE`, id,
+	).Scan(&pre.flight, &pre.crew)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrNotFound
+	}
+	return pre, err
+}
+
+// changed asks the database whether the flight or its crew differ from the
+// pre-image, by the comparison the revision triggers use.
+func (p *flightPreImage) changed(ctx context.Context, tx *sql.Tx, id uuid.UUID) (bool, error) {
+	var changed bool
+	err := tx.QueryRowContext(ctx,
+		`SELECT flight_revision_changed($1, $2::jsonb, $3::jsonb)`, id, p.flight, p.crew,
+	).Scan(&changed)
+	return changed, err
 }
 
 func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) error {
@@ -550,6 +600,10 @@ func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UU
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	flagged, err := (&restoreTx{tx: tx}).deleteClassifiedCorrections(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID); err != nil {
 		return 0, err
 	}
@@ -561,7 +615,7 @@ func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return 0, err
 	}
-	return n, tx.Commit()
+	return n + flagged, tx.Commit()
 }
 
 func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {

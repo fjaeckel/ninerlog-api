@@ -82,4 +82,8 @@ const (
 	// OverrideExceedsCalculated — an overridden time is greater than the
 	// calculated value under a licence that allows overrides only downward.
 	OverrideExceedsCalculated = "override_exceeds_calculated"
+
+	// FlightChanged — a signature was completed against a hash of the signed
+	// fields that no longer matches the flight. Nothing was recorded.
+	FlightChanged = "flight_changed"
 )

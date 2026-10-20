@@ -51,7 +51,7 @@ func (r *licenseRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 	`
 
 	license := &models.License{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.writer().QueryRowContext(ctx, query, id).Scan(
 		&license.ID,
 		&license.UserID,
 		&license.RegulatoryAuthority,
@@ -86,7 +86,7 @@ func (r *licenseRepository) GetByUserID(ctx context.Context, userID uuid.UUID, u
 	query += clause + " ORDER BY created_at DESC"
 	args = append(args, clauseArgs...)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.writer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (r *licenseRepository) Update(ctx context.Context, license *models.License)
 		WHERE id = $8
 	`
 
-	result, err := r.db.ExecContext(
+	result, err := r.writer().ExecContext(
 		ctx, query,
 		license.RegulatoryAuthority,
 		license.LicenseType,
@@ -133,7 +133,7 @@ func (r *licenseRepository) Update(ctx context.Context, license *models.License)
 func (r *licenseRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM licenses WHERE id = $1`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := r.writer().ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}

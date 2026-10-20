@@ -93,7 +93,8 @@ func (s *LicenseService) ListLicensesUpdatedSince(ctx context.Context, userID uu
 	return s.licenseRepo.GetByUserID(ctx, userID, &updatedSince)
 }
 
-// UpdateLicense updates a license and verifies user ownership
+// UpdateLicense updates a license and verifies user ownership. On success
+// license holds the stored values.
 func (s *LicenseService) UpdateLicense(ctx context.Context, license *models.License, userID uuid.UUID) error {
 	// Verify ownership
 	existing, err := s.licenseRepo.GetByID(ctx, license.ID)
@@ -124,7 +125,11 @@ func (s *LicenseService) UpdateLicense(ctx context.Context, license *models.Lice
 		return err
 	}
 
-	return s.licenseRepo.Update(ctx, existing)
+	if err := s.licenseRepo.Update(ctx, existing); err != nil {
+		return err
+	}
+	*license = *existing
+	return nil
 }
 
 // DeleteLicense deletes a license and verifies user ownership

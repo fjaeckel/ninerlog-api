@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -30,7 +28,6 @@ type FlightService struct {
 	flightRepo   repository.FlightRepository
 	baselineRepo repository.FlightBaselineRepository
 	logbook      *LogbookService
-	crewRepo     repository.FlightCrewRepository
 }
 
 func NewFlightService(flightRepo repository.FlightRepository, baselineRepo repository.FlightBaselineRepository) *FlightService {
@@ -45,12 +42,6 @@ func (s *FlightService) SetLogbookService(l *LogbookService) {
 	s.logbook = l
 }
 
-// SetCrewRepository attaches the crew repository used to tell a no-op save
-// from a crew change.
-func (s *FlightService) SetCrewRepository(r repository.FlightCrewRepository) {
-	s.crewRepo = r
-}
-
 // FlightWriteOptions carries what a user-facing flight write needs beyond the
 // flight itself.
 type FlightWriteOptions struct {
@@ -63,8 +54,10 @@ type FlightWriteOptions struct {
 	Source string
 	// Crew, when non-nil, is written with the flight in the same transaction.
 	Crew *[]models.FlightCrewMember
-	// BeforeWrite runs after every check has passed, right before the write.
-	BeforeWrite func(ctx context.Context) error
+	// BeforeWrite runs inside the write transaction, after every check has
+	// passed and right before the flight is written. An error rolls the write
+	// back.
+	BeforeWrite repository.TxHook
 }
 
 // CreateFlight creates a new flight log entry
@@ -108,9 +101,7 @@ func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Fli
 	}
 
 	if opts.BeforeWrite != nil {
-		if err := opts.BeforeWrite(ctx); err != nil {
-			return err
-		}
+		ctx = repository.WithTxHook(ctx, opts.BeforeWrite)
 	}
 	var crew []models.FlightCrewMember
 	if opts.Crew != nil {
@@ -202,7 +193,7 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 		if err != nil {
 			return err
 		}
-		if state.Strict && s.changesFlight(ctx, existing, flight, opts.Crew) {
+		if state.Strict {
 			if err := s.logbook.CheckDownwardOverridesWith(state, existing, flight, opts.UserName, opts.Facts); err != nil {
 				return err
 			}
@@ -214,58 +205,27 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 			if reason == "" {
 				reason = class.DefaultReason
 			}
-			if class.IsCorrection && reason == "" {
-				return ErrCorrectionReasonRequired
-			}
 			if reason != "" {
 				change.Reason = &reason
 			}
 			change.IsCorrection = class.IsCorrection
+			change.RejectChange = class.IsCorrection && reason == ""
 		}
 	}
 
 	if opts.BeforeWrite != nil {
-		if err := opts.BeforeWrite(ctx); err != nil {
-			return err
-		}
+		ctx = repository.WithTxHook(ctx, opts.BeforeWrite)
 	}
 	ctx = repository.WithChangeContext(ctx, change)
 	if opts.Crew != nil {
-		return s.flightRepo.UpdateWithCrew(ctx, flight, *opts.Crew)
+		err = s.flightRepo.UpdateWithCrew(ctx, flight, *opts.Crew)
+	} else {
+		err = s.flightRepo.Update(ctx, flight)
 	}
-	return s.flightRepo.Update(ctx, flight)
-}
-
-// changesFlight reports whether writing updated (and crew, when non-nil)
-// alters the stored flight.
-func (s *FlightService) changesFlight(ctx context.Context, existing, updated *models.Flight, crew *[]models.FlightCrewMember) bool {
-	if !flightRowsEqual(existing, updated) {
-		return true
+	if errors.Is(err, repository.ErrChangeRejected) {
+		return ErrCorrectionReasonRequired
 	}
-	if crew == nil {
-		return false
-	}
-	if s.crewRepo == nil {
-		return true
-	}
-	current, err := s.crewRepo.GetByFlightID(ctx, existing.ID)
-	if err != nil {
-		return true
-	}
-	return !models.SameCrew(current, *crew)
-}
-
-// flightRowsEqual compares two flights on everything a revision records.
-func flightRowsEqual(a, b *models.Flight) bool {
-	x, y := *a, *b
-	for _, f := range []*models.Flight{&x, &y} {
-		f.UpdatedAt = time.Time{}
-		f.CrewMembers = nil
-		f.SignatureID = nil
-	}
-	xj, errX := json.Marshal(x)
-	yj, errY := json.Marshal(y)
-	return errX == nil && errY == nil && bytes.Equal(xj, yj)
+	return err
 }
 
 // DeleteFlight deletes a flight and verifies user ownership
@@ -294,23 +254,32 @@ func (s *FlightService) DeleteFlightWithReason(ctx context.Context, flightID, us
 	}
 
 	change := repository.ChangeContext{Source: repository.ChangeSourceUserEdit}
-	if reason = strings.TrimSpace(reason); reason != "" {
-		change.Reason = &reason
-	}
+	reason = strings.TrimSpace(reason)
 	if s.logbook != nil {
 		class, err := s.logbook.ClassifyEdit(ctx, userID, flight, nil)
 		if err != nil {
 			return err
 		}
 		change.IsCorrection = class.Strict && class.IsCorrection
+		if reason == "" {
+			reason = class.DefaultReason
+		}
+	}
+	if reason != "" {
+		change.Reason = &reason
 	}
 
 	return s.flightRepo.Delete(repository.WithChangeContext(ctx, change), flightID)
 }
 
-// DeleteAllFlights deletes all flights for a user
+// DeleteAllFlights deletes all flights for a user. In strict logbook mode the
+// void records of flights past their window are flagged as corrections.
 func (s *FlightService) DeleteAllFlights(ctx context.Context, userID uuid.UUID) (int64, error) {
-	return s.flightRepo.DeleteAllByUserID(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), userID)
+	ctx = repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit)
+	if s.logbook != nil {
+		ctx = repository.WithDeleteCorrections(ctx, s.logbook.DeleteCorrections)
+	}
+	return s.flightRepo.DeleteAllByUserID(ctx, userID)
 }
 
 // CountFlights counts flights for a user with optional filters

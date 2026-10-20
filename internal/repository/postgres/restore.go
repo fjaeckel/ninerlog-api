@@ -28,6 +28,7 @@ const (
 type queryExecer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type restoreStore struct {
@@ -141,9 +142,33 @@ func (t *restoreTx) setCorrection(ctx context.Context, correction bool) error {
 	return err
 }
 
+func (t *restoreTx) Repos() repository.TxRepos {
+	return &txRepos{tx: t.tx}
+}
+
+// deleteClassifiedCorrections deletes the flights the classifier carried by
+// ctx names, with the correction flag set, and returns how many it deleted.
+// It does nothing without one.
+func (t *restoreTx) deleteClassifiedCorrections(ctx context.Context, userID uuid.UUID) (int64, error) {
+	classify, ok := repository.DeleteCorrectionsFrom(ctx)
+	if !ok {
+		return 0, nil
+	}
+	ids, err := classify(ctx, t.Repos(), userID, func() ([]*models.Flight, error) {
+		return t.ListFlightTimings(ctx, userID)
+	})
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	return int64(len(ids)), t.deleteFlights(ctx, userID, ids)
+}
+
 func (t *restoreTx) ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error) {
 	rows, err := t.tx.QueryContext(ctx,
-		`SELECT id, date, off_block_time, on_block_time, departure_icao FROM flights WHERE user_id = $1`, userID)
+		`SELECT f.id, f.date, f.off_block_time, f.on_block_time, f.departure_icao,
+		        (SELECT s.id FROM flight_signatures s
+		          WHERE s.flight_id = f.id AND s.status IN ('completed', 'voided') LIMIT 1)
+		   FROM flights f WHERE f.user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +177,7 @@ func (t *restoreTx) ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]
 	for rows.Next() {
 		f := &models.Flight{UserID: userID}
 		var off, on *time.Time
-		if err := rows.Scan(&f.ID, &f.Date, &off, &on, &f.DepartureICAO); err != nil {
+		if err := rows.Scan(&f.ID, &f.Date, &off, &on, &f.DepartureICAO, &f.SignatureID); err != nil {
 			return nil, err
 		}
 		f.OffBlockTime, f.OnBlockTime = timeToString(off), timeToString(on)

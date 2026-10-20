@@ -7,6 +7,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func hashFixture() (*models.Flight, []models.FlightCrewMember) {
@@ -172,12 +173,55 @@ func TestSignatureService_DeferredSignatureStoresFieldsHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sig, _, _, err := svc.CompleteFromToken(ctx, token, "Pat", nil, []byte(testSigImage), "", "")
+	sig, _, _, err := svc.CompleteFromToken(ctx, token, "Pat", nil, []byte(testSigImage), "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stored, _ := sigRepo.GetByID(ctx, sig.ID)
 	if stored.SignedFieldsHash == nil || *stored.SignedFieldsHash != SignedFieldsHash(flight, nil) {
 		t.Fatalf("stored hash = %v", stored.SignedFieldsHash)
+	}
+}
+
+func TestSignatureService_CompleteFromTokenFieldsHash(t *testing.T) {
+	tests := []struct {
+		name    string
+		edit    bool
+		hash    func(f *models.Flight) *string
+		wantErr error
+	}{
+		{"matching hash completes", false, func(f *models.Flight) *string { h := SignedFieldsHash(f, nil); return &h }, nil},
+		{"absent hash completes", true, func(*models.Flight) *string { return nil }, nil},
+		{"stale hash after edit is refused", true, func(f *models.Flight) *string { h := SignedFieldsHash(f, nil); return &h }, ErrFlightChanged},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			svc, sigRepo, flightRepo, userRepo := newSignatureTestService()
+			userID := uuid.New()
+			userRepo.users[userID] = &models.User{ID: userID, Email: "o@example.com", Name: "Owner"}
+			flight := seedFlight(t, flightRepo, userID)
+			created, token, err := svc.CreateRequest(ctx, flight.ID, userID, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			shown := tt.hash(flight)
+			if tt.edit {
+				edited := *flight
+				changed := "changed after the page was opened"
+				edited.Remarks = &changed
+				if err := flightRepo.Update(ctx, &edited); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, _, _, err = svc.CompleteFromToken(ctx, token, "Pat", nil, []byte(testSigImage), "", "", shown)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				stored, _ := sigRepo.GetByID(ctx, created.ID)
+				assert.Equal(t, models.SignatureStatusPending, stored.Status)
+				return
+			}
+			assert.NoError(t, err)
+		})
 	}
 }

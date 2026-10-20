@@ -354,7 +354,6 @@ func main() {
 	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	logbookService := service.NewLogbookService(logbookRepo, licenseRepo, flightRepo, flightSignatureRepo)
 	flightService.SetLogbookService(logbookService)
-	flightService.SetCrewRepository(flightCrewRepo)
 
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminRoleService)
 	apiHandler.SetLogbookService(logbookService)

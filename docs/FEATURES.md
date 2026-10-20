@@ -211,7 +211,7 @@ or UY switches the mode on when it is saved with its `issuingCountry`; DK, BR, G
 other EASA states only suggest it. The user can switch it on or off at any time
 (`/logbook/mode`); history already recorded is kept. Revisions, void records, mode switches
 and certifications are part of the JSON export, the import and cloud backups. Signatures
-store a hash of the fields they attested. In the EASA and FAA PDF a corrected flight's
+store a hash of the fields they attested, and a signer whose page shows an older entry than the flight now holds is refused (`409` `flight_changed`) instead of signing it. In the EASA and FAA PDF a corrected flight's
 remarks end in a dagger marker that points to an appendix (change log, voided entries, mode
 switches, signature hashes), and the standard, EASA and FAA CSV gain `corrected` and
 `last_corrected_at` columns. Rules, the licence registry and the capture

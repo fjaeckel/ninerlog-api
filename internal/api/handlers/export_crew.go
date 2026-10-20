@@ -5,19 +5,21 @@ import (
 	"log/slog"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
 )
 
-// linkCrewMembers links a flight's crew to the user's contacts, creating
-// contacts for names that are new. Failures are logged and swallowed. See
-// ContactService.LinkCrewMembers for the linking rules.
-func (h *APIHandler) linkCrewMembers(ctx context.Context, userID uuid.UUID, flight *models.Flight) {
-	if len(flight.CrewMembers) == 0 || h.contactService == nil {
-		return
-	}
-	if _, err := h.contactService.LinkCrewMembers(ctx, userID, flight.CrewMembers); err != nil {
-		slog.Warn("failed to link crew members to contacts",
-			"flightId", flight.ID, "error", err)
+// linkCrewHook returns the in-transaction hook that links a flight's crew to
+// the user's contacts, creating contacts for names that are new. A failure
+// aborts the flight write. See ContactService.LinkCrewMembers for the linking
+// rules.
+func (h *APIHandler) linkCrewHook(userID uuid.UUID, flight *models.Flight) repository.TxHook {
+	return func(ctx context.Context, repos repository.TxRepos) error {
+		if len(flight.CrewMembers) == 0 || h.contactService == nil {
+			return nil
+		}
+		_, err := h.contactService.WithRepository(repos.Contacts()).LinkCrewMembers(ctx, userID, flight.CrewMembers)
+		return err
 	}
 }
 

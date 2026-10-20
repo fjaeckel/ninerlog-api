@@ -427,10 +427,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	}
 	if len(flight.CrewMembers) > 0 {
 		createOpts.Crew = &flight.CrewMembers
-		createOpts.BeforeWrite = func(ctx context.Context) error {
-			h.linkCrewMembers(ctx, userID, &flight)
-			return nil
-		}
+		createOpts.BeforeWrite = h.linkCrewHook(userID, &flight)
 	}
 	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, createOpts); err != nil {
 		if h.sendOverrideError(c, err) {
@@ -669,10 +666,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	// rows alone; otherwise the crew is replaced with the flight update.
 	if req.CrewMembers != nil {
 		opts.Crew = &flight.CrewMembers
-		opts.BeforeWrite = func(ctx context.Context) error {
-			h.linkCrewMembers(ctx, userID, flight)
-			return nil
-		}
+		opts.BeforeWrite = h.linkCrewHook(userID, flight)
 	}
 
 	if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, opts); err != nil {
@@ -752,7 +746,7 @@ func (h *APIHandler) sendOverrideError(c *gin.Context, err error) bool {
 	for _, f := range oe.Fields {
 		details = append(details, map[string]string{
 			"field":   f,
-			"message": "A manual override may only reduce the calculated value",
+			"message": overrideRowMessage,
 		})
 	}
 	h.sendCodedError(c, http.StatusUnprocessableEntity, errcode.OverrideExceedsCalculated,

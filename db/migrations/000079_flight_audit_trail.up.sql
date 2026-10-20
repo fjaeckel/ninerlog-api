@@ -73,6 +73,21 @@ CREATE OR REPLACE FUNCTION flight_revision_crew_key(crew JSONB) RETURNS JSONB AS
     FROM jsonb_array_elements(COALESCE(crew, '[]'::jsonb)) e
 $$ LANGUAGE sql IMMUTABLE;
 
+-- Whether the flight row (ignoring updated_at and signature_id) or its crew differs from a pre-image.
+CREATE OR REPLACE FUNCTION flight_revision_changed(fid UUID, pre JSONB, pre_crew JSONB) RETURNS BOOLEAN AS $$
+DECLARE
+    ignored TEXT[] := ARRAY['updated_at', 'signature_id'];
+    cur     JSONB;
+BEGIN
+    SELECT to_jsonb(f) INTO cur FROM flights f WHERE f.id = fid;
+    IF cur IS NULL THEN
+        RETURN TRUE;
+    END IF;
+    RETURN (cur - ignored) <> (pre - ignored)
+        OR flight_revision_crew_key(flight_revision_crew(fid)) <> flight_revision_crew_key(pre_crew);
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION flight_revision_capture(fid UUID) RETURNS VOID AS $$
 DECLARE
     snap      JSONB;
@@ -143,8 +158,6 @@ CREATE TRIGGER flight_revision_capture_crew
 -- At commit: compare the pre-image with the final state and keep a revision when they differ.
 CREATE OR REPLACE FUNCTION flight_revision_finalize() RETURNS TRIGGER AS $$
 DECLARE
-    ignored TEXT[] := ARRAY['updated_at', 'signature_id'];
-    cur     JSONB;
     rev_kind TEXT;
     next_no INT;
 BEGIN
@@ -154,11 +167,9 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    SELECT to_jsonb(f) INTO cur FROM flights f WHERE f.id = NEW.flight_id;
-    IF cur IS NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM flights WHERE id = NEW.flight_id) THEN
         rev_kind := 'delete';
-    ELSIF (cur - ignored) = (NEW.snapshot - ignored)
-          AND flight_revision_crew_key(flight_revision_crew(NEW.flight_id)) = flight_revision_crew_key(NEW.crew_snapshot) THEN
+    ELSIF NOT flight_revision_changed(NEW.flight_id, NEW.snapshot, NEW.crew_snapshot) THEN
         RETURN NULL;
     ELSE
         rev_kind := 'update';

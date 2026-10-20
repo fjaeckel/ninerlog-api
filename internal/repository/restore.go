@@ -72,8 +72,12 @@ type RestoreTx interface {
 	WipeContent(ctx context.Context, userID uuid.UUID, correctionFlightIDs []uuid.UUID) error
 
 	// ListFlightTimings returns the user's flights with only id, date, block
-	// times and departure set.
+	// times and departure set, and SignatureID set when the flight has ever
+	// carried a completed or voided signature.
 	ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error)
+
+	// Repos returns repositories bound to this transaction.
+	Repos() TxRepos
 
 	// FlightIDUsage reports how each of ids is already in use.
 	FlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) (FlightIDUsage, error)

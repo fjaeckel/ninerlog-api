@@ -219,8 +219,6 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 	t.Run("non-strict user pays for the mode lookup only", func(t *testing.T) {
 		e := newCorrectionEnv(t, false, "CH")
 		stored := e.seed(t, 30)
-		crewReads := 0
-		e.svc.SetCrewRepository(countingCrewRepo{fakeCrewRepo: e.crew, reads: &crewReads})
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x"); f.NightTime = 5; f.NightTimeOverride = true })
 		crew := []models.FlightCrewMember{{Name: "Pat", Role: "Instructor"}}
 
@@ -229,9 +227,6 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 		}
 		if e.lbRepo.getModeCalls != 1 {
 			t.Errorf("GetMode calls = %d, want 1", e.lbRepo.getModeCalls)
-		}
-		if crewReads != 0 {
-			t.Errorf("crew reads = %d, want 0", crewReads)
 		}
 		if e.licenses.listCalls != 0 {
 			t.Errorf("licence list calls = %d, want 0", e.licenses.listCalls)
@@ -269,17 +264,7 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 	})
 }
 
-type countingCrewRepo struct {
-	*fakeCrewRepo
-	reads *int
-}
-
-func (c countingCrewRepo) GetByFlightID(ctx context.Context, id uuid.UUID) ([]models.FlightCrewMember, error) {
-	*c.reads++
-	return c.fakeCrewRepo.GetByFlightID(ctx, id)
-}
-
-func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
+func TestFlightService_BeforeWriteRunsInsideTheWrite(t *testing.T) {
 	ctx := context.Background()
 	crew := []models.FlightCrewMember{{Name: "New Person", Role: "Instructor"}}
 
@@ -299,8 +284,8 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantCalls: 1},
 		{name: "accepted edit of a non-strict user", strict: false, daysAgo: 9,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantCalls: 1},
-		{name: "correction without a reason", strict: true, daysAgo: 3,
-			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired},
+		{name: "correction without a reason runs inside the write that is rolled back", strict: true, daysAgo: 3,
+			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired, wantCalls: 1},
 		{name: "correction with a reason", strict: true, daysAgo: 3,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, reason: "typo", wantCalls: 1},
 		{name: "override above the calculated value", strict: true, countries: []string{"CH"}, daysAgo: 0,
@@ -334,7 +319,7 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 			err := e.svc.UpdateFlightWith(ctx, updated, userID, FlightWriteOptions{
 				CorrectionReason: tt.reason,
 				Crew:             &crew,
-				BeforeWrite:      func(context.Context) error { calls++; return nil },
+				BeforeWrite:      func(context.Context, repository.TxRepos) error { calls++; return nil },
 			})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
@@ -353,7 +338,7 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 		stored := e.seed(t, 0)
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
 		boom := errors.New("boom")
-		err := e.svc.UpdateFlightWith(ctx, updated, e.userID, FlightWriteOptions{BeforeWrite: func(context.Context) error { return boom }})
+		err := e.svc.UpdateFlightWith(ctx, updated, e.userID, FlightWriteOptions{BeforeWrite: func(context.Context, repository.TxRepos) error { return boom }})
 		if !errors.Is(err, boom) || len(e.flights.writes) != 0 {
 			t.Fatalf("error = %v, writes = %d", err, len(e.flights.writes))
 		}
@@ -373,7 +358,7 @@ func TestFlightService_CreateRunsBeforeWriteAfterOverrideCheck(t *testing.T) {
 	t.Run("rejected override never reaches BeforeWrite", func(t *testing.T) {
 		e := newCorrectionEnv(t, true, "CH")
 		calls := 0
-		err := e.svc.CreateFlightChecked(ctx, newFlight(e, 59), FlightWriteOptions{BeforeWrite: func(context.Context) error { calls++; return nil }})
+		err := e.svc.CreateFlightChecked(ctx, newFlight(e, 59), FlightWriteOptions{BeforeWrite: func(context.Context, repository.TxRepos) error { calls++; return nil }})
 		if !errors.Is(err, ErrOverrideExceedsCalculated) || calls != 0 {
 			t.Fatalf("error = %v, calls = %d", err, calls)
 		}
@@ -383,7 +368,7 @@ func TestFlightService_CreateRunsBeforeWriteAfterOverrideCheck(t *testing.T) {
 		e := newCorrectionEnv(t, true, "CH")
 		calls := 0
 		crew := []models.FlightCrewMember{{Name: "Pat", Role: "Instructor"}}
-		err := e.svc.CreateFlightChecked(ctx, newFlight(e, 0), FlightWriteOptions{Crew: &crew, BeforeWrite: func(context.Context) error { calls++; return nil }})
+		err := e.svc.CreateFlightChecked(ctx, newFlight(e, 0), FlightWriteOptions{Crew: &crew, BeforeWrite: func(context.Context, repository.TxRepos) error { calls++; return nil }})
 		if err != nil || calls != 1 {
 			t.Fatalf("error = %v, calls = %d", err, calls)
 		}

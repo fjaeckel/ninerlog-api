@@ -209,6 +209,7 @@ func (h *APIHandler) SetReportsRepository(repo repository.ReportsRepository) {
 // data service.
 func (h *APIHandler) SetUserContentRepository(repo repository.UserContentRepository) {
 	h.userDataService = service.NewUserDataService(repo)
+	h.userDataService.SetLogbookService(h.logbookService)
 }
 
 // SetRestorer wires the backup restore service.

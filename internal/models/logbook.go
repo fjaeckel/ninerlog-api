@@ -36,6 +36,14 @@ type LogbookMode struct {
 	Since  *time.Time `json:"since,omitempty"`
 }
 
+// LogbookOverview is the mode with the latest certification and the number of
+// void records the voided list can render.
+type LogbookOverview struct {
+	LogbookMode
+	LatestCertifiedThrough *time.Time
+	VoidedCount            int
+}
+
 // LogbookCertification is a "certified through" statement by the pilot.
 type LogbookCertification struct {
 	ID               uuid.UUID `json:"id"`

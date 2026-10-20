@@ -124,7 +124,7 @@ func (s *LogbookService) assess(ctx context.Context, userID uuid.UUID) (logbookr
 
 // GetMode returns the user's logbook mode.
 func (s *LogbookService) GetMode(ctx context.Context, userID uuid.UUID) (*ModeView, error) {
-	mode, err := s.repo.GetMode(ctx, userID)
+	overview, err := s.repo.GetOverview(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,26 +136,17 @@ func (s *LogbookService) GetMode(ctx context.Context, userID uuid.UUID) (*ModeVi
 	if err != nil {
 		return nil, err
 	}
-	latest, err := s.repo.LatestCertifiedThrough(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	voided, err := s.repo.CountVoided(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
 
 	view := &ModeView{
-		VoidedCount:            voided,
-		Strict:                 mode.Strict,
+		VoidedCount:            overview.VoidedCount,
+		Strict:                 overview.Strict,
 		Required:               assessment.Required,
 		Suggested:              assessment.Suggested,
 		Events:                 events,
-		LatestCertifiedThrough: latest,
+		LatestCertifiedThrough: overview.LatestCertifiedThrough,
 	}
-	if mode.Strict {
-		view.Since = mode.Since
+	if overview.Strict {
+		view.Since = overview.Since
 		view.DraftWindow = assessment.Window
 		if view.DraftWindow == "" {
 			view.DraftWindow = logbookrules.WindowFlightDay
@@ -355,17 +346,36 @@ func (s *LogbookService) NewDeleteClassifier(ctx context.Context, userID uuid.UU
 	return &DeleteClassifier{s: s, state: state}, nil
 }
 
-// Corrections returns the ids of the flights whose deletion is a correction
-// under the free-edit window and the certified range. Signature history is
-// not consulted.
+// Corrections returns the ids of the flights whose deletion is a correction:
+// the free-edit window has closed, the flight lies in a certified range, or it
+// has carried a completed or voided signature (SignatureID set).
 func (c *DeleteClassifier) Corrections(flights []*models.Flight) []uuid.UUID {
 	var ids []uuid.UUID
 	for _, f := range flights {
-		if c.s.outsideWindow(c.state, f, nil) {
+		if f.SignatureID != nil || c.s.outsideWindow(c.state, f, nil) {
 			ids = append(ids, f.ID)
 		}
 	}
 	return ids
+}
+
+// DeleteCorrections returns the ids of the flights, among those list loads,
+// whose deletion is a correction. It reads the strict-mode state through
+// repos, the repositories of the transaction that deletes the flights, and
+// lists nothing for a user who is not in strict mode.
+func (s *LogbookService) DeleteCorrections(ctx context.Context, repos repository.TxRepos, userID uuid.UUID, list repository.FlightLister) ([]uuid.UUID, error) {
+	bound := *s
+	bound.repo = repos.Logbook()
+	bound.licenseRepo = repos.Licenses()
+	classifier, err := bound.NewDeleteClassifier(ctx, userID)
+	if err != nil || classifier == nil {
+		return nil, err
+	}
+	flights, err := list()
+	if err != nil {
+		return nil, err
+	}
+	return classifier.Corrections(flights), nil
 }
 
 func voidedAfter(a, b *models.FlightSignature) bool {

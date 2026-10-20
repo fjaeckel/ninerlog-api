@@ -65,6 +65,9 @@ func TestLicenseService_IssuingCountry(t *testing.T) {
 				if !equalStrPtr(stored.IssuingCountry, tt.want) {
 					t.Errorf("stored issuingCountry = %v, want %v", stored.IssuingCountry, tt.want)
 				}
+				if !equalStrPtr(patch.IssuingCountry, tt.want) {
+					t.Errorf("returned issuingCountry = %v, want %v", patch.IssuingCountry, tt.want)
+				}
 			}
 		})
 	}

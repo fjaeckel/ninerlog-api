@@ -48,7 +48,11 @@ func (r *userContentRepository) DeleteAllContent(ctx context.Context, userID uui
 	}
 	defer func() { _ = tx.Rollback() }() // no-op once committed
 
-	if err := applyChangeContext(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), tx); err != nil {
+	ctx = withUserEditSource(ctx)
+	if err := applyChangeContext(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := (&restoreTx{tx: tx}).deleteClassifiedCorrections(ctx, userID); err != nil {
 		return err
 	}
 
@@ -73,7 +77,12 @@ func (r *userContentRepository) DeleteFlightsAndHistory(ctx context.Context, use
 	}
 	defer func() { _ = tx.Rollback() }() // no-op once committed
 
-	if err := applyChangeContext(repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit), tx); err != nil {
+	ctx = withUserEditSource(ctx)
+	if err := applyChangeContext(ctx, tx); err != nil {
+		return 0, err
+	}
+	flagged, err := (&restoreTx{tx: tx}).deleteClassifiedCorrections(ctx, userID)
+	if err != nil {
 		return 0, err
 	}
 
@@ -97,5 +106,10 @@ func (r *userContentRepository) DeleteFlightsAndHistory(ctx context.Context, use
 		slog.Error("flight delete commit failed", "user_id", userID, "error", err)
 		return 0, err
 	}
-	return deleted, nil
+	return deleted + flagged, nil
+}
+
+// withUserEditSource marks the writes of a bulk delete as user edits.
+func withUserEditSource(ctx context.Context) context.Context {
+	return repository.WithChangeSource(ctx, repository.ChangeSourceUserEdit)
 }

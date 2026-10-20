@@ -690,6 +690,12 @@ type LogbookRepository interface {
 	// ListVoided returns the user's delete revisions, newest first.
 	ListVoided(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error)
 
-	// CountVoided returns the number of the user's delete revisions.
-	CountVoided(ctx context.Context, userID uuid.UUID) (int, error)
+	// LastCorrections maps each flight to the time of its latest correction
+	// update revision.
+	LastCorrections(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]time.Time, error)
+
+	// GetOverview returns the strict-mode state, the latest certified date and
+	// the number of the user's delete revisions that carry a YYYY-MM-DD flight
+	// date, or ErrNotFound.
+	GetOverview(ctx context.Context, userID uuid.UUID) (*models.LogbookOverview, error)
 }

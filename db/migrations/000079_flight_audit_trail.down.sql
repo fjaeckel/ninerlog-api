@@ -8,6 +8,7 @@ DROP FUNCTION IF EXISTS flight_revision_finalize();
 DROP FUNCTION IF EXISTS flight_revision_capture_crew();
 DROP FUNCTION IF EXISTS flight_revision_capture_flight();
 DROP FUNCTION IF EXISTS flight_revision_capture(UUID);
+DROP FUNCTION IF EXISTS flight_revision_changed(UUID, JSONB, JSONB);
 DROP FUNCTION IF EXISTS flight_revision_crew_key(JSONB);
 DROP FUNCTION IF EXISTS flight_revision_crew(UUID);
 

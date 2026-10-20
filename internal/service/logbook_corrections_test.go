@@ -22,7 +22,6 @@ func newCorrectionEnv(t *testing.T, strict bool, licenceCountries ...string) *co
 	e := newLogbookEnv(t, strict, licenceCountries...)
 	svc := NewFlightService(e.flights, nil)
 	svc.SetLogbookService(e.logbook)
-	svc.SetCrewRepository(e.crew)
 	return &correctionEnv{logbookEnv: e, svc: svc}
 }
 
@@ -104,8 +103,8 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, source: repository.ChangeSourceRecalc, wantWrite: true,
 		},
 		{
-			name: "no-op save after the window needs no reason", strict: true, daysAgo: 30,
-			mutate: func(f *models.Flight) {}, wantWrite: true,
+			name: "no-op save after the window commits without a reason", strict: true, daysAgo: 30,
+			mutate: func(f *models.Flight) {}, wantCorrection: true, wantWrite: true,
 		},
 		{
 			name: "CH landing inside 48 hours is free even after the flight day", strict: true, countries: []string{"CH"},
@@ -407,5 +406,192 @@ func TestFlightService_FreeEditWindowFollowsLanding(t *testing.T) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestFlightService_DeleteDefaultsToTheVoidReason(t *testing.T) {
+	voidedAt := testNow.Add(-time.Hour)
+	tests := []struct {
+		name       string
+		strict     bool
+		reason     string
+		wantReason string
+	}{
+		{"no reason takes the void reason", true, "", "wrong landing count"},
+		{"a given reason wins", true, "entered twice", "entered twice"},
+		{"non-strict delete takes nothing", false, "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newCorrectionEnv(t, tt.strict)
+			stored := e.seed(t, 0)
+			e.sigs.byID[uuid.New()] = &models.FlightSignature{
+				FlightID: stored.ID, Status: models.SignatureStatusVoided, VoidedAt: &voidedAt, VoidedReason: strp("wrong landing count"),
+			}
+
+			if err := e.svc.DeleteFlightWithReason(context.Background(), stored.ID, e.userID, tt.reason); err != nil {
+				t.Fatal(err)
+			}
+			cc := e.flights.writes[0]
+			gotReason := ""
+			if cc.Reason != nil {
+				gotReason = *cc.Reason
+			}
+			if gotReason != tt.wantReason {
+				t.Errorf("reason = %q, want %q", gotReason, tt.wantReason)
+			}
+			if cc.IsCorrection != tt.strict {
+				t.Errorf("correction = %v, want %v", cc.IsCorrection, tt.strict)
+			}
+		})
+	}
+}
+
+// txRepos serves a logbook service's reads in place of a transaction.
+type txRepos struct {
+	logbook  repository.LogbookRepository
+	licenses repository.LicenseRepository
+}
+
+func (r txRepos) Contacts() repository.ContactRepository { return nil }
+func (r txRepos) Logbook() repository.LogbookRepository  { return r.logbook }
+func (r txRepos) Licenses() repository.LicenseRepository { return r.licenses }
+
+func TestLogbookService_DeleteCorrections(t *testing.T) {
+	ctx := context.Background()
+	today := time.Date(testNow.Year(), testNow.Month(), testNow.Day(), 0, 0, 0, 0, time.UTC)
+	flight := func(daysAgo int) *models.Flight {
+		return &models.Flight{ID: uuid.New(), Date: today.AddDate(0, 0, -daysAgo)}
+	}
+	fresh, late, certified := flight(0), flight(3), flight(0)
+	signed := flight(0)
+	sigID := uuid.New()
+	signed.SignatureID = &sigID
+	list := func(fs ...*models.Flight) repository.FlightLister {
+		return func() ([]*models.Flight, error) { return fs, nil }
+	}
+
+	t.Run("strict account flags late, certified and signed flights", func(t *testing.T) {
+		e := newLogbookEnv(t, true)
+		e.lbRepo.certs = append(e.lbRepo.certs, models.LogbookCertification{UserID: e.userID, CertifiedThrough: today.AddDate(0, 0, -1)})
+		certified.Date = today.AddDate(0, 0, -2)
+
+		got, err := e.logbook.DeleteCorrections(ctx, txRepos{logbook: e.lbRepo, licenses: e.licenses}, e.userID, list(fresh, late, certified, signed))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[uuid.UUID]bool{late.ID: true, certified.ID: true, signed.ID: true}
+		if len(got) != len(want) {
+			t.Fatalf("corrections = %v", got)
+		}
+		for _, id := range got {
+			if !want[id] {
+				t.Errorf("unexpected correction %s", id)
+			}
+		}
+	})
+
+	t.Run("standard account lists nothing", func(t *testing.T) {
+		e := newLogbookEnv(t, false)
+		listed := false
+		got, err := e.logbook.DeleteCorrections(ctx, txRepos{logbook: e.lbRepo, licenses: e.licenses}, e.userID,
+			func() ([]*models.Flight, error) { listed = true; return nil, nil })
+		if err != nil || got != nil || listed {
+			t.Fatalf("got=%v listed=%v err=%v", got, listed, err)
+		}
+	})
+
+	t.Run("state is read through the repositories handed in", func(t *testing.T) {
+		e := newLogbookEnv(t, true)
+		tx := newFakeLogbookRepo()
+		tx.mode(e.userID).Strict = true
+
+		if _, err := e.logbook.DeleteCorrections(ctx, txRepos{logbook: tx, licenses: e.licenses}, e.userID, list(late)); err != nil {
+			t.Fatal(err)
+		}
+		if tx.getModeCalls != 1 || e.lbRepo.getModeCalls != 0 {
+			t.Errorf("GetMode calls: transaction %d, base %d; want 1 and 0", tx.getModeCalls, e.lbRepo.getModeCalls)
+		}
+	})
+}
+
+func TestFlightService_DeleteAllFlightsCarriesTheClassifier(t *testing.T) {
+	tests := []struct {
+		name       string
+		withLogbok bool
+		want       bool
+	}{
+		{"with the logbook service", true, true},
+		{"without it", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newCorrectionEnv(t, true)
+			svc := NewFlightService(e.flights, nil)
+			if tt.withLogbok {
+				svc.SetLogbookService(e.logbook)
+			}
+			spy := &classifierSpyRepo{recordingFlightRepo: e.flights}
+			svc.flightRepo = spy
+
+			if _, err := svc.DeleteAllFlights(context.Background(), e.userID); err != nil {
+				t.Fatal(err)
+			}
+			if spy.hasClassifier != tt.want {
+				t.Errorf("classifier carried = %v, want %v", spy.hasClassifier, tt.want)
+			}
+			if cc, _ := repository.ChangeContextFrom(spy.ctx); cc.Source != repository.ChangeSourceUserEdit {
+				t.Errorf("source = %q", cc.Source)
+			}
+		})
+	}
+}
+
+type classifierSpyRepo struct {
+	*recordingFlightRepo
+	ctx           context.Context
+	hasClassifier bool
+}
+
+func (r *classifierSpyRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	r.ctx = ctx
+	_, r.hasClassifier = repository.DeleteCorrectionsFrom(ctx)
+	return r.recordingFlightRepo.DeleteAllByUserID(ctx, userID)
+}
+
+type contentSpyRepo struct {
+	repository.UserContentRepository
+	classifiers []bool
+}
+
+func (r *contentSpyRepo) DeleteAllContent(ctx context.Context, _ uuid.UUID) error {
+	_, ok := repository.DeleteCorrectionsFrom(ctx)
+	r.classifiers = append(r.classifiers, ok)
+	return nil
+}
+
+func (r *contentSpyRepo) DeleteFlightsAndHistory(ctx context.Context, _ uuid.UUID) (int64, error) {
+	_, ok := repository.DeleteCorrectionsFrom(ctx)
+	r.classifiers = append(r.classifiers, ok)
+	return 0, nil
+}
+
+func TestUserDataService_BulkDeletesCarryTheClassifier(t *testing.T) {
+	e := newLogbookEnv(t, true)
+	for _, withLogbook := range []bool{true, false} {
+		spy := &contentSpyRepo{}
+		svc := NewUserDataService(spy)
+		if withLogbook {
+			svc.SetLogbookService(e.logbook)
+		}
+		if err := svc.DeleteAll(context.Background(), e.userID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.DeleteFlights(context.Background(), e.userID); err != nil {
+			t.Fatal(err)
+		}
+		if len(spy.classifiers) != 2 || spy.classifiers[0] != withLogbook || spy.classifiers[1] != withLogbook {
+			t.Errorf("withLogbook=%v: classifier carried = %v", withLogbook, spy.classifiers)
+		}
 	}
 }
