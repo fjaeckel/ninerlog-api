@@ -60,7 +60,8 @@ func (m *mockFlightSessionRepo) Update(ctx context.Context, s *models.FlightSess
 // Minimal aircraft repository mock for session tests (the fuller
 // mockAircraftRepo lives in the external service_test package).
 type sessionAircraftRepo struct {
-	aircraft []*models.Aircraft
+	aircraft      []*models.Aircraft
+	getByUserCall int
 }
 
 func (m *sessionAircraftRepo) Create(ctx context.Context, a *models.Aircraft) error {
@@ -79,6 +80,7 @@ func (m *sessionAircraftRepo) GetByID(ctx context.Context, id uuid.UUID) (*model
 }
 
 func (m *sessionAircraftRepo) GetByUserID(ctx context.Context, userID uuid.UUID, _ *time.Time) ([]*models.Aircraft, error) {
+	m.getByUserCall++
 	var result []*models.Aircraft
 	for _, a := range m.aircraft {
 		if a.UserID == userID {

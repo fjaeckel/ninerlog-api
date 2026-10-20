@@ -95,7 +95,7 @@ At the service layer, so every write path is covered by one choke point:
 | Path | Where |
 | --- | --- |
 | `POST /aircraft`, `PATCH /aircraft/{id}` | `AircraftService.CreateAircraft` / `UpdateAircraft`, by `Aircraft.CanonicalRegistration` |
-| `POST /flights`, `PUT /flights/{id}`, `POST /flights/batch`, flight sessions | `FlightService.CreateFlight` / `UpdateFlight` / `ValidateFlightBatch`, with the powered-paraglider exception above |
+| `POST /flights`, `PUT /flights/{id}`, `POST /flights/batch`, flight sessions | `FlightService.CreateFlight` / `UpdateFlight` / `CreateFlightBatch`, with the powered-paraglider exception above |
 | CSV / ForeFlight / JSON-backup import | the services above, plus canonical keying in `internal/api/handlers/import.go` so one aircraft spelled two ways in one file yields one fleet entry (and the class hint below) |
 | `POST /flights/recalculate` | the services above, plus a fleet pass — see below |
 

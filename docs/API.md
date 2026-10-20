@@ -810,7 +810,9 @@ CRUD and search on `/contacts` (reusable crew/instructor records). `GET /contact
 accepts `updatedSince`.
 
 Contacts are keyed by name — unique per user, case-insensitive, whitespace-trimmed — and
-are created automatically for every crew name written by `POST`/`PUT /flights`, import
+are created automatically for every crew name written by `POST`/`PUT /flights`,
+`POST /flights/batch` (in the transaction that stores the legs, so a rejected batch
+creates none), import
 confirm and backup restore. So:
 
 - `POST /contacts` returns **409** if the user already has that name. It is for adding
