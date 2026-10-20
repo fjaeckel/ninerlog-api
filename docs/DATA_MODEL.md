@@ -45,7 +45,7 @@ flowchart TD
 
 ## Core entities
 
-### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74, 78)
+### User (`internal/models/user.go`, migrations 1, 11, 26, 28, 34, 35, 40, 45, 50, 74, 78, 79)
 
 The account holder. Notable fields:
 
@@ -64,6 +64,10 @@ The account holder. Notable fields:
   authenticated API request, written by the `RecordActivity` middleware at most once
   per five minutes per account and by every login. Exposed only as `lastActiveAt` in
   the admin user list. See [AUTHENTICATION.md](AUTHENTICATION.md#last-active).
+- Strict logbook mode: `users.strict_logbook` (default `false`) and `strict_logbook_since`
+  (migration 79; not on the Go model, read and written by `LogbookRepository`). `since` is
+  when the mode was last switched on; revision history starts there. See
+  [DOMAIN.md](./DOMAIN.md#strict-logbook-mode-and-the-flight-audit-trail).
 - Display preferences: `TimeDisplayFormat` (`HH:MM` vs decimal hours), `DateFormat`,
   `ClockFormat` (`24h` | `12h` for times of day; default `24h`), `DecimalSeparator`, `PreferredLocale` (drives localized emails — `en`/`de`),
   `LogbookTerms` (`localized` | `english`; default `localized` — `english` keeps flight-time
@@ -91,11 +95,14 @@ Sensitive fields (`PasswordHash`, `TwoFactorSecret`, `RecoveryCodes`,
 `FailedLoginAttempts`, `LockedUntil`) are tagged `json:"-"` so they never leak through the
 API.
 
-### License (`internal/models/license.go`, migrations 4, 17, 19)
+### License (`internal/models/license.go`, migrations 4, 17, 19, 79)
 
 A pilot license such as EASA PPL or FAA CPL. Key fields: `RegulatoryAuthority`
 (e.g. `EASA`, `FAA`), `LicenseType`, `LicenseNumber`, `IssueDate`, `IssuingAuthority`,
-`RequiresSeparateLogbook`. A user may hold several licenses.
+`RequiresSeparateLogbook`, and `IssuingCountry` (migration 79, nullable `CHAR(2)` ISO 3166-1
+alpha-2, upper case, CHECK `^[A-Z]{2}$`). The country is never inferred; the licence rule registry
+reads it, and a licence without one never switches strict logbook mode on. A user may hold
+several licenses.
 
 ### ClassRating (`internal/models/class_rating.go`, migrations 20, 68, 72, 73)
 
@@ -206,7 +213,7 @@ flight update, spreadsheet import, backup restore) runs the crew names through
 than of which entry point the pilot used. `POST /contacts` is for filling in email and
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
-### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66)
+### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66, 79)
 
 The central record. It holds **two kinds of row**, told apart by `IsSimulator`: a flight,
 and an FSTD (simulator) session. See
@@ -261,6 +268,9 @@ are **integer minutes**):
 - **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`); see
   [SAILPLANES.md](./SAILPLANES.md).
 - **Free text**: `Remarks`.
+- **History** (migration 79): in strict logbook mode every committed change and every delete
+  of a flight is kept in `flight_revisions`; see
+  [Flight audit trail](#flight-audit-trail-internalmodelslogbookgo-migration-79).
 
 Validation: `IsValid()` checks required fields — which differ by row kind;
 `ValidateTimeDistribution()` enforces function-time consistency, including
@@ -282,6 +292,20 @@ PIC-of-record resolution read. Two consequences:
   (`ContactRepository.UpdateWithCrewRename`).
 - Deleting a contact sets `contact_id` to NULL and leaves `name` untouched, so no logbook
   content is lost. Deleting is therefore always permitted.
+
+### Flight audit trail (`internal/models/logbook.go`, migration 79)
+
+Four tables, all `user_id`-scoped with `ON DELETE CASCADE`, plus one transient table:
+
+| Table | Purpose |
+| --- | --- |
+| `flight_revisions` | One row per recorded change: the flight (`snapshot`, `to_jsonb` of the `flights` row with snake_case keys) and its crew (`crew_snapshot`, `[{name, role, contactId}]`) **as they were before** the change. `kind` is `update` or `delete` (a delete revision is the void record). `source` is `user_edit`, `recalc`, `aircraft_rename`, `contact_rename`, `import` or `unknown`; `reason` and `is_correction` come from the change context. `flight_id` has no foreign key, so a revision outlives its flight. `UNIQUE (flight_id, revision_no)`. Append-only: a trigger refuses `UPDATE` and `DELETE` unless the owning user row is gone. |
+| `flight_revision_pending` | Pre-images held by the current transaction; emptied at commit. Not user content. |
+| `logbook_mode_events` | Every switch of strict mode: `strict`, `trigger` (`licence`, `manual`, `import`), the saving `license_id`, `created_at`. |
+| `logbook_certifications` | "Certified through" statements: `certified_through` (date) and `certified_at`. |
+
+`flight_signatures.signed_fields_hash` (nullable) holds the SHA-256 of the flight fields the
+signature attested.
 
 ### FlightBaseline (`internal/models/flight_baseline.go`, migrations 38, 66)
 

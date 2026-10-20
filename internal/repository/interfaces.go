@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
@@ -173,6 +174,10 @@ type FlightRepository interface {
 	// Create creates a new flight
 	Create(ctx context.Context, flight *models.Flight) error
 
+	// CreateWithCrew creates a flight and its crew in one transaction. A
+	// failed crew insert is returned wrapping ErrCrewWrite.
+	CreateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error
+
 	// GetByID retrieves a flight by its ID
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error)
 
@@ -181,6 +186,9 @@ type FlightRepository interface {
 
 	// Update updates a flight
 	Update(ctx context.Context, flight *models.Flight) error
+
+	// UpdateWithCrew updates a flight and replaces its crew in one transaction
+	UpdateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error
 
 	// Delete deletes a flight
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -425,7 +433,9 @@ type ContactRepository interface {
 	// UpdateWithCrewRename updates the contact and carries a name change into
 	// the crew rows of the user's unsigned flights, returning the number of
 	// crew rows rewritten. Signed flights keep the name they were signed with.
-	UpdateWithCrewRename(ctx context.Context, contact *models.Contact) (int, error)
+	// reason is recorded on the flight revisions the rewrite produces, under
+	// the contact_rename change source.
+	UpdateWithCrewRename(ctx context.Context, contact *models.Contact, reason string) (int, error)
 	// RolesByContact maps each of the user's contacts to the distinct crew
 	// roles it has been logged in, most-used first.
 	RolesByContact(ctx context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error)
@@ -615,4 +625,77 @@ type CustomReportRepository interface {
 	// Aggregate groups the user's flights matching opts by groupBy (a
 	// models.ReportGroup* value). Pagination and sorting in opts are ignored.
 	Aggregate(ctx context.Context, userID uuid.UUID, opts *FlightQueryOptions, groupBy string) ([]CustomReportGroup, error)
+}
+
+// LogbookRestoreWriter is the part of LogbookRepository a backup restore
+// writes through.
+type LogbookRestoreWriter interface {
+	// SetStrict switches strict mode and stores an event. It reports false
+	// and stores nothing when the mode already has the requested value.
+	SetStrict(ctx context.Context, userID uuid.UUID, strict bool, trigger string, licenseID *uuid.UUID) (bool, error)
+
+	// RestoreStrictSince sets the instant strict mode counts as switched on.
+	RestoreStrictSince(ctx context.Context, userID uuid.UUID, since time.Time) error
+
+	// ImportModeEvent stores an event with its original timestamp. It reports
+	// false when an identical event already exists.
+	ImportModeEvent(ctx context.Context, event *models.LogbookModeEvent) (bool, error)
+
+	// ImportCertification stores a certification with its original timestamp.
+	// It reports false when an identical one already exists.
+	ImportCertification(ctx context.Context, c *models.LogbookCertification) (bool, error)
+
+	// ImportRevisions stores revisions as given, in batched statements, and
+	// returns how many were stored. A revision whose flight already has that
+	// revision number is skipped.
+	ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error)
+}
+
+// LogbookRepository defines data access for strict logbook mode, flight
+// revisions and logbook certifications.
+type LogbookRepository interface {
+	LogbookRestoreWriter
+
+	// GetMode returns the user's strict-mode state, or ErrNotFound.
+	GetMode(ctx context.Context, userID uuid.UUID) (*models.LogbookMode, error)
+
+	// ListModeEvents returns every switch, oldest first.
+	ListModeEvents(ctx context.Context, userID uuid.UUID) ([]models.LogbookModeEvent, error)
+
+	// CreateCertification stores a certification, filling ID and CertifiedAt.
+	CreateCertification(ctx context.Context, c *models.LogbookCertification) error
+
+	// ListCertifications returns the user's certifications, newest first.
+	ListCertifications(ctx context.Context, userID uuid.UUID) ([]models.LogbookCertification, error)
+
+	// LatestCertifiedThrough returns the latest certified date, or nil.
+	LatestCertifiedThrough(ctx context.Context, userID uuid.UUID) (*time.Time, error)
+
+	// CurrentFlightState returns the flight row and its crew in the JSON shape
+	// revisions store them, or ErrNotFound when the flight does not exist or
+	// belongs to another user.
+	CurrentFlightState(ctx context.Context, userID, flightID uuid.UUID) (snapshot, crew json.RawMessage, err error)
+
+	// CurrentFlightStates returns the current state of each of the user's
+	// flights among flightIDs; flights that do not exist are absent.
+	CurrentFlightStates(ctx context.Context, userID uuid.UUID, flightIDs []uuid.UUID) (map[uuid.UUID]models.FlightState, error)
+
+	// ListRevisions returns the revisions of one flight, oldest first.
+	ListRevisions(ctx context.Context, userID, flightID uuid.UUID) ([]models.FlightRevision, error)
+
+	// ListUserRevisions returns every revision of the user, ordered by flight
+	// and revision number.
+	ListUserRevisions(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error)
+
+	// ListVoided returns the user's delete revisions, newest first.
+	ListVoided(ctx context.Context, userID uuid.UUID) ([]models.FlightRevision, error)
+
+	// LastCorrections maps each flight to the time of its latest correction
+	// update revision.
+	LastCorrections(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]time.Time, error)
+
+	// GetOverview returns the strict-mode state, the latest certified date and
+	// the number of the user's delete revisions that carry a YYYY-MM-DD flight
+	// date, or ErrNotFound.
+	GetOverview(ctx context.Context, userID uuid.UUID) (*models.LogbookOverview, error)
 }

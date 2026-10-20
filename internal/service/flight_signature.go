@@ -29,6 +29,9 @@ var (
 	ErrSignatureTokenInvalid = errors.New("signature link is invalid")
 	// ErrSignatureTokenExpired means the token's expiry has passed.
 	ErrSignatureTokenExpired = errors.New("signature link has expired")
+	// ErrFlightChanged means the flight's signed fields differ from the hash
+	// the signer was shown.
+	ErrFlightChanged = errors.New("the flight changed since it was shown")
 
 	// ErrSignatureNotPending is returned by Resend/Revoke when the target
 	// signature is not (or no longer) in the 'pending' state.
@@ -57,6 +60,55 @@ type FlightSignatureService struct {
 	sigRepo    repository.FlightSignatureRepository
 	flightRepo repository.FlightRepository
 	userRepo   repository.UserRepository
+	crewRepo   repository.FlightCrewRepository
+}
+
+// SetCrewRepository attaches the crew repository used to hash and verify the
+// signed fields.
+func (s *FlightSignatureService) SetCrewRepository(r repository.FlightCrewRepository) {
+	s.crewRepo = r
+}
+
+// crewOf loads the flight's crew; a missing crew repository means no crew.
+func (s *FlightSignatureService) crewOf(ctx context.Context, flightID uuid.UUID) ([]models.FlightCrewMember, error) {
+	if s.crewRepo == nil {
+		return nil, nil
+	}
+	return s.crewRepo.GetByFlightID(ctx, flightID)
+}
+
+// fieldsHash hashes the flight's current signed fields.
+func (s *FlightSignatureService) fieldsHash(ctx context.Context, flight *models.Flight) (*string, error) {
+	crew, err := s.crewOf(ctx, flight.ID)
+	if err != nil {
+		return nil, err
+	}
+	h := SignedFieldsHash(flight, crew)
+	return &h, nil
+}
+
+// VerifyFieldsHashes reports, for each completed or voided signature of the
+// flight that carries a hash, whether the flight's current fields still hash
+// to it. Signatures without a hash are absent from the result.
+func (s *FlightSignatureService) VerifyFieldsHashes(ctx context.Context, flightID, userID uuid.UUID, sigs []*models.FlightSignature) (map[uuid.UUID]bool, error) {
+	out := make(map[uuid.UUID]bool, len(sigs))
+	var current *string
+	for _, sig := range sigs {
+		if sig.SignedFieldsHash == nil {
+			continue
+		}
+		if current == nil {
+			flight, err := s.getOwnedFlight(ctx, flightID, userID)
+			if err != nil {
+				return nil, err
+			}
+			if current, err = s.fieldsHash(ctx, flight); err != nil {
+				return nil, err
+			}
+		}
+		out[sig.ID] = *current == *sig.SignedFieldsHash
+	}
+	return out, nil
 }
 
 func NewFlightSignatureService(sigRepo repository.FlightSignatureRepository, flightRepo repository.FlightRepository, userRepo repository.UserRepository) *FlightSignatureService {
@@ -149,6 +201,9 @@ func (s *FlightSignatureService) SignLive(ctx context.Context, flightID, userID 
 		SignedAt:               &now,
 		SignerIP:               nonEmptyPtr(signerIP),
 		SignerUserAgent:        nonEmptyPtr(signerUA),
+	}
+	if sig.SignedFieldsHash, err = s.fieldsHash(ctx, flight); err != nil {
+		return nil, err
 	}
 	if err := s.sigRepo.Create(ctx, sig); err != nil {
 		return nil, err
@@ -378,10 +433,22 @@ func (s *FlightSignatureService) ResolveToken(ctx context.Context, token string)
 	return sig, flight, nil
 }
 
+// PublicFieldsHash returns the signed-fields hash of the flight as the
+// public signing page shows it.
+func (s *FlightSignatureService) PublicFieldsHash(ctx context.Context, flight *models.Flight) (string, error) {
+	h, err := s.fieldsHash(ctx, flight)
+	if err != nil {
+		return "", err
+	}
+	return *h, nil
+}
+
 // CompleteFromToken records the instructor's signature against a valid
-// pending token. Returns the completed signature plus the flight owner's
-// DB-sourced email/name for the confirmation mail.
-func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, signerName string, credentialNo *string, image []byte, signerIP, signerUA string) (sig *models.FlightSignature, ownerEmail, ownerName string, err error) {
+// pending token. A non-nil expectedHash that differs from the flight's
+// current signed-fields hash returns ErrFlightChanged and records nothing.
+// Returns the completed signature plus the flight owner's DB-sourced
+// email/name for the confirmation mail.
+func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, signerName string, credentialNo *string, image []byte, signerIP, signerUA string, expectedHash *string) (sig *models.FlightSignature, ownerEmail, ownerName string, err error) {
 	sig, err = s.lookupPendingByToken(ctx, token)
 	if err != nil {
 		return nil, "", "", err
@@ -409,6 +476,16 @@ func (s *FlightSignatureService) CompleteFromToken(ctx context.Context, token, s
 	sig.SignedAt = &now
 	sig.SignerIP = nonEmptyPtr(signerIP)
 	sig.SignerUserAgent = nonEmptyPtr(signerUA)
+	flight, err := s.flightRepo.GetByID(ctx, sig.FlightID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if sig.SignedFieldsHash, err = s.fieldsHash(ctx, flight); err != nil {
+		return nil, "", "", err
+	}
+	if expectedHash != nil && *expectedHash != *sig.SignedFieldsHash {
+		return nil, "", "", ErrFlightChanged
+	}
 	if err := s.sigRepo.Update(ctx, sig); err != nil {
 		return nil, "", "", err
 	}

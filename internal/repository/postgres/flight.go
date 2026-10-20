@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -117,6 +118,14 @@ func timeToString(t *time.Time) *string {
 	return &s
 }
 
+// nullableTime maps the zero time to SQL NULL.
+func nullableTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
 // flightInsertColumns lists the flights columns written on insert, in the
 // order flightInsertArgs supplies them.
 const flightInsertColumns = `
@@ -215,12 +224,35 @@ func placeholders(first, n int) string {
 }
 
 func (r *flightRepository) Create(ctx context.Context, flight *models.Flight) error {
-	args := flightInsertArgs(flight)
-	query := `INSERT INTO flights (` + flightInsertColumns + `)
-		VALUES (` + placeholders(1, len(args)) + `)
+	return r.CreateWithCrew(ctx, flight, nil)
+}
+
+// CreateWithCrew inserts the flight and its crew in one transaction.
+func (r *flightRepository) CreateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := repository.RunTxHook(ctx, &txRepos{tx: tx}); err != nil {
+		return err
+	}
+	if err := insertFlightRow(ctx, tx, flight); err != nil {
+		return err
+	}
+	if err := insertCrewMembers(ctx, tx, flight.ID, crew); err != nil {
+		return &repository.CrewWriteError{Err: err}
+	}
+	return tx.Commit()
+}
+
+func insertFlightRow(ctx context.Context, db queryExecer, flight *models.Flight) error {
+	args := append(flightInsertArgs(flight), nullableTime(flight.CreatedAt))
+	query := `INSERT INTO flights (` + flightInsertColumns + `, created_at)
+		VALUES (` + placeholders(1, len(args)-1) + fmt.Sprintf(", COALESCE($%d::timestamptz, now()))", len(args)) + `
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
+	return db.QueryRowContext(ctx, query, args...).Scan(&flight.ID, &flight.CreatedAt, &flight.UpdatedAt)
 }
 
 func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Flight, error) {
@@ -351,6 +383,80 @@ func (r *flightRepository) GetByUserID(ctx context.Context, userID uuid.UUID, op
 }
 
 func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) error {
+	return r.update(ctx, flight, nil)
+}
+
+// UpdateWithCrew updates the flight and replaces its crew in one transaction.
+func (r *flightRepository) UpdateWithCrew(ctx context.Context, flight *models.Flight, crew []models.FlightCrewMember) error {
+	return r.update(ctx, flight, &crew)
+}
+
+func (r *flightRepository) update(ctx context.Context, flight *models.Flight, crew *[]models.FlightCrewMember) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := repository.RunTxHook(ctx, &txRepos{tx: tx}); err != nil {
+		return err
+	}
+
+	cc, _ := repository.ChangeContextFrom(ctx)
+	var pre *flightPreImage
+	if cc.RejectChange {
+		if pre, err = readFlightPreImage(ctx, tx, flight.ID); err != nil {
+			return err
+		}
+	}
+	if err := updateFlightRow(ctx, tx, flight); err != nil {
+		return err
+	}
+	if crew != nil {
+		if err := replaceCrewMembers(ctx, tx, flight.ID, *crew); err != nil {
+			return err
+		}
+	}
+	if pre != nil {
+		changed, err := pre.changed(ctx, tx, flight.ID)
+		if err != nil {
+			return err
+		}
+		if changed {
+			return repository.ErrChangeRejected
+		}
+	}
+	return tx.Commit()
+}
+
+// flightPreImage is a flight row and its crew as the revision triggers
+// snapshot them.
+type flightPreImage struct {
+	flight []byte
+	crew   []byte
+}
+
+func readFlightPreImage(ctx context.Context, tx *sql.Tx, id uuid.UUID) (*flightPreImage, error) {
+	pre := &flightPreImage{}
+	err := tx.QueryRowContext(ctx,
+		`SELECT to_jsonb(f), flight_revision_crew(f.id) FROM flights f WHERE f.id = $1 FOR UPDATE`, id,
+	).Scan(&pre.flight, &pre.crew)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrNotFound
+	}
+	return pre, err
+}
+
+// changed asks the database whether the flight or its crew differ from the
+// pre-image, by the comparison the revision triggers use.
+func (p *flightPreImage) changed(ctx context.Context, tx *sql.Tx, id uuid.UUID) (bool, error) {
+	var changed bool
+	err := tx.QueryRowContext(ctx,
+		`SELECT flight_revision_changed($1, $2::jsonb, $3::jsonb)`, id, p.flight, p.crew,
+	).Scan(&changed)
+	return changed, err
+}
+
+func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) error {
 	approachesJSON, err := json.Marshal(flight.Approaches)
 	if err != nil {
 		approachesJSON = []byte("[]")
@@ -383,7 +489,7 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 		WHERE id = $61
 	`
 
-	result, err := r.db.ExecContext(
+	result, err := db.ExecContext(
 		ctx, query,
 		flight.Date,
 		flight.AircraftReg,
@@ -464,9 +570,13 @@ func (r *flightRepository) Update(ctx context.Context, flight *models.Flight) er
 }
 
 func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM flights WHERE id = $1`
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := tx.ExecContext(ctx, `DELETE FROM flights WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -480,18 +590,32 @@ func (r *flightRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return repository.ErrNotFound
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (r *flightRepository) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	// Crew members are deleted explicitly; the FK also cascades.
-	_, _ = r.db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID)
-
-	result, err := r.db.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
+	tx, err := beginChangeTx(ctx, r.db)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+
+	flagged, err := (&restoreTx{tx: tx}).deleteClassifiedCorrections(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id IN (SELECT id FROM flights WHERE user_id = $1)`, userID); err != nil {
+		return 0, err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1`, userID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return n + flagged, tx.Commit()
 }
 
 func (r *flightRepository) CountByUserID(ctx context.Context, userID uuid.UUID, opts *repository.FlightQueryOptions) (int, error) {

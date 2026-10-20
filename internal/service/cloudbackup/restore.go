@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
 )
 
@@ -28,9 +30,10 @@ func (m RestoreMode) Valid() bool {
 
 // Limits on a single restore.
 const (
-	MaxRestoreFlights  = 100000
-	MaxRestoreContacts = 100000
-	MaxRestoreEntities = 2000
+	MaxRestoreFlights   = 100000
+	MaxRestoreContacts  = 100000
+	MaxRestoreRevisions = 1000000
+	MaxRestoreEntities  = 2000
 
 	maxRestoreWarnings = 1000
 )
@@ -101,12 +104,21 @@ type RestoreResult struct {
 	CustomReportsImported           int              `json:"customReportsImported"`
 	NotificationPreferencesImported bool             `json:"notificationPreferencesImported"`
 	FlightBaselineImported          bool             `json:"flightBaselineImported"`
+	FlightRevisionsImported         int              `json:"flightRevisionsImported"`
+	LogbookCertificationsImported   int              `json:"logbookCertificationsImported"`
 	Warnings                        []RestoreWarning `json:"warnings"`
 }
 
 // Restorer restores a Payload into a user's account in one transaction.
 type Restorer struct {
-	store repository.RestoreStore
+	store   repository.RestoreStore
+	logbook *service.LogbookService
+}
+
+// SetLogbookService attaches the strict logbook rules that classify the
+// flights a replace-mode restore deletes.
+func (r *Restorer) SetLogbookService(l *service.LogbookService) {
+	r.logbook = l
 }
 
 // NewRestorer creates a Restorer over the given store.
@@ -136,16 +148,36 @@ func (r *Restorer) Restore(ctx context.Context, userID uuid.UUID, p *Payload, mo
 		return nil, err
 	}
 
+	var classify repository.DeleteCorrections
+	if mode == RestoreModeReplace && r.logbook != nil {
+		classify = r.logbook.DeleteCorrections
+	}
+
 	var result *RestoreResult
-	err = r.store.InRestoreTx(ctx, userID, func(tx repository.RestoreTx) error {
+	err = r.store.InRestoreTx(restoreChangeContext(ctx, mode), userID, func(tx repository.RestoreTx) error {
 		var err error
-		result, err = plan.apply(ctx, tx, mode)
+		result, err = plan.apply(ctx, tx, mode, classify)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+// ReplaceReason is the reason recorded on the void record of every flight a
+// replace-mode restore deletes in strict logbook mode.
+const ReplaceReason = "Replaced by backup restore"
+
+// restoreChangeContext marks the restore's flight writes as an import; a
+// replace carries ReplaceReason.
+func restoreChangeContext(ctx context.Context, mode RestoreMode) context.Context {
+	cc := repository.ChangeContext{Source: repository.ChangeSourceImport}
+	if mode == RestoreModeReplace {
+		reason := ReplaceReason
+		cc.Reason = &reason
+	}
+	return repository.WithChangeContext(ctx, cc)
 }
 
 // checkEnvelope validates format, version and section sizes.
@@ -167,12 +199,22 @@ func checkEnvelope(p *Payload) error {
 		{"credentials", len(p.Credentials), MaxRestoreEntities},
 		{"custom currency rules", len(p.CustomCurrencyRules), MaxRestoreEntities},
 		{"custom reports", len(p.CustomReports), MaxRestoreEntities},
+		{"flight revisions", len(p.FlightRevisions), MaxRestoreRevisions},
+		{"logbook certifications", len(p.LogbookCertifications), MaxRestoreEntities},
+		{"logbook mode events", logbookEventCount(p), MaxRestoreEntities},
 	} {
 		if s.n > s.limit {
 			return tooMany(s.name, s.n, s.limit)
 		}
 	}
 	return nil
+}
+
+func logbookEventCount(p *Payload) int {
+	if p.LogbookMode == nil {
+		return 0
+	}
+	return len(p.LogbookMode.Events)
 }
 
 // checkVersion accepts an absent version and any major version up to
@@ -194,7 +236,9 @@ func checkVersion(v string) error {
 }
 
 // apply runs the refusal checks, the optional wipe and every insert in tx.
-func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode) (*RestoreResult, error) {
+// classify, when set, flags the void records of wiped flights that are
+// corrections; it reads through the repositories of tx.
+func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode, classify repository.DeleteCorrections) (*RestoreResult, error) {
 	switch mode {
 	case RestoreModeRestore:
 		content, err := tx.CountContent(ctx, pl.userID)
@@ -212,9 +256,24 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		if attachments.Any() {
 			return nil, ErrReplaceWouldDropAttachments
 		}
-		if err := tx.WipeContent(ctx, pl.userID); err != nil {
+		var corrections []uuid.UUID
+		if classify != nil {
+			var err error
+			corrections, err = classify(ctx, tx.Repos(), pl.userID, func() ([]*models.Flight, error) {
+				return tx.ListFlightTimings(ctx, pl.userID)
+			})
+			if err != nil {
+				return nil, fmt.Errorf("classify flights: %w", err)
+			}
+		}
+		if err := tx.WipeContent(ctx, pl.userID, corrections); err != nil {
 			return nil, fmt.Errorf("wipe content: %w", err)
 		}
+	}
+
+	flightIDs, err := pl.assignFlightIDs(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("assign flight ids: %w", err)
 	}
 
 	for i, a := range pl.aircraft {
@@ -285,6 +344,15 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		}
 	}
 
+	logbook, err := service.ImportLogbook(ctx, tx, pl.userID, pl.logbook, flightIDs, licenseIDs)
+	var entry *service.LogbookImportError
+	if errors.As(err, &entry) {
+		return nil, invalidEntry(entry.Section, entry.Index, err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("restore logbook history: %w", err)
+	}
+
 	return &RestoreResult{
 		Mode:                            mode,
 		AircraftImported:                len(pl.aircraft),
@@ -301,6 +369,65 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		CustomReportsImported:           len(pl.reports),
 		NotificationPreferencesImported: pl.prefs != nil,
 		FlightBaselineImported:          pl.baseline != nil,
+		FlightRevisionsImported:         logbook.Revisions,
+		LogbookCertificationsImported:   logbook.Certifications,
 		Warnings:                        pl.warnings.list(),
 	}, nil
+}
+
+// assignFlightIDs gives each planned flight its id in the backup when no
+// flight, no other user's history and no void record of this user holds it,
+// and keeps the minted id otherwise. Crew follows its flight. The result maps
+// every flight id of the backup, including those that only its revisions
+// mention, to the id used in the restore.
+func (pl *restorePlan) assignFlightIDs(ctx context.Context, tx repository.RestoreTx) (map[uuid.UUID]uuid.UUID, error) {
+	candidates := make([]uuid.UUID, 0, len(pl.flightBackupIDs))
+	seen := make(map[uuid.UUID]bool, len(pl.flightBackupIDs))
+	add := func(id uuid.UUID) {
+		if id != uuid.Nil && !seen[id] {
+			seen[id] = true
+			candidates = append(candidates, id)
+		}
+	}
+	for _, id := range pl.flightBackupIDs {
+		add(id)
+	}
+	revisionIDs := pl.logbook.RevisionFlightIDs()
+	for _, id := range revisionIDs {
+		add(id)
+	}
+	usage, err := tx.FlightIDUsage(ctx, pl.userID, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make(map[uuid.UUID]uuid.UUID, len(candidates))
+	kept := make(map[uuid.UUID]uuid.UUID)
+	for i, f := range pl.flights {
+		backupID := pl.flightBackupIDs[i]
+		if backupID == uuid.Nil {
+			continue
+		}
+		if _, claimed := ids[backupID]; claimed {
+			continue
+		}
+		if usage.Taken[backupID] || usage.Voided[backupID] {
+			ids[backupID] = f.ID
+			continue
+		}
+		kept[f.ID] = backupID
+		ids[backupID] = backupID
+		f.ID = backupID
+	}
+	for i := range pl.crew {
+		if id, ok := kept[pl.crew[i].FlightID]; ok {
+			pl.crew[i].FlightID = id
+		}
+	}
+	for _, id := range revisionIDs {
+		if _, restored := ids[id]; !restored && !usage.Taken[id] {
+			ids[id] = id
+		}
+	}
+	return ids, nil
 }

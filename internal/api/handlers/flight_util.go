@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
@@ -51,7 +52,9 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 		flightcalc.ApplyAutoCalculations(flight, userName, fleet[service.NormalizeRegistrationKey(flight.AircraftReg)])
 		// UpdateFlight canonicalises AircraftReg; signed flights are rejected
 		// as locked and counted as errors.
-		if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
+		if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, service.FlightWriteOptions{
+			Source: repository.ChangeSourceRecalc,
+		}); err != nil {
 			failed++
 			continue
 		}

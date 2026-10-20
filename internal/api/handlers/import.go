@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
@@ -571,6 +573,17 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	// Fleet facts, including the aircraft created above.
 	fleet := h.aircraftService.AircraftFactsIndexFor(c.Request.Context(), userID)
 
+	var strictState *service.StrictState
+	if h.logbookService != nil {
+		state, err := h.logbookService.LoadState(c.Request.Context(), userID)
+		if err != nil {
+			slog.Error("import: failed to load logbook state", "user_id", userID, "error", err)
+			h.sendError(c, http.StatusInternalServerError, "Failed to import flights")
+			return
+		}
+		strictState = state
+	}
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !isSelected(rowIdx) {
@@ -601,9 +614,48 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		newFlight := buildImportedFlight(userID, flight, extras)
-		flightcalc.ApplyAutoCalculations(&newFlight, userName, fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)])
+		facts := fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)]
+		flightcalc.ApplyAutoCalculations(&newFlight, userName, facts)
 
-		if err := h.flightService.CreateFlight(c.Request.Context(), &newFlight); err != nil {
+		if strictState != nil {
+			var exceeds *service.OverrideExceedsError
+			if err := h.logbookService.CheckDownwardOverridesWith(strictState, nil, &newFlight, userName, facts); errors.As(err, &exceeds) {
+				for _, field := range exceeds.Fields {
+					importErrors = append(importErrors, struct {
+						Field    string  `json:"field"`
+						Message  string  `json:"message"`
+						RawValue *string `json:"rawValue,omitempty"`
+						RowIndex int     `json:"rowIndex"`
+					}{Field: field, Message: overrideRowMessage, RowIndex: rowIdx})
+				}
+				errored++
+				continue
+			}
+		}
+
+		createOpts := service.FlightWriteOptions{}
+		if len(newFlight.CrewMembers) > 0 {
+			createOpts.Crew = &newFlight.CrewMembers
+			createOpts.BeforeWrite = func(ctx context.Context, repos repository.TxRepos) error {
+				return crewLinker.LinkIn(ctx, repos.Contacts(), newFlight.CrewMembers)
+			}
+		}
+		err := h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, createOpts)
+		if err == nil {
+			crewLinker.Confirm()
+		} else {
+			crewLinker.Discard()
+		}
+		crewSaved := true
+		if err != nil && createOpts.Crew != nil && errors.Is(err, repository.ErrCrewWrite) {
+			crewErr := err
+			if err = h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, service.FlightWriteOptions{}); err == nil {
+				slog.Warn("import: failed to save crew members",
+					"flightId", newFlight.ID, "error", crewErr)
+				crewSaved = false
+			}
+		}
+		if err != nil {
 			importErrors = append(importErrors, struct {
 				Field    string  `json:"field"`
 				Message  string  `json:"message"`
@@ -613,25 +665,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			errored++
 			continue
 		}
-
-		// Link crew to contacts and persist the crew rows. Same pathway as
-		// flight create/update, so an imported logbook and a hand-logged one
-		// produce the same address book.
-		if len(newFlight.CrewMembers) > 0 && h.flightCrewRepo != nil {
-			if err := crewLinker.Link(c.Request.Context(), newFlight.CrewMembers); err != nil {
-				slog.Warn("import: failed to link crew members to contacts",
-					"flightId", newFlight.ID, "error", err)
-			}
-			if err := h.flightCrewRepo.SetCrewMembers(c.Request.Context(), newFlight.ID, newFlight.CrewMembers); err != nil {
-				slog.Warn("import: failed to save crew members",
-					"flightId", newFlight.ID, "error", err)
-				importErrors = append(importErrors, struct {
-					Field    string  `json:"field"`
-					Message  string  `json:"message"`
-					RawValue *string `json:"rawValue,omitempty"`
-					RowIndex int     `json:"rowIndex"`
-				}{Field: "crewMembers", Message: "Flight imported, but its crew members could not be saved", RowIndex: rowIdx})
-			}
+		if !crewSaved {
+			importErrors = append(importErrors, struct {
+				Field    string  `json:"field"`
+				Message  string  `json:"message"`
+				RawValue *string `json:"rawValue,omitempty"`
+				RowIndex int     `json:"rowIndex"`
+			}{Field: "crewMembers", Message: "Flight imported, but its crew members could not be saved", RowIndex: rowIdx})
 		}
 
 		importedIDs = append(importedIDs, openapi_types.UUID(newFlight.ID))
@@ -2119,3 +2159,6 @@ func importResultFromModel(rec *models.FlightImport) generated.ImportResult {
 		CreatedAt:      rec.CreatedAt,
 	}
 }
+
+// overrideRowMessage is the row error of an override above the calculated value.
+const overrideRowMessage = "A manual override may only reduce the calculated value"

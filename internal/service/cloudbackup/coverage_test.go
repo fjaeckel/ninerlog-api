@@ -35,6 +35,9 @@ var exported = map[string]string{
 	"custom_reports":           "CustomReports",
 	"notification_preferences": "NotificationPreferences",
 	"flight_baselines":         "FlightBaseline",
+	"logbook_mode_events":      "LogbookMode.Events",
+	"logbook_certifications":   "LogbookCertifications",
+	"flight_revisions":         "FlightRevisions",
 }
 
 // exempt maps a table to the reason its rows are not part of a user's backup.
@@ -50,6 +53,7 @@ var exempt = map[string]string{
 	"email_verification_tokens": "short-lived credential",
 	"flight_imports":            "history of past import runs, not logbook content",
 	"flight_sessions":           "in-progress tap-to-log capture, discarded once the flight is saved",
+	"flight_revision_pending":   "transient pre-images held within a single transaction and emptied at commit",
 	"flight_signatures":         "instructor attestations bound to this installation's signing links and keys",
 	"idempotency_keys":          "short-lived request bookkeeping",
 	"notification_log":          "record of mail already sent",

@@ -28,7 +28,7 @@ const flightSignatureColumns = `
 	instructor_email, email_sent_at, email_send_count, contact_id,
 	instructor_name, instructor_credential_no, signature_image, signed_at,
 	signer_ip, signer_user_agent,
-	voided_at, voided_reason,
+	voided_at, voided_reason, signed_fields_hash,
 	created_at, updated_at
 `
 
@@ -54,6 +54,7 @@ func scanFlightSignature(row interface{ Scan(...interface{}) error }) (*models.F
 		&s.SignerUserAgent,
 		&s.VoidedAt,
 		&s.VoidedReason,
+		&s.SignedFieldsHash,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	); err != nil {
@@ -76,8 +77,8 @@ func (r *flightSignatureRepository) Create(ctx context.Context, s *models.Flight
 			instructor_email, email_sent_at, email_send_count, contact_id,
 			instructor_name, instructor_credential_no, signature_image, signed_at,
 			signer_ip, signer_user_agent,
-			voided_at, voided_reason
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			voided_at, voided_reason, signed_fields_hash
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING created_at, updated_at
 	`
 	err := r.db.QueryRowContext(ctx, query,
@@ -100,6 +101,7 @@ func (r *flightSignatureRepository) Create(ctx context.Context, s *models.Flight
 		s.SignerUserAgent,
 		s.VoidedAt,
 		s.VoidedReason,
+		s.SignedFieldsHash,
 	).Scan(&s.CreatedAt, &s.UpdatedAt)
 	if err != nil && strings.Contains(err.Error(), "flight_signatures_one_pending_per_flight") {
 		return repository.ErrDuplicate
@@ -212,6 +214,7 @@ func (r *flightSignatureRepository) Update(ctx context.Context, s *models.Flight
 			signer_user_agent = $14,
 			voided_at = $15,
 			voided_reason = $16,
+			signed_fields_hash = $17,
 			updated_at = now()
 		WHERE id = $1
 		RETURNING updated_at
@@ -233,6 +236,7 @@ func (r *flightSignatureRepository) Update(ctx context.Context, s *models.Flight
 		s.SignerUserAgent,
 		s.VoidedAt,
 		s.VoidedReason,
+		s.SignedFieldsHash,
 	).Scan(&s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return repository.ErrNotFound

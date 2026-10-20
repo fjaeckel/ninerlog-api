@@ -27,6 +27,7 @@ type APIHandler struct {
 	flightService          *service.FlightService
 	flightSessionService   *service.FlightSessionService
 	flightSignatureService *service.FlightSignatureService
+	logbookService         *service.LogbookService
 	credentialService      *service.CredentialService
 	aircraftService        *service.AircraftService
 	notificationService    *service.NotificationService

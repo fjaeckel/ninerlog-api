@@ -203,7 +203,7 @@ func (m *mockContactRepo) Update(_ context.Context, c *models.Contact) error {
 	m.contacts[c.ID] = c
 	return nil
 }
-func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact) (int, error) {
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ string) (int, error) {
 	return 0, m.Update(ctx, c)
 }
 func (m *mockContactRepo) RolesByContact(_ context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
@@ -423,6 +423,45 @@ type mockFlightRepo struct {
 	// lastOpts records the options the handler built, so tests can assert
 	// that a query parameter actually reached the repository layer.
 	lastOpts *repository.FlightQueryOptions
+	// crew, when set, receives the crew CreateWithCrew writes; an error
+	// removes the flight again.
+	crew interface {
+		SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
+	}
+	// createErr, when set, is returned by CreateWithCrew before anything is
+	// stored; createCalls counts the calls.
+	createErr   error
+	createCalls int
+	// contacts, when set, serves the contact repository of the transaction
+	// hook; the contacts a failed write created are dropped again.
+	contacts    *mockContactRepo
+	crewChanged bool
+	// crewWriteErr, when set, fails the crew replacement of UpdateWithCrew.
+	crewWriteErr error
+}
+
+// txStub is the TxRepos a mock flight write hands to its hook.
+type txStub struct{ contacts repository.ContactRepository }
+
+func (s txStub) Contacts() repository.ContactRepository { return s.contacts }
+func (txStub) Logbook() repository.LogbookRepository    { return nil }
+func (txStub) Licenses() repository.LicenseRepository   { return nil }
+
+// runHook runs the transaction hook and returns the rollback of its effects.
+func (m *mockFlightRepo) runHook(ctx context.Context) (rollback func(), err error) {
+	if m.contacts == nil {
+		m.contacts = newMockContactRepo()
+	}
+	before := make(map[uuid.UUID]*models.Contact, len(m.contacts.contacts))
+	for id, c := range m.contacts.contacts {
+		before[id] = c
+	}
+	rollback = func() { m.contacts.contacts = before }
+	if err := repository.RunTxHook(ctx, txStub{contacts: m.contacts}); err != nil {
+		rollback()
+		return func() {}, err
+	}
+	return rollback, nil
 }
 
 func newMockFlightRepo() *mockFlightRepo {
@@ -434,6 +473,28 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	f.CreatedAt = time.Now()
 	f.UpdatedAt = time.Now()
 	m.flights[f.ID] = f
+	return nil
+}
+func (m *mockFlightRepo) CreateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	m.createCalls++
+	if m.createErr != nil {
+		return m.createErr
+	}
+	rollback, err := m.runHook(ctx)
+	if err != nil {
+		return err
+	}
+	if err := m.Create(ctx, f); err != nil {
+		rollback()
+		return err
+	}
+	if m.crew != nil && len(crew) > 0 {
+		if err := m.crew.SetCrewMembers(ctx, f.ID, crew); err != nil {
+			delete(m.flights, f.ID)
+			rollback()
+			return &repository.CrewWriteError{Err: err}
+		}
+	}
 	return nil
 }
 func (m *mockFlightRepo) GetByID(_ context.Context, id uuid.UUID) (*models.Flight, error) {
@@ -461,12 +522,36 @@ func matchesUpdatedSince(f *models.Flight, opts *repository.FlightQueryOptions) 
 	}
 	return f.UpdatedAt.After(*opts.UpdatedSince)
 }
-func (m *mockFlightRepo) Update(_ context.Context, f *models.Flight) error {
-	if _, ok := m.flights[f.ID]; !ok {
+func (m *mockFlightRepo) Update(ctx context.Context, f *models.Flight) error {
+	stored, ok := m.flights[f.ID]
+	if !ok {
 		return repository.ErrNotFound
+	}
+	rollback, err := m.runHook(ctx)
+	if err != nil {
+		return err
+	}
+	if cc, _ := repository.ChangeContextFrom(ctx); cc.RejectChange {
+		a, b := *stored, *f
+		a.UpdatedAt, b.UpdatedAt = time.Time{}, time.Time{}
+		aj, _ := json.Marshal(a)
+		bj, _ := json.Marshal(b)
+		if string(aj) != string(bj) || m.crewChanged {
+			rollback()
+			return repository.ErrChangeRejected
+		}
+	}
+	if m.crewChanged && m.crewWriteErr != nil {
+		rollback()
+		return &repository.CrewWriteError{Err: m.crewWriteErr}
 	}
 	m.flights[f.ID] = f
 	return nil
+}
+func (m *mockFlightRepo) UpdateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	m.crewChanged = len(crew) > 0
+	defer func() { m.crewChanged = false }()
+	return m.Update(ctx, f)
 }
 func (m *mockFlightRepo) Delete(_ context.Context, id uuid.UUID) error {
 	delete(m.flights, id)
@@ -1819,7 +1904,7 @@ func TestDeleteFlight_Unauthorized(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("DELETE", "/flights/"+uuid.New().String(), nil)
 
-	h.DeleteFlight(c, uuid.New())
+	h.DeleteFlight(c, uuid.New(), generated.DeleteFlightParams{})
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("DeleteFlight(unauth) status = %d, want 401", w.Code)
@@ -1834,7 +1919,7 @@ func TestDeleteFlight_NotFound(t *testing.T) {
 	c := authenticatedContext(w, userID)
 	c.Request = httptest.NewRequest("DELETE", "/flights/"+uuid.New().String(), nil)
 
-	h.DeleteFlight(c, uuid.New())
+	h.DeleteFlight(c, uuid.New(), generated.DeleteFlightParams{})
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("DeleteFlight(nonexistent) status = %d, want 404", w.Code)

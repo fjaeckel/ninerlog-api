@@ -31,6 +31,7 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("UPDATE contacts").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -40,7 +41,7 @@ func TestUpdateWithCrewRename_SkipsSignedFlights(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectCommit()
 
-	renamed, err := repo.UpdateWithCrewRename(ctx, contact)
+	renamed, err := repo.UpdateWithCrewRename(ctx, contact, "")
 	if err != nil {
 		t.Fatalf("UpdateWithCrewRename() error = %v", err)
 	}
@@ -64,13 +65,14 @@ func TestUpdateWithCrewRename_DuplicateNameRollsBack(t *testing.T) {
 	repo := NewContactRepository(db)
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("UPDATE contacts").
 		WillReturnError(&pq.Error{Code: "23505", Constraint: "idx_contacts_user_lower_name"})
 	mock.ExpectRollback()
 
 	_, err = repo.UpdateWithCrewRename(context.Background(), &models.Contact{
 		ID: uuid.New(), UserID: uuid.New(), Name: "Anna Berg",
-	})
+	}, "")
 	if !errors.Is(err, repository.ErrDuplicate) {
 		t.Errorf("UpdateWithCrewRename() error = %v, want repository.ErrDuplicate", err)
 	}

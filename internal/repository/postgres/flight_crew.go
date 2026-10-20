@@ -18,23 +18,33 @@ func NewFlightCrewRepository(db *sql.DB) *FlightCrewRepository {
 }
 
 func (r *FlightCrewRepository) SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error {
-	if err := r.DeleteByFlightID(ctx, flightID); err != nil {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
 		return err
 	}
-
-	if len(members) == 0 {
-		return nil
+	defer func() { _ = tx.Rollback() }()
+	if err := replaceCrewMembers(ctx, tx, flightID, members); err != nil {
+		return err
 	}
+	return tx.Commit()
+}
 
-	query := `
+// replaceCrewMembers deletes the flight's crew rows and inserts members.
+func replaceCrewMembers(ctx context.Context, db execer, flightID uuid.UUID, members []models.FlightCrewMember) error {
+	if _, err := db.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id = $1`, flightID); err != nil {
+		return err
+	}
+	return insertCrewMembers(ctx, db, flightID, members)
+}
+
+// insertCrewMembers inserts members as the flight's crew rows.
+func insertCrewMembers(ctx context.Context, db execer, flightID uuid.UUID, members []models.FlightCrewMember) error {
+	const query = `
 		INSERT INTO flight_crew_members (id, flight_id, contact_id, name, role)
 		VALUES ($1, $2, $3, $4, $5)
 	`
 	for _, m := range members {
-		m.ID = uuid.New()
-		m.FlightID = flightID
-		_, err := r.db.ExecContext(ctx, query, m.ID, flightID, m.ContactID, m.Name, m.Role)
-		if err != nil {
+		if _, err := db.ExecContext(ctx, query, uuid.New(), flightID, m.ContactID, m.Name, m.Role); err != nil {
 			return err
 		}
 	}
@@ -66,9 +76,15 @@ func (r *FlightCrewRepository) GetByFlightID(ctx context.Context, flightID uuid.
 }
 
 func (r *FlightCrewRepository) DeleteByFlightID(ctx context.Context, flightID uuid.UUID) error {
-	query := `DELETE FROM flight_crew_members WHERE flight_id = $1`
-	_, err := r.db.ExecContext(ctx, query, flightID)
-	return err
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id = $1`, flightID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // GetByFlightIDs batch-loads crew members for multiple flights and returns

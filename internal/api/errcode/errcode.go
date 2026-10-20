@@ -62,3 +62,28 @@ const (
 	// version of the payload than this server reads.
 	BackupVersionUnsupported = "backup_version_unsupported"
 )
+
+const (
+	// StrictModeRequired — a logbook certification was requested while
+	// strict logbook mode is off.
+	StrictModeRequired = "strict_mode_required"
+
+	// CertificationInFuture — the certified-through date lies after today.
+	CertificationInFuture = "certification_in_future"
+
+	// CertificationBeforeLatest — the certified-through date is earlier than
+	// the latest certification.
+	CertificationBeforeLatest = "certification_before_latest"
+
+	// CorrectionReasonRequired — an edit of a flight outside its draft
+	// window, signed or certified, was sent without a correctionReason.
+	CorrectionReasonRequired = "correction_reason_required"
+
+	// OverrideExceedsCalculated — an overridden time is greater than the
+	// calculated value under a licence that allows overrides only downward.
+	OverrideExceedsCalculated = "override_exceeds_calculated"
+
+	// FlightChanged — a signature was completed against a hash of the signed
+	// fields that no longer matches the flight. Nothing was recorded.
+	FlightChanged = "flight_changed"
+)

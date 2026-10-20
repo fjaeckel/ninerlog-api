@@ -38,10 +38,20 @@ func (a RestoreAttachments) Any() bool {
 	return a.DocumentFiles || a.SignedFlights
 }
 
+// FlightIDUsage reports which flight ids are in use.
+type FlightIDUsage struct {
+	// Taken holds ids of flights that exist, whoever owns them, and ids that
+	// carry revisions of another user.
+	Taken map[uuid.UUID]bool
+	// Voided holds ids that carry a delete revision of the user.
+	Voided map[uuid.UUID]bool
+}
+
 // RestoreStore runs a restore inside one database transaction.
 type RestoreStore interface {
-	// InRestoreTx runs fn in a transaction serialised per user. A nil return
-	// commits; any error rolls everything fn wrote back and is returned.
+	// InRestoreTx runs fn in a transaction serialised per user, with the
+	// change context carried by ctx applied. A nil return commits; any error
+	// rolls everything fn wrote back and is returned.
 	InRestoreTx(ctx context.Context, userID uuid.UUID, fn func(tx RestoreTx) error) error
 }
 
@@ -56,8 +66,21 @@ type RestoreTx interface {
 	CountAttachments(ctx context.Context, userID uuid.UUID) (RestoreAttachments, error)
 
 	// WipeContent deletes every collection a restore writes, together with
-	// flight crew and import history. Single-row settings are kept.
-	WipeContent(ctx context.Context, userID uuid.UUID) error
+	// flight crew and import history. Single-row settings are kept. The
+	// flights in correctionFlightIDs are deleted with the correction flag set
+	// on their void records; the others carry the flag of the context.
+	WipeContent(ctx context.Context, userID uuid.UUID, correctionFlightIDs []uuid.UUID) error
+
+	// ListFlightTimings returns the user's flights with only id, date, block
+	// times and departure set, and SignatureID set when the flight has ever
+	// carried a completed or voided signature.
+	ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error)
+
+	// Repos returns repositories bound to this transaction.
+	Repos() TxRepos
+
+	// FlightIDUsage reports how each of ids is already in use.
+	FlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) (FlightIDUsage, error)
 
 	InsertAircraft(ctx context.Context, aircraft *models.Aircraft) error
 	InsertLicense(ctx context.Context, license *models.License) error
@@ -74,4 +97,8 @@ type RestoreTx interface {
 
 	UpsertNotificationPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
 	UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error
+
+	// LogbookRestoreWriter writes strict logbook mode, its switch events,
+	// flight revisions and certifications.
+	LogbookRestoreWriter
 }

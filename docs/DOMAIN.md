@@ -355,364 +355,290 @@ two fleet entries and two sets of statistics. Full design, the table-maintenance
 and the `POST /flights/recalculate` migration path are in
 [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md).
 
-## Currency engine
+## Strict logbook mode and the flight audit trail
 
-**Currency** answers the regulator's question: *given recent flying, is this pilot
-allowed to exercise the privileges of a rating, and to carry passengers?* It lives in
-`internal/service/currency`.
+Some authorities expect a logbook that shows what an entry said before it was corrected.
+Strict logbook mode is the opt-in setting that makes NinerLog keep that history. It is a
+per-user flag (`users.strict_logbook`); standard mode is unchanged and records nothing.
 
-### Design: registry of evaluators
+What strict mode adds, and only in strict mode:
 
-```mermaid
-flowchart TD
-    SVC[currency.Service]
-    SVC --> REG[Registry: authority → Evaluator]
-    SVC --> FDP[FlightDataProvider: PostgreSQL aggregation]
-    REG --> EASA["EASAEvaluator (EASA)"]
-    REG --> FAA["FAAEvaluator (FAA)"]
-    REG --> GUL["GermanULEvaluator (multiple authorities via RegisterMulti)"]
-    REG --> OTH["OtherEvaluator (generic fallback: expiry-only)"]
-```
+- every committed change to a flight or its crew is kept as a **revision** (the state
+  before the change), and a deleted flight is kept as a **void record**;
+- a late edit is classified as a **correction** and needs a reason;
+- the pilot can **certify** the logbook through a date;
+- under a Swiss licence, manual overrides may only **reduce** a calculated value.
 
-`Service.EvaluateAll(ctx, userID)` walks the user's licenses and class ratings, looks up
-the evaluator for each license's `RegulatoryAuthority`, and returns a
-`CurrencyStatusResponse`. Each evaluator implements the `Evaluator` interface and may
-additionally implement optional interfaces:
+Switching strict mode off stops recording; history already captured stays with the logbook
+and is never deleted, except together with the account. History starts when strict mode is
+switched on (`strict_logbook_since`); there are no baseline revisions for older entries.
 
-| Interface | Method | Regulatory basis |
-| --- | --- | --- |
-| `Evaluator` (required) | `Evaluate(...)` | Tier 1 — rating currency (can I fly this class at all?) |
-| `PeerAwareEvaluator` | `EvaluateWithPeers(...)` | Tier 1 with the license's other class ratings; `EvaluateAll` prefers it over `Evaluate` |
-| `PassengerCurrencyEvaluator` | `EvaluatePassengerCurrency(...)` | Tier 2 — passenger carriage (EASA FCL.060(b), FAA §61.57(a)/(b)) |
-| `FlightReviewEvaluator` | `EvaluateFlightReview(...)` | FAA §61.56 flight review (24 calendar months) |
+### Licence rule registry (`internal/service/logbookrules`)
 
-### Data provider
+The registry maps a licence to the authority's rules. It is keyed on the licence's
+**issuing country** (`licenses.issuing_country`, never inferred), the licence type and, for
+the EASA fallback, the regulatory authority. A licence without an issuing country has no
+rule, ever. Saving a licence (create or patch) runs the registry; if any licence now
+**requires** strict mode and the user is not strict, strict mode is switched on with a
+`licence` event naming the saved licence. It is never switched off automatically, and the
+user may switch it off by hand even while a licence requires it.
 
-Evaluators never write SQL. They request aggregates through the `FlightDataProvider`
-interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
-`internal/repository/postgres/currency_flight_data.go`:
+| Country | Licence types | Requirement | Draft window | Basis |
+| --- | --- | --- | --- | --- |
+| CH | any | required | `hours_48` | FOCA Accepted Logbook Formats §2.3(7) |
+| DE | not UL | required | `flight_day` | NfL 2212-21 §4.3.2 |
+| DE | UL (authority DULV or DAeC, a UL type, or a German UL term) | suggested | | §120 LuftPersV |
+| AT | national: UL, hang glider, paraglider, national glider | required | `flight_day` | ZLPV 2006 Anlage 6 |
+| AT | other (Part-FCL, including the gyroplane licence GPL) | suggested | | AMC1 FCL.050 (e)(2) |
+| AU | any | required | `flight_day` | CASR 61.355, RAAP 13 |
+| NZ | any | required | `flight_day` | Part 61.29(e) |
+| JP | any | required | `flight_day` | 国空乗390号 |
+| UY | any | required | `flight_day` | RAU 61.51 |
+| DK, BR, GB, US | any | suggested | | BL 6-04 §3.2.6 / CIV Digital / printed extracts / AC 120-78B |
+| other country, authority EASA | any | suggested | | AMC1 FCL.050 (e)(2) |
+| anything else | | none | | |
 
-- `GetProgressByAircraftClass(userID, classTypes, includeTowed, since)` — summed
-  times/landings for flights on any of the given classes since a date, plus launches
-  (take-offs, at least one per flight), the number of flights with dual time and the
-  longest total time of such a flight.
-- `GetProgressAll(userID, since)` — same, across all classes.
-- `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
-- `GetLastProficiencyCheck(userID, classTypes, since)` — most recent proficiency check on
-  any of the given classes (`[IR]` matches every class), excluding towed launches except on
-  `GLIDER`.
-- `GetLaunchCounts(userID, classType, since)` — launches per launch method on a class
-  (SFCL.155(c)); a zero `since` returns every method ever logged.
-- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, picOnly, since)` — one row per flown date with
-  its day and night landing counts, newest date first; `picOnly` keeps only flights with PIC
-  time. Used for passenger currency, which needs *when* each landing was flown, not just how
-  many there were.
-- `GetProgressByULKind`, `GetLastProficiencyCheckByULKind`, `GetLandingDaysByULKind` — the
-  same three reads on `ULTRALIGHT` aircraft selected by kind (`ULSelector`: kinds, plus
-  aircraft with no kind when `IncludeUnspecified`, and of at least `MinMTOMKg` kg when set).
+Licence types are matched as whole words: the type is split on non-letters and upper-cased
+(`ä` and `Ä` included), and a term matches only as one token or, for a multi-word term, a run
+of tokens. `PPG` is therefore not `PG`, `UPG` is not `UL`, and `GPL` is not a national
+licence.
 
-This separation keeps the *regulatory* logic (what to count and over which window) in the
-evaluators, and the *data* logic (how to query) in one place.
+- **Ultralight (`LooksLikeUL`)** mirrors the frontend's `looksLikeULLicence`: the upper-cased,
+  trimmed type is `UL`, starts with `UL ` or `UL-`, or contains `ULTRALIGHT` / `ULTRALEICHT`.
+- **DE UL** (suggested, §120 LuftPersV): the licence's `regulatoryAuthority` is `DULV` or `DAeC`
+  (case-insensitive, trimmed), or `LooksLikeUL` holds, or the type contains one of
+  `GLEITSCHIRM`, `MOTORSCHIRM`, `TRIKE`, `HÄNGEGLEITER`/`HAENGEGLEITER`, `DRACHEN`,
+  `TRAGSCHRAUBER` or `SPORTPILOTENLIZENZ` as a whole word. Any other German licence is required.
+- **AT national** (required, ZLPV 2006 Anlage 6): `LooksLikeUL`, or one of `UL`, `HG`, `PG`,
+  `HÄNGEGLEITER`, `HAENGEGLEITER`, `HANGGLIDER`, `HANG GLIDER`, `PARAGLIDER`, `PARAGLEITER`,
+  `GLEITSCHIRM`, `DRACHEN`, `MOTORSCHIRM`, `NATIONAL GLIDER` as whole words. `GPL` is the
+  Part-FCL gyroplane licence and only suggests strict mode.
 
-Flights launched by winch, car, aerotow or bungee are towed launches: they count only toward a `GLIDER`
-rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), never toward
-a powered class, its proficiency check or its passenger currency — even when the glider is
-classed `SEP_LAND`. Self-launches are not towed.
+A suggested licence is surfaced in `GET /logbook/mode` (`suggestedBy`) but never switches
+anything on. With several requiring licences the **earliest** deadline applies per flight,
+and the reported `draftWindow` is the shortest (`flight_day` before `hours_48`). Strict mode
+switched on by hand, with no requiring licence, uses `flight_day`.
 
-Aircraft between categories are classed by the licence they are flown under: UL sailplanes
-and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
-motor gliders `TMG`. See [SAILPLANES.md](./SAILPLANES.md) for telling a self-launching
-sailplane from a TMG. An ultralight is never classed `SEP_LAND` or
-`TMG`, even when it is credited toward those ratings: crediting is declared by its ultralight
-kind (see [Ultralights](#ultralights)).
+**Strict mode and the shortest window are account-wide.** They do not depend on which licence
+a flight belongs to: one requiring licence puts every flight of the account under strict
+mode, and the shortest window across all requiring licences applies to every flight (a pilot
+with a Swiss and a German licence gets the Swiss downward-only overrides and the German
+flight-day window on all flights). Saving any requiring licence (create or patch) switches
+strict mode back on, with a `licence` event, after the pilot switched it off by hand.
 
-### Credited classes
+#### Regulation text behind each row
 
-A flight belongs to an aircraft class when its aircraft's free-text `aircraft_class`,
-trimmed and upper-cased, equals that class. Each rating rule declares which classes it
-counts (the rule's `scope`, resolved by `resolveClasses` in `engine.go`); by default that is
-the rating's own `ClassType`, so an aircraft classed `GLIDER` counts only toward a `GLIDER`
-rating, never toward `OTHER`. These EASA rules count more than one class
-(`internal/service/currency/credited_classes.go`, and the sailplane rules in `easa.go`):
+The wording below is quoted from the primary texts as read for the ADR
+([#260](https://github.com/fjaeckel/ninerlog-api/issues/260)); it is the author's reading,
+not legal advice. Where the source holds no quotable correction rule the row says so.
 
-| Rule | Classes counted | Condition |
-| --- | --- | --- |
-| LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` is not an aeroplane; an `ULTRALIGHT` counts only through its kind (FCL.035(a)(4)). |
-| SEP/TMG revalidation, FCL.740.A(b)(1) (`easaSEPTMGRule`) | `SEP_LAND`, `TMG` | Only for a `SEP_LAND` or `TMG` rating on a license that holds both. `SEP_SEA` is never pooled. |
-| Sailplane recency, SFCL.160(a)(1) (`easaSPLRule`) | `GLIDER`, `TMG` | For a `GLIDER` rating, and only for the 5 h; launches and training flights count on `GLIDER` alone. |
-| SPL TMG recency, SFCL.160(b)(1) (`easaSPLTMGRule`) | `GLIDER`, `TMG` | Only for the 12 h; the 6 h, take-offs and landings and training flight count on `TMG` alone. |
+- **CH**, [FOCA GM/INFO Accepted Logbook Formats, valid 01.02.2024](https://www.bazl.admin.ch/dam/en/sd-web/qcDpXt-Ox7VO/foca_gminfo_foca-acccepted-logbook_formats.pdf),
+  §2.3-2.5: "Any alteration of values relevant to the experience of the pilot shall be
+  traceable (change log)… shall be an integral part of any exports / print outs. An exception
+  … for a period of 48 hours after the initial entry"; any alteration "shall invalidate the
+  attached signature automatically"; calculated times "may only reduce". Written for
+  software; formats exist for "aeroplane, helicopter, sailplane, balloon" (§2.2).
+- **DE**, [NfL 2212-21](https://www.regierung.oberbayern.bayern.de/mam/dokumente/bereich2/sg25/nfl__2212-21.pdf):
+  annex §1, the logbook is "ein Dokument mit Urkundencharakter"; annex §4.3, every flight is
+  recorded "dauerhaft und unmittelbar noch am Tag des jeweiligen Fluges"; annex §4.3.2,
+  erroneous entries are struck "so … dass diese erkennbar bleiben", and the correct entry is
+  made "unter Angabe des Änderungsdatums". The NfL covers "FCL.050, SFCL.050 (Segelflug) und
+  BFCL.050 (Ballon)". The flight day as the draft window is NinerLog's reading of §4.3, not a
+  stated rule.
+- **DE UL**, [§120 LuftPersV](https://gesetze.legal/bund/luftpersv/120): no correction rule
+  (contents, 2-year retention, instructor certification); NfL 2212-21 does not apply to
+  Luftsportgeräteführer.
+- **AT national**, [ZLPV 2006 §118](https://www.jusline.at/gesetz/zlpv_2006/paragraf/118) and
+  [Anlage 6](https://360.lexisnexis.at/media/attachment/2006_ii_205_anlage6/pdf) lit. a:
+  "Unrichtige Eintragungen sind so durchzustreichen, dass sie lesbar bleiben"; no pages may
+  be removed; electronic logbooks need the authority's approval.
+- **AT Part-FCL and the EASA fallback**,
+  [AMC1 FCL.050 (e)(2)](https://aviation.bot/EASA/Aircrew-Dec-2024/amc1-fcl050-recording-of-flight-time-pilot-logbook?p=p_sqBQcP178yP&s=1):
+  electronic records "readily available at the request of a competent authority …
+  certified by the pilot, and in a format acceptable by the competent authority". No
+  correction rule.
+- **AU**, [CASR 61.355(2)(b)](https://classic.austlii.edu.au/au/legis/cth/consol_reg/casr1998333/s61.355.html):
+  each entry "retained unaltered" for 7 years, strict liability;
+  [RAAP 13 (2022)](https://www.raa.asn.au/files/download/?id=3524): electronic logbooks
+  "should create an audit history of the change".
+- **NZ**, Civil Aviation Rules Part 61, rule 61.29(e): "An incorrect entry … may be altered
+  only by putting a line through the entry and by adding the correct information"; each page
+  is certified by the pilot.
+- **JP**, [JCAB 国空乗390号](https://www.mlit.go.jp/notice/noticedata/pdf/201312/00006077.pdf)
+  and the glider 要領 (2022): no correction fluid; for gliders, "訂正内容の履歴がわかるように"
+  (the correction history must be recognisable).
+- **UY**, DINACIA RAU 61, §61.51(d),(f): no erasures or interlineation; an error is fixed by a
+  new entry and the wrong line is voided with "errose".
+- **DK**, [BL 6-04 (1999)](https://en.trafikstyrelsen.dk/media/16112/BL6-04%20on%20recording%20of%20flight%20time.pdf)
+  §3.2.6: amendments must show "what the text was before the amendment and who has recorded
+  the amendment" (national non-Part-FCL licences; current force unconfirmed).
+- **BR**, [ANAC IS 61-001 Rev. G (2023)](https://pergamum.anac.gov.br/pergamum/vinculos/IS61-001G.pdf)
+  §5.3.1: in the CIV Digital lifecycle a draft can be deleted, a submitted entry is never
+  edited, only "exclusão solicitada" with date and requester. The official record is CIV
+  Digital, hence suggested.
+- **GB**: ink, printed-and-signed extracts and false-entry bans, no correction method
+  ([UK CAA, guidance on documentation](https://www.caa.co.uk/general-aviation/pilot-licences/applications/documentation/guidance-on-documentation/)).
+- **US**, [14 CFR 3.403](https://www.ecfr.gov/current/title-14/chapter-I/subchapter-A/part-3)
+  bans fraudulent alteration of any document "(electronic or physical)";
+  [AC 120-78B (2024)](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-78B_FAA_Web.pdf)
+  records "unalterable without the appropriate certification" (guidance).
 
-Two EASA rules also credit ultralight flights (`easaAnnexICredit`, below), and the German
-three-axis rule counts `SEP_LAND` and `TMG` (see [Ultralights](#ultralights)).
+### Draft window and corrections
 
-For the two aeroplane rules the pool applies to the experience totals and to the
-proficiency-check lookup, and never includes towed launches. The
-evaluator needs the license's other ratings for the condition, so `EASAEvaluator`
-implements `PeerAwareEvaluator` and `Service.EvaluateAll` passes them in. A pooled result
-lists the counted classes in `ClassRatingCurrency.countedClasses`; it is absent when only the
-rating's own class counts. Ultralight kinds a rule counts are listed in
-`ClassRatingCurrency.creditedUltralightKinds`.
+A flight entry may be edited freely until its **draft deadline**:
 
-LAPL(A) recency (FCL.140.A) is also met by a LAPL(A) proficiency check on any pooled class
-within the 24 months (`requirement.proficiency_check`), as an alternative to the experience
-requirements. A LAPL license holding both `SEP_LAND` and `SEP_SEA` ratings must, in
-addition to the pooled totals, show at least 1 h and 6 landings in each of the two classes
-(FCL.140.A(b); `requirement.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
-`.sep_sea_landings`).
+- `hours_48`: 48 hours after the flight **landed**: the flight date plus the on-block time
+  in UTC, rolled to the next day when the on-block time is earlier than the off-block time
+  (`flightcalc.OnBlockInstant`). A flight with no on-block time falls back to the end of
+  its flight day. The row's `created_at` plays no part;
+- `flight_day`: the end of the flight's date in the departure airport's mean solar offset
+  (`round(longitude / 15)` hours; an unknown airport counts as UTC).
 
-Passenger currency (FCL.060(b)) is never pooled: it requires "the same type or class".
+Because the window is anchored on the flight, a flight entered after its flight day is
+already past a `flight_day` deadline, so its first edit is a correction (a late entry is a
+correction under the German rule). Creating a flight is never classified.
 
-### Time windows and status
+For a `user_edit` update of a flight owned by a strict-mode user, the edit is a
+**correction** if any of these holds:
 
-Evaluators compute over either a **rolling** window (e.g. last 90 days from now) or an
-**expiry-anchored** window (counting toward a rating's `ExpiryDate`). The result for each
-rating is a `Status` (`internal/service/currency/types.go`):
+1. now is after the draft deadline (the earliest across requiring licences);
+2. the flight has ever carried a signature with status `completed` or `voided`;
+3. the flight's date (existing or new, whichever is earlier) is on or before the latest
+   `certified_through`;
+4. a `*Override` flag goes from false to true, or an overridden value changes, and now is
+   after the end of the flight day.
 
-| Status | Meaning |
-| --- | --- |
-| `current` | Requirements met / not near expiry |
-| `expiring` | Within the warning window before expiry |
-| `expired` | Requirements not met / past expiry |
-| `unknown` | Insufficient data to determine |
+A correction needs a non-blank `correctionReason`; the void reason of the latest voided
+signature stands in when none is given. Without either, `PUT /flights/{id}` answers `422`
+`correction_reason_required` and writes nothing. The classification is stored on the revision
+(`is_correction`) with the reason. A save that changes nothing is not classified and records
+nothing. Deletes are classified by rules 1 to 3 and stored on the void record; a delete is
+never refused for lack of a reason. A replace-mode restore classifies the flights it wipes the
+same way (rules 1 and 3; a replace is refused while the account holds signatures, so rule 2
+cannot apply).
 
-The response also carries per-requirement progress, so the UI can show exactly what
-remains. Every user-facing string is emitted as a stable **message key** plus its params
-rather than as English prose — see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md), the
-cross-repo contract with the web and iOS clients. The payload carries no English prose:
-`name` survives only on custom currency rules, where it is pilot-authored user data.
+Changes the system makes are never classified and never need a reason: recalculation
+(`recalc`), an aircraft re-registration that renames flights (`aircraft_rename`) and a
+contact rename that rewrites crew names (`contact_rename`). They are
+recorded with their source so exports and the history card can label them as system changes.
+Imports create new flights and record no revision; `import` stays a valid stored source so
+revisions restored from another installation keep it.
 
-### Passenger currency expiry (`dayExpiresOn` / `nightExpiresOn`)
+Renaming a contact rewrites the crew names on the user's unsigned flights (signed flights
+keep the name they were signed with). The rewrite is a `contact_rename` system change with
+the automatic reason `Crew contact renamed: <old> → <new>`; it never needs a user-supplied
+reason, is never refused and is never a correction, so exports mark it with no `†` and label
+it "System: contact rename" in the change log.
 
-The 90-day passenger window (`internal/service/currency/passenger_expiry.go`) is anchored
-to the **date**, not the clock: it opens at midnight UTC 90 days before today, so the same
-logbook yields the same answer at 08:00 and at 23:00. A landing flown on day *D* therefore
-counts through day *D + 90* inclusive.
+### Overrides under a Swiss licence
 
-`PassengerCurrency` reports when each requirement lapses if the pilot never flies again.
-Walking the flown dates newest-first and accumulating landings, the date that first brings
-the running total up to the requirement is the one whose departure from the window ends
-currency; the expiry is that date + 90 days, and it is the **last day the pilot is still
-current**. Landings beyond the requirement do not extend it — with five landings and a
-requirement of three, the third-most-recent one is the binding date. Day and night are
-computed separately (night landings count toward both), so night currency usually expires
-first. An expiry is omitted when the requirement is unmet (nothing to lapse), inapplicable
-(no night privilege), or waived (EASA IR holders under FCL.060(b)(2)(ii)).
+When a requiring licence is Swiss (`overridesDownwardOnly` in `GET /logbook/mode`), each
+`*Override` value that a create or update sets or changes must not exceed the
+auto-calculated value (FOCA: calculated times "may only reduce"). The service computes the
+calculated value on a copy of the flight with the override flags and values cleared and
+`flightcalc.ApplyAutoCalculations` run. A violation is `422` `override_exceeds_calculated`
+with one `details[].field` per offending field. Overrides already stored and left unchanged
+are not rechecked.
 
-Licence types without night privilege (`HasNightPrivilege` in `faa.go`) report
-`nightPrivilege: false` and are not evaluated for night passenger currency: FAA Sport,
-Recreational and Glider; EASA `LAPL` / `LAPL(A)`, `SPL` / `LAPL(S)` and `GPL`; the German UL
-authorities DULV and DAeC; and an ultralight licence type (`UL`, `UL-…`, `Ultralight`,
-`Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are matched case-insensitively, and the EASA
-spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
-`isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
-restriction from the same check.
+### Certification
 
-### Rating recency expiry (`recencyExpiresOn`)
+`POST /logbook/certifications` records that the pilot certifies the logbook through a date
+(AMC1 FCL.050 (e)(2)). The date may not be later than today at UTC+14, the latest timezone on Earth, so a pilot
+anywhere can certify the current day (`certification_in_future`), nor
+earlier than the latest certification (`certification_before_latest`), and strict mode must
+be on (`409` `strict_mode_required`). Certifying does not lock flights; later edits to
+flights on or before the date are corrections (rule 3).
 
-A `ClassRatingCurrency` evaluated by a rolling-window recency rule (window kind
-`windowRollingNow` in `engine.go`: EASA LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G, the
-German ultralight rules, FAA §61.57) carries `recencyExpiresOn` while its `status` is
-`current`: the last day the rule is still met if the pilot never flies again. The engine
-finds it by re-evaluating the same rule at midnight UTC of later dates
-(`recencyLapseDate`), binary-searching the span from today to one full window ahead — so
-every requirement, the proficiency-check alternative and any rule-specific status logic are
-honoured without a second implementation. With no new flights the window only loses
-flights, so currency can only switch off once, which is what makes the search valid. The
-flight whose departure breaks the first requirement is the binding one; a proficiency
-check extends the date to its own window end when that is later. Expiry-anchored
-revalidation rules (FCL.740.A, FCL.625.A) omit the field — their limit is `expiryDate`.
+### How history is captured
 
-### Expiry dates: last valid day vs first non-current day
+Capture is a database concern, not application code: flights are also changed by routes
+that never pass through a service (bulk operations, cascades, raw SQL). Migration 79 puts
+`BEFORE` triggers on `flights` and `flight_crew_members` that store a pre-image of the flight
+and its crew once per transaction, only when the owner is in strict mode, the flight was not
+inserted in the same transaction. A deferred
+constraint trigger compares the pre-image with the final state at `COMMIT` and writes one
+revision per flight per transaction only if something other than `updated_at` and
+`signature_id` (or the crew's names and roles) changed.
 
-An **expiry date is the last valid day**. A class rating or credential (medical, language
-proficiency, security clearance) is valid through the end of its `expiryDate` and expired
-from the next day (`models.ClassRating.IsExpired`, `models.Credential.IsExpired`, built on
-`models.ExpiredAt`). Dates are compared as **UTC calendar dates**, never as instants: the
-expiry value's own year/month/day against the UTC date of now, so a server clock in any
-time zone gives the same answer for the whole UTC day. "Days remaining" is
-`models.DaysUntilExpiry` — whole calendar days, `0` on the expiry date itself, negative
-once it has passed — and "expiring soon within N days" means `0 <= days remaining <= N`.
-Everything derived from rating or credential validity uses these helpers: the evaluators'
-`expired` / `expiring` status and `days` message param, the FCL.060(b)(2)(ii) night
-waiver (an IR counts as valid through its expiry date, `hasValidIRRating`), and the
-notification day counts.
+The application supplies the change source, reason and correction flag through
+`repository.ChangeContext` on the `context.Context`. Every postgres write that touches
+`flights` or `flight_crew_members` runs in a transaction that first sets the transaction-local
+settings `ninerlog.change_source`, `ninerlog.change_reason` and `ninerlog.change_correction`
+(`applyChangeContext`); a write with no change context is stored with source `unknown`.
+Two consequences for code: a logical user edit must be **one transaction** (the flight update
+and the crew replacement are done by `FlightRepository.UpdateWithCrew`, otherwise one edit
+would yield several revisions), and a new flight and its crew must be written in **one
+transaction** (`FlightRepository.CreateWithCrew`), so the "inserted in this transaction"
+check covers the crew rows too. Contacts are linked to the crew inside the write transaction
+(`FlightWriteOptions.BeforeWrite`, run by the repository with contact and logbook
+repositories bound to that transaction), after every check of the write has passed, so a
+rejected request or a failed flight or crew write creates no contacts.
 
-The date fields in currency results differ in which day they name:
+### Signed fields hash
 
-| Field | Names |
-| --- | --- |
-| `ClassRating.expiryDate`, `Credential.expiryDate`, `ClassRatingCurrency.expiryDate` | last valid day |
-| `PassengerCurrency.dayExpiresOn` / `nightExpiresOn` | last day still current |
-| `ClassRatingCurrency.recencyExpiresOn` | last day still met (probed at midnight UTC) |
-| `FlightReviewStatus.expiresOn` | last valid day (end of the 24th calendar month) |
-| `CustomCurrencyResult.expiresOn` (custom rules) | **first day no longer current** — the day the binding flight leaves the window |
-| Lapse dates (internal, notifications only) | first day no longer current |
+When a signature completes (live or token flow), for every user, the SHA-256 of the flight's
+signed fields is stored in `flight_signatures.signed_fields_hash`: the date, aircraft,
+route, block and flight times, every time column, landings and takeoffs, remarks, instructor
+and PIC names, and the crew sorted by role then name, serialised in a fixed field order
+(`service.SignedFieldsHash`). Signature responses carry `fieldsHash` and a `fieldsHashValid`
+recomputed on read, so an entry edited after its signature was voided no longer matches the
+signature that was attested.
 
-Custom-rule `expiresOn` therefore sits one day later than a regulatory "expires on" for
-the same situation; it is kept as is.
+The public signing page (`GET /sign/{token}`) returns the hash of the flight as it shows it
+(`fieldsHash`). The signer's `POST /sign/{token}` may send it back; when it no longer matches
+the flight's current hash the request is `409` with `code: flight_changed` and nothing is
+recorded, so a signature cannot attest fields the signer did not see. A request without
+`fieldsHash` completes as before.
 
-**Lapse dates** are internal (`json:"-"`, never in an API response) and computed only for
-the notification checker (`currency.WithLapseDates`): `ClassRatingCurrency.LapsedOn` for a
-lapsed rolling-window rule, `PassengerCurrency.DayLapsedOn` / `NightLapsedOn`, and
-`CustomCurrencyResult.LapsedOn`. Each is the first day the requirement was no longer met,
-or nil when it was never met. `lastCurrentDay` (`lapse.go`) finds the latest past day on
-which the requirement held, counting only flights dated on or before that day — so
-flights logged after the lapse that did not restore currency do not move it. It
-binary-searches a monotone bound (flights up to a fixed day, window start moving back) and
-narrows the bound until the day it finds is current on its own data. Passenger lapses
-read the full landing history (an IR's expiry date extends night currency); custom rules
-read their per-flight rows; rolling rating rules are re-evaluated at noon UTC of each
-probed day through a provider restricted to flights up to that day
-(`currency.AsOfProvider`, implemented by the PostgreSQL provider). A provider without
-`AsOf` yields no rating lapse date.
+### Exports
 
-### Regulatory differences (EASA vs FAA)
+Only a user in strict mode gets the audit trail in an export; the state is read when the
+export is made, so switching strict mode off returns the standard output while the recorded
+history stays. `LogbookService.ExportHistory` assembles it from the user's revisions and the current
+state of the edited flights in two queries, with the same diff as
+`GET /flights/{id}/revisions`, and from `ListVoided`.
 
-The two main rule sets differ substantially, which is why each has its own evaluator:
+- **CSV** (standard, EASA, FAA): `corrected` (`true` when the flight has a correction
+  revision, `false` otherwise, like the other boolean columns) and `last_corrected_at`
+  (latest correction: UTC date in the user's `dateFormat`, then `HH:MM`).
+- **PDF** (EASA, FAA, both layouts): flights with a correction revision end their remarks in
+  `†n`; `n` numbers those flights in print order and is the `REF` of their rows in the
+  appendix. The marker is placed after truncation, so it is never cut. The appendix lists
+  every `update` revision (corrections and system changes alike), the voided entries and the
+  mode switches, and each signature's first 12 hash characters. Voided entries and the change
+  log cover the whole logbook, not only the exported flights.
+- Standard-mode documents are byte-identical to the output before strict mode existed; the
+  PDF labels stay English.
 
-| Aspect | EASA (`easa.go`) | FAA (`faa.go`) |
-| --- | --- | --- |
-| Rating currency | Expiry-anchored (e.g. SEP class rating revalidation under FCL.740.A) | Privilege tied to flight review / proficiency, not a separate class-rating expiry |
-| Passenger carriage | FCL.060(b): 3 takeoffs/landings; night requires 1 night landing unless IR held (FCL.060(b)(2)(ii)) | §61.57(a)/(b): 3 takeoffs/landings in 90 days (day); 3 full-stop night landings for night |
-| Instrument recency | FCL.625.A revalidation | §61.57(c): rolling 6 months |
-| Flight review | Recency requirements | §61.56: every 24 calendar months |
-| Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.57(d) |
-| Gyroplanes | FCL.240.G (GPL) — see [Gyroplanes (GPL)](#gyroplanes-gpl) | class-generic §61.57 |
+### Backup and restore
 
-`GermanULEvaluator` handles German ultralight rules, delegates every non-`ULTRALIGHT` rating to
-`EASAEvaluator`, and registers itself for the relevant authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
-authority without a dedicated implementation — it performs an expiry-only check so the
-system degrades gracefully rather than failing.
+The JSON backup (`GET /users/me/data`) carries `logbookMode` (state and every switch event),
+`flightRevisions` and `logbookCertifications`, so cloud backups carry them too. A restore
+(`POST /users/me/data`) writes them in the same transaction as the rest of the backup
+(`service.ImportLogbook` through `repository.RestoreTx`). The logbook sections are validated
+once while the restore is planned (`LogbookImport.Prepare`); a revision without `changedAt`, a
+mode event without `createdAt` or a certification without `certifiedAt` rejects the whole
+restore with `400`.
 
-### Ultralights
+**Flight ids.** A restored flight keeps its id from the backup when no flights row holds
+that id after the wipe (whoever owns it), no other user has revisions under it and the
+account has no void record for it; otherwise it gets a new id. Its crew goes with it, and
+revisions follow the id the flight ends up with. The void records of a deleted flight keep the
+flight's id when nothing holds it, and share one fresh id otherwise. Revision numbers,
+snapshots (with `id` and `user_id` rewritten), sources, reasons, correction flags and
+timestamps are kept; crew snapshots lose their contact links. A revision whose
+`(flight_id, revision_no)` already exists is skipped, so the history of a flight that keeps
+its id is never duplicated.
 
-An ultralight ("Luftsportgerät", EU Annex I aircraft) is classed `ULTRALIGHT` and carries an
-ultralight kind, `ul_kind` (migration 72), on the aircraft and on an `ULTRALIGHT` class rating.
-The kind is the German "Luftsportgeräteart" the licence is issued for; `models/ultralight.go`
-holds the vocabulary and its mappings.
+This is what makes `replace` safe in a strict account. The wipe and the re-insert happen in
+one transaction, so the deferred trigger finds a flight that comes back under its id
+unchanged and writes nothing; only flights absent from the backup get a void record (source
+`import`, reason "Replaced by backup restore"), flagged as a correction by the delete rules.
+Replacing an account with its own backup any number of times changes neither the voided list
+nor the history of a live flight.
 
-| Kind | Meaning | German licence class | Credited under FCL.035(a)(4) as |
-| --- | --- | --- | --- |
-| `THREE_AXIS` | aerodynamically (three-axis) controlled UL aeroplane | Dreiachs | `SEP_LAND` |
-| `THREE_AXIS_MOTORGLIDER` | three-axis UL that meets the TMG definition (aircraft only) | Dreiachs | `TMG`; PIC hours toward SFCL.160 |
-| `WEIGHT_SHIFT` | weight-shift trike | Trike | — |
-| `GYROPLANE` | UL gyroplane | Tragschrauber | `GYROPLANE` (GPL), from 450 kg MTOM (FCL.035(a)(5)) |
-| `HELICOPTER` | UL helicopter | UL-Hubschrauber | — |
-| `POWERED_PARAGLIDER` | Motorschirm or Motorschirm-Trike | Motorschirm | — |
-| `SAILPLANE` | UL sailplane | UL-Segelflug | PIC hours toward SFCL.160 (AMC1 SFCL.160) |
-
-The kind is kept only on an `ULTRALIGHT` aircraft or rating; the service clears it when the
-class is anything else and rejects an unknown kind with `ErrInvalidULKind` (400). A rating
-cannot be `THREE_AXIS_MOTORGLIDER`: a `THREE_AXIS` rating covers both three-axis kinds
-(`models.AircraftKindsForRating`). The kind is part of the aircraft and class rating payloads, so
-it travels in the JSON export and import.
-
-**EASA crediting, FCL.035(a)(4).** Hours in aeroplanes or TMGs within Annex I count in full
-toward LAPL(A) recency (FCL.140.A(a)(1)) and SEP/TMG revalidation by experience
-(FCL.740.A(b)(1)(ii)) when the aircraft is of the same category and class. The two rules
-declare `ulCredit: easaAnnexICredit`, which adds `THREE_AXIS` flights where the rule counts
-`SEP_LAND` and `THREE_AXIS_MOTORGLIDER` flights where it counts `TMG`:
-
-- Total time, PIC time and landings are credited. German administrative practice (NfL
-  2021-1-2238) includes takeoffs and landings.
-- Dual time is not. The refresher flight with an instructor must be in an aircraft authorised
-  under ORA.ATO.135, which excludes Annex I category (e) ultralights, so a UL flight never meets
-  the refresher or the LAPL(A) training flight. Nor does a UL proficiency check count.
-- Only an aircraft with an explicit kind is credited. A trike, gyroplane, UL helicopter,
-  powered paraglider or UL sailplane is not an aeroplane or TMG of the same class
-  (Luftamt Südbayern: "nur ... in einem aerodynamisch dreiachsgesteuerten Luftsportgerät").
-- Passenger recency (FCL.060(b)) and the LAPL(A) SEP(land)/SEP(sea) split (FCL.140.A(b)) are
-  not among the credited requirements and never count ultralights. Nor does SEP(sea).
-
-**German ultralight recency, LuftPersV.** `GermanULEvaluator` (LBA, DULV, DAeC) evaluates an
-`ULTRALIGHT` rating by its kind; a rating with no kind is evaluated as `THREE_AXIS`. Every other
-class rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegated to
-`EASAEvaluator`. All windows roll back from today.
-
-| Kind (rule) | Requirement | Counts | Proficiency check replaces it |
-| --- | --- | --- | --- |
-| `THREE_AXIS` (`germanULRule`, §45(2)) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight with an instructor | three-axis UL, `SEP_LAND` and `TMG` time and landings; the training flight only on a three-axis UL | yes, in a three-axis UL, TMG or SEP (§45(3)) |
-| `HELICOPTER` (`germanULHelicopterRule`, §45(2a)) | 6h in 12 months incl. 6 landings, 1h with an instructor | UL helicopters | yes |
-| `GYROPLANE` (`germanULGyroplaneRule`, DULV) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight | gyroplanes only | yes |
-| `WEIGHT_SHIFT` DULV/LBA (`germanULTrikeDULVRule`) | 12h as PIC in 24 months | trikes | no |
-| `WEIGHT_SHIFT` DAeC (`germanULTrikeDAeCRule`) | 12h and 12 landings in 24 months; the safety/performance training is not tracked | trikes | no |
-| `POWERED_PARAGLIDER` (`germanULPoweredParagliderRule`) | 30 landings in 24 months | powered paragliders | no |
-| `SAILPLANE` (`germanULSailplaneRule`, DAeC) | 5 landings in 12 months, towed launches included | UL sailplanes | no |
-
-Only the three-axis and helicopter rules are statute (§45(2), (2a)); the others are set by
-DULV/DAeC under §45(4), and the two associations differ for trikes, so the trike rule follows
-the licence's authority. A flight on an `ULTRALIGHT` aircraft with no kind counts toward a German
-rating of any kind, never toward EASA crediting. An unmet requirement reports `expiring`: the
-licence does not lapse (§45(1)), the privileges may not be exercised until the requirement is
-met. Landings stand in for takeoffs and landings, and dual time for the training flight, as in
-the EASA rules.
-
-Passenger recency (§45a) is 3 takeoffs and landings in the preceding 90 days in an ultralight of
-the same kind, so it is evaluated per rating kind (`RatingPassengerCurrencyEvaluator`) and
-reported with `PassengerCurrency.ulKind`; SEP/TMG landings do not count. The passenger rating
-itself (§84a) is proved separately and not tracked. Ultralights have no night privilege
-(§44(2)).
-
-`GLIDER`, `ULTRALIGHT` and `GYROPLANE` class ratings select their rule from the class, not the
-license type:
-
-| Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
-| --- | --- | --- | --- |
-| `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
-| `ULTRALIGHT` | LuftPersV §45 by kind + §45a passenger currency by kind | expiry only, no passenger currency | expiry only, no passenger currency |
-| `GYROPLANE` | FCL.240.G (`easaGPLRule`, via EASA) | FCL.240.G (`easaGPLRule`); unknown authority: expiry only | §61.57 (`faaPassengerRatingRule`) |
-
-Ultralight licences are national law, so only the German UL authorities carry a recency rule for
-them. EASA rules credit ultralight time without evaluating an `ULTRALIGHT` rating.
-
-Passenger currency for a `GLIDER` rating never reports night privilege. For `GLIDER`, and for
-`TMG` on an `SPL` or `LAPL(S)` license, it counts only flights with PIC time
-(SFCL.160(e)), under `ruleDescriptionKey` `easa_spl_pax` or `easa_spl_tmg_pax`.
-
-The sailplane rules — what counts toward SFCL.160(a) and (b), the proficiency-check
-alternative, per-method launch recency (SFCL.155(c)), the SFCL.160(c) exemption, the Annex I
-hour credit and the known gaps — are described in [SAILPLANES.md](./SAILPLANES.md).
-
-### Gyroplanes (GPL)
-
-From 18 February 2026 Part-FCL licenses gyroplanes with the GPL (Reg. (EU) 2025/134). A `GYROPLANE`
-class rating and aircraft class (migration 73) cover the single-propeller gyroplane class.
-
-- **Recency, FCL.240.G(a)** (`easaGPLRule`, any EASA-evaluated licence): in the last 2 years,
-  12h as PIC, dual or supervised solo on gyroplanes including 12 takeoffs and landings and 1h of
-  refresher training with an instructor; or a GPL proficiency check.
-- **Annex I credit, FCL.035(a)(5)** (`gplAnnexICredit`): an `ULTRALIGHT` aircraft of kind
-  `GYROPLANE` with `mtom_kg` of at least 450 counts toward the 12h and the landings, never the
-  refresher. An ultralight gyroplane with no mass recorded is not credited.
-- **Passengers**: FCL.060(b) applies to gyroplanes; the GPL carries no night privilege (FCL.810
-  has no gyroplane night rating), and FCL.205.G(a)(2) requires 10h as PIC on `GYROPLANE`
-  aircraft since the licence's issue date before the first passenger —
-  `pax.gpl_experience_not_met` reports the minutes still needed.
-- **German UL gyroplane recency** counts `GYROPLANE` time and landings too (a Part-FCL gyroplane
-  is a Tragschrauber); the training flight still has to be in a UL gyroplane.
-
-### Extending the engine
-
-To support a new regulator:
-
-1. Implement the `Evaluator` interface in a new file under
-   `internal/service/currency` (and optionally `PassengerCurrencyEvaluator` /
-   `FlightReviewEvaluator`).
-2. Encode the rule's window type, thresholds, and messaging.
-3. Register it in `cmd/api/main.go` (`currencyRegistry.Register(...)` or
-   `RegisterMulti(...)`).
-4. Add table-driven tests alongside the existing `*_test.go` files in the package.
-
-No changes to handlers, the data provider, or the database are required for a new
-authority that reuses existing aggregates.
-
-## Where this connects
-
-- Flights feed currency, statistics, reports, maps, and exports.
-- Class-rating and credential expiry dates feed both the currency engine and the
-  notification system (see [FEATURES.md](./FEATURES.md#notifications)).
-- The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`
-  (see [API.md](./API.md)).
-
-> When regulatory rules change, update the relevant evaluator **and** this document so
-> the described behaviour stays accurate.
+If the backup was strict and the account is not, strict mode is switched on with an `import`
+event after the backup's own events. A restored flight keeps its `createdAt`; a missing value
+becomes the flight date at 00:00 UTC, and no value is later than the time of the restore.
+`MaxRestoreRevisions` is 1,000,000; the 200 MiB request body limit is the constraint that
+binds first.

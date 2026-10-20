@@ -483,7 +483,7 @@ func TestResolveToken_UnknownAndCompletedTokens_ReturnSameError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRequest() error = %v", err)
 	}
-	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", ""); err != nil {
+	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", "", nil); err != nil {
 		t.Fatalf("CompleteFromToken() error = %v", err)
 	}
 	_, _, usedErr := svc.ResolveToken(context.Background(), token)
@@ -508,10 +508,10 @@ func TestCompleteFromToken_TokenReuseFails(t *testing.T) {
 		t.Fatalf("CreateRequest() error = %v", err)
 	}
 
-	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", ""); err != nil {
+	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", "", nil); err != nil {
 		t.Fatalf("first CompleteFromToken() error = %v", err)
 	}
-	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", ""); !errors.Is(err, ErrSignatureTokenInvalid) {
+	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", "", nil); !errors.Is(err, ErrSignatureTokenInvalid) {
 		t.Errorf("second CompleteFromToken() (reuse) error = %v, want ErrSignatureTokenInvalid", err)
 	}
 }
@@ -537,7 +537,7 @@ func TestCompleteFromToken_ExpiredTokenRejected(t *testing.T) {
 	if _, _, err := svc.ResolveToken(context.Background(), token); !errors.Is(err, ErrSignatureTokenExpired) {
 		t.Errorf("ResolveToken() on expired token error = %v, want ErrSignatureTokenExpired", err)
 	}
-	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", ""); !errors.Is(err, ErrSignatureTokenExpired) {
+	if _, _, _, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "", "", nil); !errors.Is(err, ErrSignatureTokenExpired) {
 		t.Errorf("CompleteFromToken() on expired token error = %v, want ErrSignatureTokenExpired", err)
 	}
 }
@@ -553,7 +553,7 @@ func TestCompleteFromToken_UsesDBSourcedOwnerEmail(t *testing.T) {
 		t.Fatalf("CreateRequest() error = %v", err)
 	}
 
-	_, ownerEmail, ownerName, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "1.2.3.4", "ua")
+	_, ownerEmail, ownerName, err := svc.CompleteFromToken(context.Background(), token, "Jane", nil, []byte(testSigImage), "1.2.3.4", "ua", nil)
 	if err != nil {
 		t.Fatalf("CompleteFromToken() error = %v", err)
 	}

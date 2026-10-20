@@ -100,6 +100,9 @@ fields, multi-pilot/SIC/relief/PICUS, examiner, night tiles, fuel, route waypoin
   in one glance, and names what is missing in plain language.
 - L5: Her printed logbook has launch-method and launches columns (AMC1 SFCL.050), not a
   single-pilot single-engine column.
+- L6: With an SPL issued in Germany, a flight entered the day after it was flown is past its
+  draft window: the first edit asks for a reason, is stored as a correction, and the PDF marks
+  it. (`TestPersonaL6_LateEntryUnderGermanRuleIsCorrection`)
 
 ### P2 — Jonas, student glider pilot
 
@@ -206,6 +209,10 @@ night; logging night time on a UL should warn, not hide).
   shows which UL minutes it counted.
 - M3: A quick-added aircraft `D-M…` cannot be saved without a class and UL kind.
 - M4: Night time logged on a UL flight triggers a warning, not a silent save.
+- M5: With a Swiss issuing country on any licence, a night time override above the calculated
+  value is rejected (`422`, field `nightTime`) on a strip with no coordinates, where the
+  calculated value is 0; an override of 0 is accepted.
+  (`TestPersonaM5_SwissOverrideOnStripWithoutCoordinates`)
 
 ### P6 — Sabine, trike and powered-paraglider pilot
 
@@ -228,6 +235,12 @@ performance/tailwheel aircraft flags, SEP crediting.
   to set the kind instead.
 - S2: A powered-paraglider flight can be logged without a registration.
 - S3: No screen she visits in a normal week shows the words "IFR", "SIC" or "block".
+- S4: A DULV licence with issuing country Germany only suggests strict mode: it is listed under
+  `suggestedBy` with its basis (§120 LuftPersV), strict mode stays off, and she is offered it
+  once. (`TestPersonaS4_DULVLicenceOnlySuggestsStrictMode`)
+- S5: An Austrian licence typed HG, PG or Gleitschirm requires strict mode (ZLPV 2006
+  Anlage 6); one typed GPL (the Part-FCL gyroplane licence) or PPL only suggests it.
+  (`TestPersonaS5_AustrianNationalLicenceClassification`)
 
 ### G1 — Mark, airline first officer (guard)
 

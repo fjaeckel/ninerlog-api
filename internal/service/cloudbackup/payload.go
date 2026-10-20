@@ -1,6 +1,7 @@
 package cloudbackup
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -37,6 +38,50 @@ type Payload struct {
 	// are omitted when the user has none.
 	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`
 	FlightBaseline          *FlightBaseline          `json:"flightBaseline,omitempty"`
+	// LogbookMode, FlightRevisions and LogbookCertifications carry the strict
+	// logbook mode state and its audit trail. LogbookMode is omitted when the
+	// logbook service is not wired.
+	LogbookMode           *LogbookMode           `json:"logbookMode,omitempty"`
+	FlightRevisions       []FlightRevision       `json:"flightRevisions"`
+	LogbookCertifications []LogbookCertification `json:"logbookCertifications"`
+}
+
+// LogbookMode is the strict logbook mode state with every past switch, oldest
+// first.
+type LogbookMode struct {
+	Strict bool               `json:"strict"`
+	Since  *time.Time         `json:"since,omitempty"`
+	Events []LogbookModeEvent `json:"events"`
+}
+
+// LogbookModeEvent is one switch of strict logbook mode. LicenseID names a
+// licence by its id in this backup.
+type LogbookModeEvent struct {
+	Strict    bool       `json:"strict"`
+	Trigger   string     `json:"trigger"`
+	LicenseID *uuid.UUID `json:"licenseId,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// FlightRevision is one recorded change of a flight. FlightID is the flight's
+// id in this backup, or the id of a deleted flight that is no longer in it.
+type FlightRevision struct {
+	FlightID     uuid.UUID       `json:"flightId"`
+	RevisionNo   int             `json:"revisionNo"`
+	Kind         string          `json:"kind"`
+	Snapshot     json.RawMessage `json:"snapshot"`
+	CrewSnapshot json.RawMessage `json:"crewSnapshot"`
+	Source       string          `json:"source"`
+	Reason       *string         `json:"reason,omitempty"`
+	IsCorrection bool            `json:"isCorrection"`
+	ChangedAt    time.Time       `json:"changedAt"`
+}
+
+// LogbookCertification is a "certified through" statement. CertifiedThrough is
+// a calendar date (YYYY-MM-DD).
+type LogbookCertification struct {
+	CertifiedThrough string    `json:"certifiedThrough"`
+	CertifiedAt      time.Time `json:"certifiedAt"`
 }
 
 // LicenseWithRatings pairs a licence with its class ratings so a restore can

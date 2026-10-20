@@ -27,6 +27,14 @@ type AdminStats struct {
 	ActiveSessions int
 	// TotalCustomReports counts saved custom reports across all users.
 	TotalCustomReports int
+	// StrictLogbookUsers counts users with strict logbook mode on;
+	// FlightRevisions, FlightCorrections, VoidedFlights and
+	// LogbookCertifications count rows across all users.
+	StrictLogbookUsers    int
+	FlightRevisions       int
+	FlightCorrections     int
+	VoidedFlights         int
+	LogbookCertifications int
 	// ImportsByFormat maps import_format value to import count. Never nil;
 	// formats with no imports are absent.
 	ImportsByFormat map[string]int

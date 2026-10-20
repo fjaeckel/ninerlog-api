@@ -160,6 +160,11 @@ All composition happens in `cmd/api/main.go`. The startup sequence is:
   drain its write queue without creating duplicate logbook entries. Without the header it
   is a pass-through, so existing clients are unaffected. Contract and settings in
   [API.md](./API.md#idempotent-writes).
+- **Flight change context** — every write that touches `flights` or `flight_crew_members`
+  runs in a transaction that first publishes `repository.ChangeContext` (source, reason,
+  correction flag) as transaction-local settings, which the revision triggers of migration 79
+  read to record strict-mode history. Services set the context; handlers never touch it. See
+  [DOMAIN.md](./DOMAIN.md#how-history-is-captured).
 - **Observability** — `middleware.MetricsMiddleware` records request metrics;
   `RecoveryWithMetrics` recovers panics and counts them. See [METRICS.md](./METRICS.md).
 - **Security headers** — `middleware.SecurityHeadersMiddleware` sets HSTS, X-Frame-Options,

@@ -61,6 +61,11 @@ func (s *ContactService) FindOrCreateContact(ctx context.Context, userID uuid.UU
 	return s.contactRepo.FindOrCreateByName(ctx, userID, name)
 }
 
+// WithRepository returns a service that reads and writes contacts through repo.
+func (s *ContactService) WithRepository(repo repository.ContactRepository) *ContactService {
+	return &ContactService{contactRepo: repo}
+}
+
 // CrewLinker resolves crew-member names to a single user's contacts across any
 // number of flights, remembering the names it has already looked up. Every
 // path that writes crew rows goes through it: flight create, flight update,
@@ -71,13 +76,16 @@ type CrewLinker struct {
 	svc    *ContactService
 	userID uuid.UUID
 	// cache is keyed by lower-cased name.
-	cache   map[string]*models.Contact
+	cache   map[string]uuid.UUID
 	created int
+
+	pending        map[string]uuid.UUID
+	pendingCreated int
 }
 
 // NewCrewLinker returns a linker for one user.
 func (s *ContactService) NewCrewLinker(userID uuid.UUID) *CrewLinker {
-	return &CrewLinker{svc: s, userID: userID, cache: make(map[string]*models.Contact)}
+	return &CrewLinker{svc: s, userID: userID, cache: make(map[string]uuid.UUID)}
 }
 
 // Created reports how many contacts this linker has had to create.
@@ -90,6 +98,34 @@ func (l *CrewLinker) Created() int { return l.created }
 // A member with a blank or over-length name is left unlinked; the crew row is
 // still written with the name as logged. Only infrastructure failures abort.
 func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember) error {
+	err := l.link(ctx, l.svc, members)
+	l.Confirm()
+	return err
+}
+
+// LinkIn is Link through repo, a repository bound to the transaction that
+// writes the flight. The contacts it resolves or creates are remembered only
+// after Confirm; Discard drops them.
+func (l *CrewLinker) LinkIn(ctx context.Context, repo repository.ContactRepository, members []models.FlightCrewMember) error {
+	return l.link(ctx, l.svc.WithRepository(repo), members)
+}
+
+// Confirm keeps what LinkIn resolved.
+func (l *CrewLinker) Confirm() {
+	for k, id := range l.pending {
+		l.cache[k] = id
+	}
+	l.created += l.pendingCreated
+	l.Discard()
+}
+
+// Discard drops what LinkIn resolved since the last Confirm.
+func (l *CrewLinker) Discard() {
+	l.pending = nil
+	l.pendingCreated = 0
+}
+
+func (l *CrewLinker) link(ctx context.Context, svc *ContactService, members []models.FlightCrewMember) error {
 	for i := range members {
 		name := strings.TrimSpace(members[i].Name)
 		members[i].Name = name
@@ -99,7 +135,7 @@ func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember
 		}
 
 		if members[i].ContactID != nil {
-			owned, err := l.svc.contactRepo.GetByID(ctx, *members[i].ContactID)
+			owned, err := svc.contactRepo.GetByID(ctx, *members[i].ContactID)
 			if err == nil && owned.UserID == l.userID {
 				continue
 			}
@@ -110,11 +146,12 @@ func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember
 		}
 
 		key := strings.ToLower(name)
-		contact, ok := l.cache[key]
+		id, ok := l.pending[key]
 		if !ok {
-			var err error
-			var isNew bool
-			contact, isNew, err = l.svc.FindOrCreateContact(ctx, l.userID, name)
+			id, ok = l.cache[key]
+		}
+		if !ok {
+			contact, isNew, err := svc.FindOrCreateContact(ctx, l.userID, name)
 			if errors.Is(err, models.ErrFieldTooLong) {
 				members[i].ContactID = nil
 				continue
@@ -122,13 +159,17 @@ func (l *CrewLinker) Link(ctx context.Context, members []models.FlightCrewMember
 			if err != nil {
 				return err
 			}
-			l.cache[key] = contact
+			id = contact.ID
+			if l.pending == nil {
+				l.pending = make(map[string]uuid.UUID)
+			}
+			l.pending[key] = id
 			if isNew {
-				l.created++
+				l.pendingCreated++
 			}
 		}
-		id := contact.ID
-		members[i].ContactID = &id
+		linked := id
+		members[i].ContactID = &linked
 	}
 	return nil
 }
@@ -200,7 +241,7 @@ func (s *ContactService) UpdateContact(ctx context.Context, contact *models.Cont
 	}
 	contact.UserID = existing.UserID
 
-	renamed, err := s.contactRepo.UpdateWithCrewRename(ctx, contact)
+	renamed, err := s.contactRepo.UpdateWithCrewRename(ctx, contact, crewRenameReason(existing.Name, contact.Name))
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
 			return 0, ErrContactNameExists
@@ -229,4 +270,13 @@ func (s *ContactService) DeleteContact(ctx context.Context, id, userID uuid.UUID
 		return ErrUnauthorizedContact
 	}
 	return s.contactRepo.Delete(ctx, id)
+}
+
+// crewRenameReason is the reason recorded on flight revisions written by a
+// contact rename.
+func crewRenameReason(oldName, newName string) string {
+	if oldName == newName {
+		return "Crew names updated to contact: " + newName
+	}
+	return "Crew contact renamed: " + oldName + " \u2192 " + newName
 }

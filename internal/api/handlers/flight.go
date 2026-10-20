@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
+	"github.com/fjaeckel/ninerlog-api/internal/api/errcode"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/flightsearch"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
@@ -408,9 +410,10 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	userName := h.getUserNameFromContext(c)
 
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, userName,
-		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
+	flightcalc.ApplyAutoCalculations(&flight, userName, facts)
 
 	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
 	// auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -418,13 +421,20 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
 	}
 
-	if err := h.flightService.CreateFlight(c.Request.Context(), &flight); err != nil {
+	createOpts := service.FlightWriteOptions{
+		UserName: userName,
+		Facts:    facts,
+	}
+	if len(flight.CrewMembers) > 0 {
+		createOpts.Crew = &flight.CrewMembers
+		createOpts.BeforeWrite = h.linkCrewHook(userID, &flight)
+	}
+	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, createOpts); err != nil {
+		if h.sendOverrideError(c, err) {
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
-	}
-	// Persist crew members. A new flight with no crew has nothing to clear.
-	if len(flight.CrewMembers) > 0 {
-		h.persistCrewMembers(c, userID, &flight)
 	}
 	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
 }
@@ -628,9 +638,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	userName := h.getUserNameFromContext(c)
 
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
-	flightcalc.ApplyAutoCalculations(flight, userName,
-		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
+	flightcalc.ApplyAutoCalculations(flight, userName, facts)
 
 	// Auto-set PIC name if not explicitly provided. Runs AFTER crew parsing
 	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -640,7 +651,25 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.PICName = flightrules.ResolvePICNameForSave(flight, userName)
 	}
 
-	if err := h.flightService.UpdateFlight(c.Request.Context(), flight, userID); err != nil {
+	opts := service.FlightWriteOptions{
+		UserName: userName,
+		Facts:    facts,
+	}
+	if req.CorrectionReason != nil {
+		if utf8.RuneCountInString(*req.CorrectionReason) > maxReasonLen {
+			h.sendError(c, http.StatusBadRequest, "correctionReason is too long")
+			return
+		}
+		opts.CorrectionReason = *req.CorrectionReason
+	}
+	// An update that did not carry a crewMembers key leaves the existing
+	// rows alone; otherwise the crew is replaced with the flight update.
+	if req.CrewMembers != nil {
+		opts.Crew = &flight.CrewMembers
+		opts.BeforeWrite = h.linkCrewHook(userID, flight)
+	}
+
+	if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, opts); err != nil {
 		if errors.Is(err, service.ErrFlightLocked) {
 			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
 			return
@@ -649,15 +678,18 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 			h.sendError(c, http.StatusNotFound, "Flight not found")
 			return
 		}
+		if errors.Is(err, service.ErrCorrectionReasonRequired) {
+			h.sendCodedError(c, http.StatusUnprocessableEntity, errcode.CorrectionReasonRequired,
+				"This change is a correction and needs a correctionReason")
+			return
+		}
+		if h.sendOverrideError(c, err) {
+			return
+		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
 	}
 
-	// Persist crew members if they were updated. An update that did not carry
-	// a crewMembers key leaves the existing rows alone.
-	if req.CrewMembers != nil {
-		h.persistCrewMembers(c, userID, flight)
-	}
 	if req.CrewMembers == nil {
 		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
@@ -667,14 +699,23 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 // DeleteFlight implements DELETE /flights/{flightId}
 // (DELETE /flights/{flightId})
-func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
+func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId, params generated.DeleteFlightParams) {
 	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
 		h.sendError(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	if err := h.flightService.DeleteFlight(c.Request.Context(), uuid.UUID(flightId), userID); err != nil {
+	reason := ""
+	if params.Reason != nil {
+		reason = *params.Reason
+	}
+	if utf8.RuneCountInString(reason) > maxReasonLen {
+		h.sendError(c, http.StatusBadRequest, "reason is too long")
+		return
+	}
+
+	if err := h.flightService.DeleteFlightWithReason(c.Request.Context(), uuid.UUID(flightId), userID, reason); err != nil {
 		if errors.Is(err, service.ErrFlightLocked) {
 			h.sendError(c, http.StatusConflict, "This flight is locked by a completed signature. Void the signature to make changes.")
 			return
@@ -689,6 +730,28 @@ func (h *APIHandler) DeleteFlight(c *gin.Context, flightId generated.FlightId) {
 
 	// OpenAPI spec requires 204 No Content for successful DELETE
 	c.Status(http.StatusNoContent)
+}
+
+// maxReasonLen bounds correctionReason and the delete reason.
+const maxReasonLen = 500
+
+// sendOverrideError answers 422 override_exceeds_calculated for err and
+// reports whether it did.
+func (h *APIHandler) sendOverrideError(c *gin.Context, err error) bool {
+	var oe *service.OverrideExceedsError
+	if !errors.As(err, &oe) {
+		return false
+	}
+	details := make([]map[string]string, 0, len(oe.Fields))
+	for _, f := range oe.Fields {
+		details = append(details, map[string]string{
+			"field":   f,
+			"message": overrideRowMessage,
+		})
+	}
+	h.sendCodedError(c, http.StatusUnprocessableEntity, errcode.OverrideExceedsCalculated,
+		"A manual override exceeds the calculated value", details...)
+	return true
 }
 
 // Helper functions

@@ -34,6 +34,7 @@ func TestUpdateWithFlightRename_SkipsSignedFlights(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("UPDATE aircraft").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 

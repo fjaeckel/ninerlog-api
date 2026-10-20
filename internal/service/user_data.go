@@ -10,6 +10,20 @@ import (
 // UserDataService wipes a user's data while keeping the account.
 type UserDataService struct {
 	content repository.UserContentRepository
+	logbook *LogbookService
+}
+
+// SetLogbookService attaches the strict logbook rules that classify the
+// flights a wipe deletes.
+func (s *UserDataService) SetLogbookService(l *LogbookService) {
+	s.logbook = l
+}
+
+func (s *UserDataService) classified(ctx context.Context) context.Context {
+	if s.logbook == nil {
+		return ctx
+	}
+	return repository.WithDeleteCorrections(ctx, s.logbook.DeleteCorrections)
 }
 
 // NewUserDataService creates a UserDataService.
@@ -21,11 +35,11 @@ func NewUserDataService(content repository.UserContentRepository) *UserDataServi
 // licences, aircraft, import history and notification history in one
 // transaction.
 func (s *UserDataService) DeleteAll(ctx context.Context, userID uuid.UUID) error {
-	return s.content.DeleteAllContent(ctx, userID)
+	return s.content.DeleteAllContent(s.classified(ctx), userID)
 }
 
 // DeleteFlights removes the user's flights, their crew members and the import
 // history in one transaction, returning the number of flights deleted.
 func (s *UserDataService) DeleteFlights(ctx context.Context, userID uuid.UUID) (int64, error) {
-	return s.content.DeleteFlightsAndHistory(ctx, userID)
+	return s.content.DeleteFlightsAndHistory(s.classified(ctx), userID)
 }

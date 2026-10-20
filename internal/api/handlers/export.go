@@ -154,27 +154,36 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 		userName = user.Name
 	}
 
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_flights_%s.csv", time.Now().Format("2006-01-02")))
-
-	w := csv.NewWriter(c.Writer)
-
 	format := "standard"
 	if params.Format != nil {
 		format = string(*params.Format)
 	}
 
+	var marks *csvCorrections
+	if format != "weblogbook" {
+		marks, err = h.loadCSVCorrections(c.Request.Context(), userID, prefs)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to retrieve logbook history")
+			return
+		}
+	}
+
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=ninerlog_flights_%s.csv", time.Now().Format("2006-01-02")))
+
+	w := csv.NewWriter(c.Writer)
+
 	totals := params.Totals != nil && *params.Totals
 	switch format {
 	case "easa":
-		writeEASACSV(w, flights, prefs, userName)
+		writeEASACSVWith(w, flights, prefs, userName, marks)
 		if totals {
-			csvWrite(w, easaCSVTotals(flights))
+			csvWrite(w, marks.totals(easaCSVTotals(flights)))
 		}
 	case "faa":
-		writeFAACSV(w, flights, prefs)
+		writeFAACSVWith(w, flights, prefs, marks)
 		if totals {
-			csvWrite(w, faaCSVTotals(flights))
+			csvWrite(w, marks.totals(faaCSVTotals(flights)))
 		}
 	case "weblogbook":
 		writeWebLogbookCSV(w, flights, userName)
@@ -182,9 +191,9 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 			csvWrite(w, webLogbookCSVTotals(flights))
 		}
 	default:
-		writeStandardCSV(w, flights, prefs)
+		writeStandardCSVWith(w, flights, prefs, marks)
 		if totals {
-			csvWrite(w, standardCSVTotals(flights, prefs))
+			csvWrite(w, marks.totals(standardCSVTotals(flights, prefs)))
 		}
 	}
 
@@ -192,6 +201,10 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 }
 
 func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
+	writeStandardCSVWith(w, flights, prefs, nil)
+}
+
+func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, marks *csvCorrections) {
 	// Header row — compatible with ForeFlight import format
 	headers := []string{
 		"Date", "AircraftID", "AircraftType", "From", "To", "Route",
@@ -208,7 +221,7 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
 	}
-	csvWrite(w, headers)
+	csvWrite(w, marks.header(headers))
 
 	for _, f := range flights {
 		dep, arr := safeStr(f.DepartureICAO), safeStr(f.ArrivalICAO)
@@ -299,11 +312,15 @@ func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
 		}
-		csvWrite(w, row)
+		csvWrite(w, marks.row(row, f))
 	}
 }
 
 func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, userName string) {
+	writeEASACSVWith(w, flights, prefs, userName, nil)
+}
+
+func writeEASACSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, userName string, marks *csvCorrections) {
 	// EASA AMC1 FCL.050 columns (24 cols)
 	headers := []string{
 		"Date", "Dep Place", "Dep Time", "Arr Place", "Arr Time",
@@ -317,7 +334,7 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 		"FSTD Date", "FSTD Type", "FSTD Time",
 		"Remarks & Endorsements",
 	}
-	csvWrite(w, headers)
+	csvWrite(w, marks.header(headers))
 
 	for _, f := range flights {
 		dep := exportPlace(f.DepartureICAO)
@@ -359,11 +376,15 @@ func writeEASACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, us
 			fstdDate, fstdType, fstdTime,
 			remarksAndEndorsements,
 		}
-		csvWrite(w, row)
+		csvWrite(w, marks.row(row, f))
 	}
 }
 
 func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
+	writeFAACSVWith(w, flights, prefs, nil)
+}
+
+func writeFAACSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, marks *csvCorrections) {
 	// FAA standard logbook columns (ASA/Jeppesen layout)
 	headers := []string{
 		"Date", "A/C Type", "A/C Ident", "From", "To",
@@ -374,7 +395,7 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 		"Total",
 		"Remarks/Endorsements",
 	}
-	csvWrite(w, headers)
+	csvWrite(w, marks.header(headers))
 
 	for _, f := range flights {
 		dep := exportPlace(f.DepartureICAO)
@@ -402,7 +423,7 @@ func writeFAACSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
 			duration.FormatDecimal(f.TotalTime),
 			remarks,
 		}
-		csvWrite(w, row)
+		csvWrite(w, marks.row(row, f))
 	}
 }
 
@@ -449,6 +470,7 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		CustomCurrency: h.customCurrencyService,
 		CustomReports:  h.customReportService,
 		Notifications:  h.notificationService,
+		Logbook:        h.logbookService,
 		AttachCrew:     h.AttachCrewMembers,
 	}
 }

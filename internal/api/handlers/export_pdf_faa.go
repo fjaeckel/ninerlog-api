@@ -148,22 +148,30 @@ func faaDecTotal(v int) string {
 	return fmt.Sprintf("%.1f", float64(v)/60.0)
 }
 
-func faaRemarks(f *models.Flight, max int) string {
-	return truncRunes(flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview), max)
+func faaRemarks(f *models.Flight, max int, strict *strictExport) string {
+	return strict.remarks(f.ID, flightrules.CombinedRemarks(f, flightrules.FlagIPC, flightrules.FlagFlightReview), max)
 }
 
 // generateFAAPDF renders the FAA layouts. `sigs` carries the instructor
 // sign-off of each signed flight, keyed by flight ID.
 func generateFAAPDF(flights []*models.Flight, g pageGeometry, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
+	return generateFAAPDFWith(flights, g, userName, layout, b, sigs, nil)
+}
+
+// generateFAAPDFWith renders the FAA PDF with the audit trail of a strict-mode
+// export; a nil strict renders the standard document.
+func generateFAAPDFWith(flights []*models.Flight, g pageGeometry, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature, strict *strictExport) *fpdf.Fpdf {
 	d := newDoc(g, faaRegulation, userName, certFAA)
-	d.note = baselineFooterNote(b)
+	d.note = joinNotes(baselineFooterNote(b), strict.footerNote())
 	d.sigs = sigs
+	d.strict = strict
 	if layout == layoutSingle {
 		renderFAASingle(d, flights, b)
 	} else {
 		renderFAASpread(d, flights, b)
 	}
 	addGrandSummaryPage(d, flights, b)
+	d.drawStrictAppendix(flights)
 	return d.pdf
 }
 
@@ -213,7 +221,7 @@ func renderFAASpread(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				fmt.Sprintf("%d", f.ApproachesCount),
 				fmt.Sprintf("%d", f.Holds),
 				faaDec(f.TotalTime),
-				faaRemarks(f, 64),
+				faaRemarks(f, 64, d.strict),
 			}
 			d.drawDataRow(leftW, cells, faaLeftAlign, i, f.ID)
 		}
@@ -323,7 +331,7 @@ func renderFAASingle(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseli
 				fmt.Sprintf("%d", f.LandingsDay),
 				fmt.Sprintf("%d", f.LandingsNight),
 				faaDec(f.TotalTime),
-				faaRemarks(f, 58),
+				faaRemarks(f, 58, d.strict),
 			}
 			d.drawDataRow(colW, cells, faaSingleAlign, i, f.ID)
 			pt.add(f)

@@ -1,10 +1,13 @@
 package cloudbackup
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 	"github.com/fjaeckel/ninerlog-api/internal/service/customreport"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
@@ -36,12 +39,17 @@ type restorePlan struct {
 	contactsCreated  int
 
 	flights []*models.Flight
-	crew    []models.FlightCrewMember
+	// flightBackupIDs holds each planned flight's id in the backup, in the
+	// order of flights; uuid.Nil when the backup gave none.
+	flightBackupIDs []uuid.UUID
+	crew            []models.FlightCrewMember
 
 	rules    []*models.CustomCurrencyRule
 	reports  []*models.CustomReport
 	prefs    *models.NotificationPreferences
 	baseline *models.FlightBaseline
+
+	logbook *service.PreparedLogbook
 
 	warnings warningList
 }
@@ -100,6 +108,9 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 		return nil, err
 	}
 	pl.planSettings(p)
+	if err := pl.planLogbook(p); err != nil {
+		return nil, err
+	}
 	return pl, nil
 }
 
@@ -144,6 +155,11 @@ func (pl *restorePlan) planLicenses(p *Payload) error {
 		if err := models.ValidateLicenseTextFields(&lic); err != nil {
 			return invalidEntry("licenses", i, err)
 		}
+		country, err := service.NormalizeIssuingCountry(lic.IssuingCountry)
+		if err != nil {
+			return invalidEntry("licenses", i, err)
+		}
+		lic.IssuingCountry = country
 		if err := lic.Validate(); err != nil {
 			pl.warnings.add("licenses", i, "restored although it no longer passes validation: %s", err)
 		}
@@ -223,13 +239,17 @@ func (pl *restorePlan) planContacts(p *Payload) (map[string]uuid.UUID, error) {
 // planFlights plans flights and their crew. A crew name matching a contact
 // links to it; any other valid name gets a contact of its own.
 func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) error {
+	now := time.Now()
 	pl.flights = make([]*models.Flight, 0, len(p.Flights))
+	pl.flightBackupIDs = make([]uuid.UUID, 0, len(p.Flights))
 	for i, src := range p.Flights {
 		if src == nil {
 			return invalidEntry("flights", i, nil)
 		}
 		f := *src
 		f.ID = uuid.New()
+		f.CreatedAt = restoredCreatedAt(src.CreatedAt, src.Date, now)
+		pl.flightBackupIDs = append(pl.flightBackupIDs, src.ID)
 		f.UserID = pl.userID
 		f.SignatureID = nil
 		f.AircraftReg = registration.Canonical(f.AircraftReg)
@@ -358,4 +378,62 @@ func (pl *restorePlan) planSettings(p *Payload) {
 			pl.warnings.add("flightBaseline", 0, "restored although it no longer passes validation: %s", err)
 		}
 	}
+}
+
+// planLogbook plans strict logbook mode, its switch events, the flight
+// revisions and the certifications. Licence ids are mapped when applied.
+func (pl *restorePlan) planLogbook(p *Payload) error {
+	var in service.LogbookImport
+	if m := p.LogbookMode; m != nil {
+		in.Strict = m.Strict
+		in.Since = m.Since
+		for _, e := range m.Events {
+			in.Events = append(in.Events, models.LogbookModeEvent{
+				Strict: e.Strict, Trigger: e.Trigger, LicenseID: e.LicenseID, CreatedAt: e.CreatedAt,
+			})
+		}
+	}
+	for _, r := range p.FlightRevisions {
+		in.Revisions = append(in.Revisions, models.FlightRevision{
+			FlightID: r.FlightID, RevisionNo: r.RevisionNo, Kind: r.Kind,
+			Snapshot: r.Snapshot, CrewSnapshot: r.CrewSnapshot, Source: r.Source,
+			Reason: r.Reason, IsCorrection: r.IsCorrection, ChangedAt: r.ChangedAt,
+		})
+	}
+	for i, c := range p.LogbookCertifications {
+		through, err := time.Parse("2006-01-02", c.CertifiedThrough)
+		if err != nil {
+			return invalidEntry("logbookCertifications", i, err)
+		}
+		in.Certifications = append(in.Certifications, models.LogbookCertification{
+			CertifiedThrough: through, CertifiedAt: c.CertifiedAt,
+		})
+	}
+	prepared, err := in.Prepare()
+	if err != nil {
+		var entry *service.LogbookImportError
+		if errors.As(err, &entry) {
+			return invalidEntry(entry.Section, entry.Index, err)
+		}
+		return &InvalidBackupError{Message: "Invalid logbook history in backup", Detail: err.Error()}
+	}
+	pl.logbook = prepared
+	return nil
+}
+
+// restoredCreatedAt returns the creation time a restored flight keeps: the
+// backup's value, or the flight date at 00:00 UTC when it has none, never
+// later than now.
+func restoredCreatedAt(backup, flightDate, now time.Time) time.Time {
+	if backup.IsZero() && flightDate.IsZero() {
+		return now
+	}
+	if backup.IsZero() {
+		y, m, d := flightDate.Date()
+		backup = time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}
+	if backup.After(now) {
+		return now
+	}
+	return backup
 }

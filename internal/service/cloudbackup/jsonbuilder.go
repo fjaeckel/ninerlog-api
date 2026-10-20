@@ -47,6 +47,9 @@ type DefaultJSONBuilder struct {
 	CustomCurrency *currency.CustomService
 	CustomReports  *customreport.Service
 	Notifications  *service.NotificationService
+	// Logbook backs the logbookMode, flightRevisions and logbookCertifications
+	// sections; a nil service leaves them empty.
+	Logbook *service.LogbookService
 	// AttachCrew is called with the flight slice before serialisation.
 	// Optional.
 	AttachCrew func(ctx context.Context, flights []*models.Flight)
@@ -150,6 +153,11 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		return Payload{}, err
 	}
 
+	logbookMode, revisions, certifications, err := b.gatherLogbook(ctx, userID)
+	if err != nil {
+		return Payload{}, err
+	}
+
 	return Payload{
 		ExportedAt:              now.Format(time.RFC3339),
 		Version:                 b.versionOrDefault(),
@@ -163,7 +171,50 @@ func (b *DefaultJSONBuilder) Gather(ctx context.Context, userID uuid.UUID) (Payl
 		CustomReports:           reports,
 		NotificationPreferences: prefs,
 		FlightBaseline:          NewFlightBaseline(b.gatherBaseline(ctx, userID)),
+		LogbookMode:             logbookMode,
+		FlightRevisions:         revisions,
+		LogbookCertifications:   certifications,
 	}, nil
+}
+
+// gatherLogbook returns the strict mode state, every flight revision (by
+// flight, then revision number) and the certifications (by date).
+func (b *DefaultJSONBuilder) gatherLogbook(ctx context.Context, userID uuid.UUID) (*LogbookMode, []FlightRevision, []LogbookCertification, error) {
+	revisions := []FlightRevision{}
+	certifications := []LogbookCertification{}
+	if b.Logbook == nil {
+		return nil, revisions, certifications, nil
+	}
+	state, err := b.Logbook.ExportState(ctx, userID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("export logbook: %w", err)
+	}
+
+	mode := &LogbookMode{Strict: state.Mode.Strict, Since: state.Mode.Since, Events: []LogbookModeEvent{}}
+	for _, e := range state.Events {
+		mode.Events = append(mode.Events, LogbookModeEvent{
+			Strict: e.Strict, Trigger: e.Trigger, LicenseID: e.LicenseID, CreatedAt: e.CreatedAt,
+		})
+	}
+	for _, r := range state.Revisions {
+		revisions = append(revisions, FlightRevision{
+			FlightID: r.FlightID, RevisionNo: r.RevisionNo, Kind: r.Kind,
+			Snapshot: r.Snapshot, CrewSnapshot: r.CrewSnapshot, Source: r.Source,
+			Reason: r.Reason, IsCorrection: r.IsCorrection, ChangedAt: r.ChangedAt,
+		})
+	}
+	for _, c := range state.Certifications {
+		certifications = append(certifications, LogbookCertification{
+			CertifiedThrough: c.CertifiedThrough.Format("2006-01-02"), CertifiedAt: c.CertifiedAt,
+		})
+	}
+	sort.SliceStable(certifications, func(i, j int) bool {
+		if certifications[i].CertifiedThrough != certifications[j].CertifiedThrough {
+			return certifications[i].CertifiedThrough < certifications[j].CertifiedThrough
+		}
+		return certifications[i].CertifiedAt.Before(certifications[j].CertifiedAt)
+	})
+	return mode, revisions, certifications, nil
 }
 
 // gatherContacts returns the user's address book, sorted by id.

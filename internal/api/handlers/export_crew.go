@@ -5,30 +5,21 @@ import (
 	"log/slog"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
-	"github.com/gin-gonic/gin"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
 )
 
-// persistCrewMembers links a flight's crew to the user's contacts — creating
-// contacts for names that are new — and writes the crew rows. Failures are
-// logged and swallowed. See ContactService.LinkCrewMembers for the linking
+// linkCrewHook returns the in-transaction hook that links a flight's crew to
+// the user's contacts, creating contacts for names that are new. A failure
+// aborts the flight write. See ContactService.LinkCrewMembers for the linking
 // rules.
-func (h *APIHandler) persistCrewMembers(c *gin.Context, userID uuid.UUID, flight *models.Flight) {
-	if h.flightCrewRepo == nil {
-		return
-	}
-	ctx := c.Request.Context()
-
-	if len(flight.CrewMembers) > 0 && h.contactService != nil {
-		if _, err := h.contactService.LinkCrewMembers(ctx, userID, flight.CrewMembers); err != nil {
-			slog.Warn("failed to link crew members to contacts",
-				"flightId", flight.ID, "error", err)
+func (h *APIHandler) linkCrewHook(userID uuid.UUID, flight *models.Flight) repository.TxHook {
+	return func(ctx context.Context, repos repository.TxRepos) error {
+		if len(flight.CrewMembers) == 0 || h.contactService == nil {
+			return nil
 		}
-	}
-
-	// An empty list is written too, clearing the crew.
-	if err := h.flightCrewRepo.SetCrewMembers(ctx, flight.ID, flight.CrewMembers); err != nil {
-		slog.Warn("failed to save crew members", "flightId", flight.ID, "error", err)
+		_, err := h.contactService.WithRepository(repos.Contacts()).LinkCrewMembers(ctx, userID, flight.CrewMembers)
+		return err
 	}
 }
 

@@ -17,6 +17,7 @@ type License struct {
 	IssueDate               time.Time `json:"issueDate" binding:"required"`
 	IssuingAuthority        string    `json:"issuingAuthority" binding:"required"`
 	RequiresSeparateLogbook bool      `json:"requiresSeparateLogbook"`
+	IssuingCountry          *string   `json:"issuingCountry,omitempty"`
 	CreatedAt               time.Time `json:"createdAt"`
 	UpdatedAt               time.Time `json:"updatedAt"`
 }

@@ -25,6 +25,12 @@ type State struct {
 	Reports     []*models.CustomReport
 	Prefs       *models.NotificationPreferences
 	Baseline    *models.FlightBaseline
+
+	Strict         bool
+	StrictSince    *time.Time
+	ModeEvents     []models.LogbookModeEvent
+	Revisions      []models.FlightRevision
+	Certifications []models.LogbookCertification
 }
 
 func (s State) clone() State {
@@ -40,6 +46,12 @@ func (s State) clone() State {
 		Reports:     append([]*models.CustomReport(nil), s.Reports...),
 		Prefs:       s.Prefs,
 		Baseline:    s.Baseline,
+
+		Strict:         s.Strict,
+		StrictSince:    s.StrictSince,
+		ModeEvents:     append([]models.LogbookModeEvent(nil), s.ModeEvents...),
+		Revisions:      append([]models.FlightRevision(nil), s.Revisions...),
+		Certifications: append([]models.LogbookCertification(nil), s.Certifications...),
 	}
 }
 
@@ -54,6 +66,17 @@ type Store struct {
 
 	Commits   int
 	Rollbacks int
+
+	// ChangeContext is the change context carried into the last transaction.
+	ChangeContext repository.ChangeContext
+
+	// ForeignFlightIDs are flight ids held by another user.
+	ForeignFlightIDs map[uuid.UUID]bool
+	// WipeCorrections are the flight ids the last wipe was told to delete as
+	// corrections.
+	WipeCorrections []uuid.UUID
+	// TxReads counts the strict-mode and licence reads served through Repos.
+	TxReads int
 }
 
 // Operation names accepted by FailAt.
@@ -72,6 +95,10 @@ const (
 	OpCrew             = "insert_crew_members"
 	OpPrefs            = "upsert_notification_preferences"
 	OpBaseline         = "upsert_flight_baseline"
+	OpSetStrict        = "set_strict"
+	OpModeEvent        = "import_mode_event"
+	OpRevisions        = "import_revisions"
+	OpCertification    = "import_certification"
 )
 
 // New creates an empty store.
@@ -83,6 +110,7 @@ func (s *Store) InRestoreTx(ctx context.Context, userID uuid.UUID, fn func(tx re
 	defer s.mu.Unlock()
 
 	before := s.State.clone()
+	s.ChangeContext, _ = repository.ChangeContextFrom(ctx)
 	tx := &tx{store: s, calls: map[string]int{}}
 	if err := fn(tx); err != nil {
 		s.State = before
@@ -129,14 +157,40 @@ func (t *tx) CountAttachments(ctx context.Context, userID uuid.UUID) (repository
 	return t.store.Attachments, nil
 }
 
-func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID) error {
+func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID, correctionFlightIDs []uuid.UUID) error {
 	if err := t.hit(OpWipe); err != nil {
 		return err
 	}
+	t.store.WipeCorrections = correctionFlightIDs
 	st := &t.store.State
-	prefs, baseline := st.Prefs, st.Baseline
-	*st = State{Prefs: prefs, Baseline: baseline}
+	*st = State{
+		Prefs: st.Prefs, Baseline: st.Baseline,
+		Strict: st.Strict, StrictSince: st.StrictSince,
+		ModeEvents: st.ModeEvents, Revisions: st.Revisions, Certifications: st.Certifications,
+	}
 	return nil
+}
+
+func (t *tx) ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error) {
+	return append([]*models.Flight(nil), t.store.State.Flights...), nil
+}
+
+func (t *tx) FlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) (repository.FlightIDUsage, error) {
+	usage := repository.FlightIDUsage{Taken: map[uuid.UUID]bool{}, Voided: map[uuid.UUID]bool{}}
+	for _, id := range ids {
+		if t.store.ForeignFlightIDs[id] {
+			usage.Taken[id] = true
+		}
+	}
+	for _, f := range t.store.State.Flights {
+		usage.Taken[f.ID] = true
+	}
+	for _, r := range t.store.State.Revisions {
+		if r.Kind == models.RevisionKindDelete {
+			usage.Voided[r.FlightID] = true
+		}
+	}
+	return usage, nil
 }
 
 func ensureID(id *uuid.UUID) {
@@ -239,4 +293,121 @@ func (t *tx) UpsertFlightBaseline(ctx context.Context, b *models.FlightBaseline)
 	}
 	t.store.State.Baseline = b
 	return nil
+}
+
+func (t *tx) SetStrict(ctx context.Context, userID uuid.UUID, strict bool, trigger string, licenseID *uuid.UUID) (bool, error) {
+	if err := t.hit(OpSetStrict); err != nil {
+		return false, err
+	}
+	st := &t.store.State
+	if st.Strict == strict {
+		return false, nil
+	}
+	now := time.Now()
+	st.Strict = strict
+	if strict {
+		st.StrictSince = &now
+	}
+	st.ModeEvents = append(st.ModeEvents, models.LogbookModeEvent{
+		ID: uuid.New(), UserID: userID, Strict: strict, Trigger: trigger, LicenseID: licenseID, CreatedAt: now,
+	})
+	return true, nil
+}
+
+func (t *tx) RestoreStrictSince(ctx context.Context, userID uuid.UUID, since time.Time) error {
+	if t.store.State.Strict {
+		t.store.State.StrictSince = &since
+	}
+	return nil
+}
+
+func (t *tx) ImportModeEvent(ctx context.Context, e *models.LogbookModeEvent) (bool, error) {
+	if err := t.hit(OpModeEvent); err != nil {
+		return false, err
+	}
+	for _, existing := range t.store.State.ModeEvents {
+		if existing.Strict == e.Strict && existing.Trigger == e.Trigger && existing.CreatedAt.Equal(e.CreatedAt) {
+			return false, nil
+		}
+	}
+	ensureID(&e.ID)
+	t.store.State.ModeEvents = append(t.store.State.ModeEvents, *e)
+	return true, nil
+}
+
+func (t *tx) ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error) {
+	if err := t.hit(OpRevisions); err != nil {
+		return 0, err
+	}
+	stored := 0
+next:
+	for _, rev := range revs {
+		for _, existing := range t.store.State.Revisions {
+			if existing.FlightID == rev.FlightID && existing.RevisionNo == rev.RevisionNo {
+				continue next
+			}
+		}
+		ensureID(&rev.ID)
+		t.store.State.Revisions = append(t.store.State.Revisions, rev)
+		stored++
+	}
+	return stored, nil
+}
+
+func (t *tx) ImportCertification(ctx context.Context, c *models.LogbookCertification) (bool, error) {
+	if err := t.hit(OpCertification); err != nil {
+		return false, err
+	}
+	for _, existing := range t.store.State.Certifications {
+		if existing.CertifiedThrough.Equal(c.CertifiedThrough) && existing.CertifiedAt.Equal(c.CertifiedAt) {
+			return false, nil
+		}
+	}
+	ensureID(&c.ID)
+	t.store.State.Certifications = append(t.store.State.Certifications, *c)
+	return true, nil
+}
+
+// Repos implements repository.RestoreTx. The repositories read the state the
+// transaction holds and count each read in Store.TxReads.
+func (t *tx) Repos() repository.TxRepos { return &repos{store: t.store} }
+
+type repos struct{ store *Store }
+
+func (r *repos) Contacts() repository.ContactRepository { return nil }
+
+func (r *repos) Logbook() repository.LogbookRepository { return &logbookRepo{store: r.store} }
+
+func (r *repos) Licenses() repository.LicenseRepository { return &licenseRepo{store: r.store} }
+
+type logbookRepo struct {
+	repository.LogbookRepository
+	store *Store
+}
+
+func (r *logbookRepo) GetMode(context.Context, uuid.UUID) (*models.LogbookMode, error) {
+	r.store.TxReads++
+	return &models.LogbookMode{Strict: r.store.State.Strict, Since: r.store.State.StrictSince}, nil
+}
+
+func (r *logbookRepo) LatestCertifiedThrough(context.Context, uuid.UUID) (*time.Time, error) {
+	r.store.TxReads++
+	var latest *time.Time
+	for _, c := range r.store.State.Certifications {
+		through := c.CertifiedThrough
+		if latest == nil || through.After(*latest) {
+			latest = &through
+		}
+	}
+	return latest, nil
+}
+
+type licenseRepo struct {
+	repository.LicenseRepository
+	store *Store
+}
+
+func (r *licenseRepo) GetByUserID(context.Context, uuid.UUID, *time.Time) ([]*models.License, error) {
+	r.store.TxReads++
+	return append([]*models.License(nil), r.store.State.Licenses...), nil
 }
