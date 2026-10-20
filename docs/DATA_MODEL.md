@@ -299,7 +299,7 @@ Four tables, all `user_id`-scoped with `ON DELETE CASCADE`, plus one transient t
 
 | Table | Purpose |
 | --- | --- |
-| `flight_revisions` | One row per recorded change: the flight (`snapshot`, `to_jsonb` of the `flights` row with snake_case keys) and its crew (`crew_snapshot`, `[{name, role, contactId}]`) **as they were before** the change. `kind` is `update` or `delete` (a delete revision is the void record). `source` is `user_edit`, `recalc`, `aircraft_rename`, `import` or `unknown`; `reason` and `is_correction` come from the change context. `flight_id` has no foreign key, so a revision outlives its flight. `UNIQUE (flight_id, revision_no)`. Append-only: a trigger refuses `UPDATE` and `DELETE` unless the owning user row is gone. |
+| `flight_revisions` | One row per recorded change: the flight (`snapshot`, `to_jsonb` of the `flights` row with snake_case keys) and its crew (`crew_snapshot`, `[{name, role, contactId}]`) **as they were before** the change. `kind` is `update` or `delete` (a delete revision is the void record). `source` is `user_edit`, `recalc`, `aircraft_rename`, `contact_rename`, `import` or `unknown`; `reason` and `is_correction` come from the change context. `flight_id` has no foreign key, so a revision outlives its flight. `UNIQUE (flight_id, revision_no)`. Append-only: a trigger refuses `UPDATE` and `DELETE` unless the owning user row is gone. |
 | `flight_revision_pending` | Pre-images held by the current transaction; emptied at commit. Not user content. |
 | `logbook_mode_events` | Every switch of strict mode: `strict`, `trigger` (`licence`, `manual`, `import`), the saving `license_id`, `created_at`. |
 | `logbook_certifications` | "Certified through" statements: `certified_through` (date) and `certified_at`. |

@@ -9,6 +9,7 @@ import (
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/testutil/restorefake"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +56,7 @@ func strictPayload(t *testing.T) (*Payload, uuid.UUID, uuid.UUID) {
 }
 
 func TestRestore_LogbookHistoryFollowsRestoredIDs(t *testing.T) {
-	p, _, _ := strictPayload(t)
+	p, kept, deleted := strictPayload(t)
 	userID := uuid.New()
 	store := restorefake.New()
 
@@ -67,6 +68,7 @@ func TestRestore_LogbookHistoryFollowsRestoredIDs(t *testing.T) {
 	st := store.State
 	require.Len(t, st.Flights, len(p.Flights))
 	restoredFlight := st.Flights[0].ID
+	assert.Equal(t, kept, restoredFlight)
 
 	byFlight := map[uuid.UUID][]models.FlightRevision{}
 	for _, r := range st.Revisions {
@@ -78,7 +80,8 @@ func TestRestore_LogbookHistoryFollowsRestoredIDs(t *testing.T) {
 		assert.Equal(t, userID.String(), snap["user_id"])
 		assert.NotContains(t, string(r.CrewSnapshot), "contactId")
 	}
-	require.Len(t, byFlight, 2, "restored flight plus one fresh id for the deleted flight")
+	require.Len(t, byFlight, 2, "restored flight plus the deleted flight")
+	require.Len(t, byFlight[deleted], 2, "a deleted flight keeps its id")
 	require.Len(t, byFlight[restoredFlight], 2)
 	assert.Equal(t, "unknown", byFlight[restoredFlight][1].Source)
 	assert.Equal(t, 1, byFlight[restoredFlight][0].RevisionNo)
@@ -209,21 +212,219 @@ func TestRestore_FlightKeepsItsCreatedAt(t *testing.T) {
 func TestRestoredCreatedAt(t *testing.T) {
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	past := now.Add(-48 * time.Hour)
+	flightDate := time.Date(2026, 3, 2, 0, 0, 0, 0, time.FixedZone("x", 3600))
 	tests := []struct {
-		name   string
-		backup time.Time
-		want   time.Time
+		name       string
+		backup     time.Time
+		flightDate time.Time
+		want       time.Time
 	}{
-		{"past value is kept", past, past},
-		{"value equal to now is kept", now, now},
-		{"future value is clamped to now", now.Add(24 * time.Hour), now},
-		{"missing value becomes now", time.Time{}, now},
+		{"past value is kept", past, flightDate, past},
+		{"value equal to now is kept", now, flightDate, now},
+		{"future value is clamped to now", now.Add(24 * time.Hour), flightDate, now},
+		{"missing value becomes the flight date at midnight UTC", time.Time{}, flightDate, time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)},
+		{"missing value of a future flight is clamped to now", time.Time{}, now.AddDate(0, 0, 3), now},
+		{"missing value and date becomes now", time.Time{}, time.Time{}, now},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := restoredCreatedAt(tt.backup, now); !got.Equal(tt.want) {
+			if got := restoredCreatedAt(tt.backup, tt.flightDate, now); !got.Equal(tt.want) {
 				t.Errorf("restoredCreatedAt() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestRestoreLimits(t *testing.T) {
+	assert.GreaterOrEqual(t, MaxRestoreRevisions, 10*MaxRestoreFlights)
+}
+
+func idsOf(flights []*models.Flight) []uuid.UUID {
+	out := make([]uuid.UUID, len(flights))
+	for i, f := range flights {
+		out[i] = f.ID
+	}
+	return out
+}
+
+func TestRestore_FlightIDs(t *testing.T) {
+	t.Run("flights, crew and history keep their ids", func(t *testing.T) {
+		p, kept, deleted := strictPayload(t)
+		store := restorefake.New()
+
+		_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
+		require.NoError(t, err)
+
+		assert.Equal(t, []uuid.UUID{p.Flights[0].ID, p.Flights[1].ID}, idsOf(store.State.Flights))
+		require.Len(t, store.State.Crew, 1)
+		assert.Equal(t, kept, store.State.Crew[0].FlightID)
+		ids := map[uuid.UUID]bool{}
+		for _, r := range store.State.Revisions {
+			ids[r.FlightID] = true
+		}
+		assert.Equal(t, map[uuid.UUID]bool{kept: true, deleted: true}, ids)
+	})
+
+	t.Run("an id held by another user is replaced, with its crew and history", func(t *testing.T) {
+		p, kept, deleted := strictPayload(t)
+		store := restorefake.New()
+		store.ForeignFlightIDs = map[uuid.UUID]bool{kept: true, deleted: true}
+
+		_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
+		require.NoError(t, err)
+
+		newID := store.State.Flights[0].ID
+		assert.NotEqual(t, kept, newID)
+		assert.Equal(t, p.Flights[1].ID, store.State.Flights[1].ID)
+		assert.Equal(t, newID, store.State.Crew[0].FlightID)
+		ids := map[uuid.UUID]int{}
+		for _, r := range store.State.Revisions {
+			ids[r.FlightID]++
+		}
+		assert.Equal(t, 2, ids[newID])
+		assert.Zero(t, ids[kept])
+		assert.Zero(t, ids[deleted])
+		assert.Len(t, ids, 2, "the deleted flight gets one fresh id")
+	})
+
+	t.Run("a flight with a void record of its own gets a new id", func(t *testing.T) {
+		p := samplePayload()
+		store := restorefake.New()
+		userID := uuid.New()
+		store.State.Revisions = []models.FlightRevision{{
+			ID: uuid.New(), UserID: userID, FlightID: p.Flights[0].ID, RevisionNo: 1, Kind: models.RevisionKindDelete,
+		}}
+
+		_, err := NewRestorer(store).Restore(context.Background(), userID, p, RestoreModeRestore)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, p.Flights[0].ID, store.State.Flights[0].ID)
+		assert.Equal(t, store.State.Flights[0].ID, store.State.Crew[0].FlightID)
+		assert.Equal(t, p.Flights[1].ID, store.State.Flights[1].ID)
+	})
+
+	t.Run("a repeated id in the backup keeps it once", func(t *testing.T) {
+		p := samplePayload()
+		p.Flights[1].ID = p.Flights[0].ID
+		store := restorefake.New()
+
+		_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
+		require.NoError(t, err)
+
+		assert.Equal(t, p.Flights[0].ID, store.State.Flights[0].ID)
+		assert.NotEqual(t, p.Flights[0].ID, store.State.Flights[1].ID)
+	})
+
+	t.Run("a flight without an id gets a new one", func(t *testing.T) {
+		p := samplePayload()
+		p.Flights[0].ID = uuid.Nil
+		store := restorefake.New()
+
+		_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, uuid.Nil, store.State.Flights[0].ID)
+		assert.Equal(t, store.State.Flights[0].ID, store.State.Crew[0].FlightID)
+	})
+
+	t.Run("replacing the account with its own backup twice stores the history once", func(t *testing.T) {
+		p, _, _ := strictPayload(t)
+		store := restorefake.New()
+		userID := uuid.New()
+		restorer := NewRestorer(store)
+
+		_, err := restorer.Restore(context.Background(), userID, p, RestoreModeRestore)
+		require.NoError(t, err)
+		first := idsOf(store.State.Flights)
+		revisions := len(store.State.Revisions)
+
+		for range 2 {
+			res, err := restorer.Restore(context.Background(), userID, p, RestoreModeReplace)
+			require.NoError(t, err)
+			assert.Zero(t, res.FlightRevisionsImported)
+			assert.Equal(t, first, idsOf(store.State.Flights))
+			assert.Len(t, store.State.Revisions, revisions)
+		}
+	})
+}
+
+type strictModeRepo struct{ repository.LogbookRepository }
+
+func (strictModeRepo) GetMode(context.Context, uuid.UUID) (*models.LogbookMode, error) {
+	return &models.LogbookMode{Strict: true}, nil
+}
+
+func (strictModeRepo) LatestCertifiedThrough(context.Context, uuid.UUID) (*time.Time, error) {
+	return nil, nil
+}
+
+type noLicences struct{ repository.LicenseRepository }
+
+func (noLicences) GetByUserID(context.Context, uuid.UUID, *time.Time) ([]*models.License, error) {
+	return nil, nil
+}
+
+func TestRestore_ReplaceClassifiesTheWipedFlights(t *testing.T) {
+	late := sampleFlight(1, "D-EOLD")
+	late.Date = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	future := sampleFlight(2, "D-ENEW")
+	future.Date = time.Now().UTC().AddDate(5, 0, 0)
+
+	tests := []struct {
+		name    string
+		strict  bool
+		want    []uuid.UUID
+		wantNil bool
+	}{
+		{"strict account flags flights past their window", true, []uuid.UUID{late.ID}, false},
+		{"standard account flags nothing", false, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := restorefake.New()
+			store.State.Flights = []*models.Flight{late, future}
+			restorer := NewRestorer(store)
+			if tt.strict {
+				restorer.SetLogbookService(service.NewLogbookService(strictModeRepo{}, noLicences{}, nil, nil))
+			}
+
+			_, err := restorer.Restore(context.Background(), uuid.New(), samplePayload(), RestoreModeReplace)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, store.WipeCorrections)
+		})
+	}
+
+	t.Run("restore mode wipes nothing", func(t *testing.T) {
+		store := restorefake.New()
+		restorer := NewRestorer(store)
+		restorer.SetLogbookService(service.NewLogbookService(strictModeRepo{}, noLicences{}, nil, nil))
+
+		_, err := restorer.Restore(context.Background(), uuid.New(), samplePayload(), RestoreModeRestore)
+		require.NoError(t, err)
+		assert.Nil(t, store.WipeCorrections)
+	})
+}
+
+func TestRestore_RejectsMissingLogbookTimestamps(t *testing.T) {
+	tests := map[string]struct {
+		mutate  func(p *Payload)
+		section string
+	}{
+		"revision changedAt":        {func(p *Payload) { p.FlightRevisions[1].ChangedAt = time.Time{} }, "flightRevisions"},
+		"mode event createdAt":      {func(p *Payload) { p.LogbookMode.Events[0].CreatedAt = time.Time{} }, "logbookMode.events"},
+		"certification certifiedAt": {func(p *Payload) { p.LogbookCertifications[0].CertifiedAt = time.Time{} }, "logbookCertifications"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			p, _, _ := strictPayload(t)
+			tc.mutate(p)
+			store := restorefake.New()
+
+			_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), p, RestoreModeRestore)
+			var invalid *InvalidBackupError
+			require.True(t, errors.As(err, &invalid), "error = %v", err)
+			assert.Contains(t, invalid.Message, tc.section)
+			assert.Zero(t, store.Commits)
 		})
 	}
 }

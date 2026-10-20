@@ -204,7 +204,8 @@ An opt-in mode for pilots whose authority expects a traceable logbook. In strict
 change to a flight is kept as a revision (what it said before, who or what changed it,
 when, why), a deleted flight is kept as a void record, an edit after the draft window, after
 a signature or inside a certified range is marked as a correction and needs a reason, and
-the pilot can certify the logbook through a date. A Swiss licence additionally allows manual
+the pilot can certify the logbook through a date. The free-edit window is anchored on the flight (48 hours after
+landing under a Swiss licence, otherwise the flight day). A Swiss licence additionally allows manual
 overrides only downward. A licence from CH, DE (not ultralight), AT (national), AU, NZ, JP
 or UY switches the mode on when it is saved with its `issuingCountry`; DK, BR, GB, US and
 other EASA states only suggest it. The user can switch it on or off at any time
@@ -516,9 +517,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   carry the same data. A restore is one transaction: all of it or none. It needs an empty
   account (`409 account_not_empty` otherwise, so restoring twice never doubles the logbook),
   or `mode=replace`, which wipes the account's collections first and is refused while
-  document files or signed flights exist; in a strict account a replace records a void
-  record for every wiped flight and keeps the existing history. IDs are regenerated, so a backup moves between
-  installations; a custom report scoped to a licence is re-pointed at that licence's
+  document files or signed flights exist; in a strict account a replace keeps the existing
+  history and records a void record only for a wiped flight the backup does not bring back,
+  so replacing an account with its own backup changes nothing. A flight keeps its ID when
+  nothing holds it and gets a new one otherwise, so a backup moves between installations; a custom report scoped to a licence is re-pointed at that licence's
   restored copy, or loses the scope if the backup does not carry it. A backup from any
   released export restores: outdated custom rules come back paused with a warning in the
   result. See [API.md](./API.md) for modes, limits and the version policy.

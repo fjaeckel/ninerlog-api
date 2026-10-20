@@ -283,7 +283,7 @@ func TestRestoreStoreIntegration(t *testing.T) {
 		seed(other)
 
 		if err := store.InRestoreTx(ctx, userID, func(tx repository.RestoreTx) error {
-			return tx.WipeContent(ctx, userID)
+			return tx.WipeContent(ctx, userID, nil)
 		}); err != nil {
 			t.Fatalf("wipe: %v", err)
 		}

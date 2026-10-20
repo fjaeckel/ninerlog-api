@@ -65,7 +65,7 @@ func TestRejectedFlightUpdateCreatesNoContacts(t *testing.T) {
 	}
 }
 
-func TestContactRenameIsRecordedPerFlight(t *testing.T) {
+func TestContactRenameIsRecordedAsSystemChange(t *testing.T) {
 	c := NewE2EClient(t)
 	registerAndLogin(t, c, uniqueEmail("lb-rename"), "SecurePass123!", "Renamer")
 	switchStrict(t, c, true)
@@ -85,12 +85,12 @@ func TestContactRenameIsRecordedPerFlight(t *testing.T) {
 	requireStatus(t, c.PUT("/contacts/"+contactID, map[string]interface{}{"name": "Hans Müller"}), http.StatusOK)
 
 	const wantReason = "Crew contact renamed: Hnas Müller → Hans Müller"
-	for id, wantCorrection := range map[string]bool{freshID: false, lateID: true} {
+	for _, id := range []string{freshID, lateID} {
 		revs := listRevisions(t, c, id)
 		if len(revs) != 1 {
 			t.Fatalf("revisions of %s = %d, want 1", id, len(revs))
 		}
-		if revs[0]["source"] != "user_edit" || revs[0]["isCorrection"] != wantCorrection || revs[0]["reason"] != wantReason {
+		if revs[0]["source"] != "contact_rename" || revs[0]["isCorrection"] != false || revs[0]["reason"] != wantReason {
 			t.Errorf("revision of %s = %v", id, revs[0])
 		}
 	}
@@ -149,6 +149,7 @@ func TestRestoreClampsFlightCreatedAt(t *testing.T) {
 	registerAndLogin(t, src, uniqueEmail("lb-created"), "SecurePass123!", "Source")
 	createFlightID(t, src, newFlightBody(today(), "D-ECR1"))
 	createFlightID(t, src, newFlightBody(today(), "D-ECR2"))
+	createFlightID(t, src, newFlightBody(pastDate(5), "D-ECR3"))
 
 	export := src.GET("/users/me/data")
 	requireStatus(t, export, http.StatusOK)
@@ -156,11 +157,15 @@ func TestRestoreClampsFlightCreatedAt(t *testing.T) {
 	export.MustJSON(t, &payload)
 
 	past := time.Now().UTC().Add(-72 * time.Hour).Truncate(time.Second)
-	flights := payload["flights"].([]interface{})
-	flights[0].(map[string]interface{})["createdAt"] = "2999-01-01T00:00:00Z"
-	flights[1].(map[string]interface{})["createdAt"] = past.Format(time.RFC3339)
-	wantPast := map[string]bool{}
-	wantPast[flights[1].(map[string]interface{})["aircraftReg"].(string)] = true
+	byReg := map[string]map[string]interface{}{}
+	for _, f := range payload["flights"].([]interface{}) {
+		fm := f.(map[string]interface{})
+		byReg[fm["aircraftReg"].(string)] = fm
+	}
+	byReg["D-ECR1"]["createdAt"] = "2999-01-01T00:00:00Z"
+	byReg["D-ECR2"]["createdAt"] = past.Format(time.RFC3339)
+	delete(byReg["D-ECR3"], "createdAt")
+	wantPast := map[string]bool{"D-ECR2": true}
 
 	dst := NewE2EClient(t)
 	registerAndLogin(t, dst, uniqueEmail("lb-created-dst"), "SecurePass123!", "Dest")
@@ -172,13 +177,19 @@ func TestRestoreClampsFlightCreatedAt(t *testing.T) {
 		Data []map[string]interface{} `json:"data"`
 	}
 	fr.MustJSON(t, &page)
-	if len(page.Data) != 2 {
+	if len(page.Data) != 3 {
 		t.Fatalf("restored flights = %d", len(page.Data))
 	}
 	for _, f := range page.Data {
 		created, err := time.Parse(time.RFC3339Nano, f["createdAt"].(string))
 		if err != nil {
 			t.Fatal(err)
+		}
+		if f["aircraftReg"] == "D-ECR3" {
+			if want := pastDate(5) + "T00:00:00Z"; !created.Equal(mustParseTime(t, want)) {
+				t.Errorf("undated flight createdAt = %v, want %s", created, want)
+			}
+			continue
 		}
 		if wantPast[f["aircraftReg"].(string)] {
 			if !created.Equal(past) {
@@ -190,4 +201,13 @@ func TestRestoreClampsFlightCreatedAt(t *testing.T) {
 			t.Errorf("%v createdAt = %v, want clamped to the restore time", f["aircraftReg"], created)
 		}
 	}
+}
+
+func mustParseTime(t *testing.T, v string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
 }

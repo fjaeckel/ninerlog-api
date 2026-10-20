@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -16,7 +17,7 @@ type Window string
 const (
 	// WindowFlightDay ends at the end of the flight's calendar day.
 	WindowFlightDay Window = "flight_day"
-	// WindowHours48 ends 48 hours after the entry was created.
+	// WindowHours48 ends 48 hours after the flight landed.
 	WindowHours48 Window = "hours_48"
 )
 
@@ -78,7 +79,7 @@ func RuleFor(l Licence) Rule {
 			Basis: "FOCA Accepted Logbook Formats §2.3(7)", DownwardOnlyOverrides: true,
 		}
 	case "DE":
-		if LooksLikeUL(l.LicenseType) {
+		if isDEUL(l) {
 			return Rule{Requirement: RequirementSuggested, Basis: "§120 LuftPersV"}
 		}
 		return required(WindowFlightDay, "NfL 2212-21 §4.3.2")
@@ -143,15 +144,16 @@ func shorter(a, b Window) Window {
 
 // Deadline is the instant the draft window of a flight entry closes: the
 // earliest deadline across the required licences, or the end of the flight
-// day when none is required. lonDeg is the departure longitude; pass 0 when
+// day when none is required. landedAt is the landing instant, zero when the
+// flight has no on-block time. lonDeg is the departure longitude; pass 0 when
 // it is unknown.
-func (a Assessment) Deadline(createdAt, flightDate time.Time, lonDeg float64) time.Time {
+func (a Assessment) Deadline(flightDate, landedAt time.Time, lonDeg float64) time.Time {
 	if len(a.Required) == 0 {
 		return FlightDayEnd(flightDate, lonDeg)
 	}
 	var earliest time.Time
 	for _, m := range a.Required {
-		d := WindowDeadline(m.Rule.Window, createdAt, flightDate, lonDeg)
+		d := WindowDeadline(m.Rule.Window, flightDate, landedAt, lonDeg)
 		if earliest.IsZero() || d.Before(earliest) {
 			earliest = d
 		}
@@ -159,10 +161,12 @@ func (a Assessment) Deadline(createdAt, flightDate time.Time, lonDeg float64) ti
 	return earliest
 }
 
-// WindowDeadline is the instant a single window closes for a flight.
-func WindowDeadline(w Window, createdAt, flightDate time.Time, lonDeg float64) time.Time {
-	if w == WindowHours48 {
-		return createdAt.Add(48 * time.Hour)
+// WindowDeadline is the instant a single window closes for a flight. The
+// 48-hour window runs from landedAt and falls back to the end of the flight
+// day when landedAt is zero.
+func WindowDeadline(w Window, flightDate, landedAt time.Time, lonDeg float64) time.Time {
+	if w == WindowHours48 && !landedAt.IsZero() {
+		return landedAt.Add(48 * time.Hour)
 	}
 	return FlightDayEnd(flightDate, lonDeg)
 }
@@ -182,17 +186,62 @@ func LooksLikeUL(licenseType string) bool {
 		strings.Contains(t, "ULTRALIGHT") || strings.Contains(t, "ULTRALEICHT")
 }
 
-var atNationalTypes = []string{
-	"HG", "PG", "HANG GLIDER", "PARAGLIDER", "HÄNGEGLEITER", "PARAGLEITER", "GPL", "NATIONAL GLIDER",
+var atNationalTerms = []string{
+	"UL", "HG", "PG", "HÄNGEGLEITER", "HAENGEGLEITER", "HANGGLIDER", "HANG GLIDER",
+	"PARAGLIDER", "PARAGLEITER", "GLEITSCHIRM", "DRACHEN", "MOTORSCHIRM", "NATIONAL GLIDER",
 }
 
+var deULTerms = []string{
+	"GLEITSCHIRM", "MOTORSCHIRM", "TRIKE", "HÄNGEGLEITER", "HAENGEGLEITER",
+	"DRACHEN", "TRAGSCHRAUBER", "SPORTPILOTENLIZENZ",
+}
+
+var deULAuthorities = []string{"DULV", "DAEC"}
+
 func isATNational(licenseType string) bool {
-	if LooksLikeUL(licenseType) {
-		return true
+	return LooksLikeUL(licenseType) || hasTerm(licenseType, atNationalTerms)
+}
+
+func isDEUL(l Licence) bool {
+	authority := strings.ToUpper(strings.TrimSpace(l.RegulatoryAuthority))
+	for _, a := range deULAuthorities {
+		if authority == a {
+			return true
+		}
 	}
-	t := strings.ToUpper(strings.TrimSpace(licenseType))
-	for _, n := range atNationalTypes {
-		if strings.Contains(t, n) {
+	return LooksLikeUL(l.LicenseType) || hasTerm(l.LicenseType, deULTerms)
+}
+
+// hasTerm reports whether text contains any term as a run of whole tokens.
+func hasTerm(text string, terms []string) bool {
+	tokens := tokensOf(text)
+	for _, term := range terms {
+		if containsRun(tokens, strings.Fields(term)) {
+			return true
+		}
+	}
+	return false
+}
+
+// tokensOf splits text on non-letters and uppercases the parts.
+func tokensOf(text string) []string {
+	parts := strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) })
+	for i, p := range parts {
+		parts[i] = strings.ToUpper(p)
+	}
+	return parts
+}
+
+func containsRun(tokens, run []string) bool {
+	for i := 0; i+len(run) <= len(tokens); i++ {
+		match := true
+		for j, r := range run {
+			if tokens[i+j] != r {
+				match = false
+				break
+			}
+		}
+		if match {
 			return true
 		}
 	}

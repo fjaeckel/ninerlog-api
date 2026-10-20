@@ -30,6 +30,7 @@ func (h *APIHandler) logbookUnavailable(c *gin.Context) bool {
 func convertLogbookMode(v *service.ModeView) generated.LogbookMode {
 	out := generated.LogbookMode{
 		Strict:                v.Strict,
+		VoidedCount:           v.VoidedCount,
 		Since:                 v.Since,
 		OverridesDownwardOnly: v.OverridesDownwardOnly,
 		RequiredBy:            convertModeLicences(v.Required),

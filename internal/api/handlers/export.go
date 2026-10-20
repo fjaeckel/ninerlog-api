@@ -161,7 +161,7 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 
 	var marks *csvCorrections
 	if format != "weblogbook" {
-		marks, err = h.loadCSVCorrections(c.Request.Context(), userID)
+		marks, err = h.loadCSVCorrections(c.Request.Context(), userID, prefs)
 		if err != nil {
 			h.sendError(c, http.StatusInternalServerError, "Failed to retrieve logbook history")
 			return

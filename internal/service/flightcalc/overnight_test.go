@@ -208,3 +208,27 @@ func TestInstantsOf_TakeoffAndLanding(t *testing.T) {
 		})
 	}
 }
+
+func TestOnBlockInstant(t *testing.T) {
+	date := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		off, on *string
+		want    time.Time
+		wantOK  bool
+	}{
+		{"same day", strPtr("12:00"), strPtr("15:00"), time.Date(2026, 7, 25, 15, 0, 0, 0, time.UTC), true},
+		{"overnight rolls to the next day", strPtr("22:30"), strPtr("01:05"), time.Date(2026, 7, 26, 1, 5, 0, 0, time.UTC), true},
+		{"on-block only", nil, strPtr("01:05"), time.Date(2026, 7, 25, 1, 5, 0, 0, time.UTC), true},
+		{"no on-block", strPtr("22:30"), nil, time.Time{}, false},
+		{"unparseable on-block", strPtr("22:30"), strPtr("soon"), time.Time{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := OnBlockInstant(&models.Flight{Date: date, OffBlockTime: tt.off, OnBlockTime: tt.on})
+			if ok != tt.wantOK || !got.Equal(tt.want) {
+				t.Errorf("OnBlockInstant() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}

@@ -333,6 +333,41 @@ func TestConfirmImport_CrewSaveFailureIsReported(t *testing.T) {
 	}
 }
 
+func TestConfirmImport_RetriesWithoutCrewOnlyForCrewWriteErrors(t *testing.T) {
+	const csv = "Date,Reg,Type,From,To,Off Block,On Block,Landings,Instructor Name\n" +
+		"2026-05-01,D-EABC,C172,EDDF,EDDM,08:00,09:00,1,Jordan Lake\n"
+	tests := []struct {
+		name        string
+		crewErr     error
+		createErr   error
+		wantCalls   int
+		wantStored  int
+		wantStatus  string
+		wantErrCode string
+	}{
+		{"crew write failure retries without crew", errors.New("crew table unavailable"), nil, 2, 1, "partial", "crewMembers"},
+		{"other failure is reported without a retry", nil, errors.New("connection reset"), 1, 0, "failed", "flight"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newImportConfirmEnv(t, "Alex Rivera")
+			env.crew.err = tt.crewErr
+			env.flights.createErr = tt.createErr
+
+			result, flights := env.confirm(t, []byte(csv))
+			if env.flights.createCalls != tt.wantCalls {
+				t.Errorf("create calls = %d, want %d", env.flights.createCalls, tt.wantCalls)
+			}
+			if len(flights) != tt.wantStored || string(result.Status) != tt.wantStatus {
+				t.Errorf("stored = %d, status = %q, want %d, %q", len(flights), result.Status, tt.wantStored, tt.wantStatus)
+			}
+			if result.Errors == nil || len(*result.Errors) != 1 || (*result.Errors)[0].Field != tt.wantErrCode {
+				t.Errorf("errors = %+v, want one %s error", result.Errors, tt.wantErrCode)
+			}
+		})
+	}
+}
+
 func TestBuildImportedFlight_LandingSplit(t *testing.T) {
 	ip := func(n int) *int { return &n }
 	tests := []struct {

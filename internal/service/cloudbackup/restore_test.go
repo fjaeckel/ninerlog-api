@@ -124,7 +124,7 @@ func TestRestore_EmptyAccount(t *testing.T) {
 
 	st := store.State
 	require.Len(t, st.Flights, 2)
-	assert.NotEqual(t, oldFlightID, st.Flights[0].ID)
+	assert.Equal(t, oldFlightID, st.Flights[0].ID, "a flight keeps its id when nothing holds it")
 	assert.Equal(t, userID, st.Flights[0].UserID)
 	assert.Nil(t, st.Flights[0].SignatureID)
 	assert.Nil(t, st.Flights[0].CrewMembers)

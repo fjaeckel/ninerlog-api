@@ -182,6 +182,16 @@ func (f *fakeLogbookRepo) ListVoided(_ context.Context, userID uuid.UUID) ([]mod
 	return out, nil
 }
 
+func (f *fakeLogbookRepo) CountVoided(_ context.Context, userID uuid.UUID) (int, error) {
+	n := 0
+	for _, r := range f.revisions {
+		if r.UserID == userID && r.Kind == models.RevisionKindDelete {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (f *fakeLogbookRepo) ImportRevisions(_ context.Context, revs []models.FlightRevision) (int, error) {
 	stored := 0
 next:
@@ -383,6 +393,25 @@ func TestLogbookService_GetModeReportsLicencesAndWindow(t *testing.T) {
 	}
 }
 
+func TestLogbookService_GetModeCountsVoidedWhateverTheMode(t *testing.T) {
+	for _, strict := range []bool{true, false} {
+		e := newLogbookEnv(t, strict)
+		e.lbRepo.revisions = []models.FlightRevision{
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
+			{UserID: e.userID, FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindUpdate},
+			{UserID: uuid.New(), FlightID: uuid.New(), RevisionNo: 1, Kind: models.RevisionKindDelete},
+		}
+		view, err := e.logbook.GetMode(context.Background(), e.userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if view.VoidedCount != 2 {
+			t.Errorf("strict=%v: VoidedCount = %d, want 2", strict, view.VoidedCount)
+		}
+	}
+}
+
 func TestLogbookService_CreateCertification(t *testing.T) {
 	today := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -571,14 +600,21 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 				{FlightID: deletedFlight, RevisionNo: 2, Kind: "delete", Snapshot: snap(deletedFlight), CrewSnapshot: crew, Source: "user_edit", ChangedAt: since},
 			},
 			Certifications: []models.LogbookCertification{{CertifiedThrough: since, CertifiedAt: since}},
-			FlightIDs:      map[uuid.UUID]uuid.UUID{oldFlight: restoredFlight},
-			LicenseIDs:     map[uuid.UUID]uuid.UUID{licenseOld: licenseNew},
 		}
+	}
+	flightIDs := map[uuid.UUID]uuid.UUID{oldFlight: restoredFlight}
+	licenseIDs := map[uuid.UUID]uuid.UUID{licenseOld: licenseNew}
+	importIt := func(e *logbookEnv, in LogbookImport) (LogbookImportResult, error) {
+		p, err := in.Prepare()
+		if err != nil {
+			return LogbookImportResult{}, err
+		}
+		return ImportLogbook(ctx, e.lbRepo, e.userID, p, flightIDs, licenseIDs)
 	}
 
 	t.Run("remaps ids, switches strict on with an import event", func(t *testing.T) {
 		e := newLogbookEnv(t, false)
-		res, err := ImportLogbook(ctx, e.lbRepo, e.userID, build())
+		res, err := importIt(e, build())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -634,7 +670,7 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 
 	t.Run("an already strict account only gains the history", func(t *testing.T) {
 		e := newLogbookEnv(t, true)
-		if _, err := ImportLogbook(ctx, e.lbRepo, e.userID, build()); err != nil {
+		if _, err := importIt(e, build()); err != nil {
 			t.Fatal(err)
 		}
 		for _, ev := range e.lbRepo.events {
@@ -648,7 +684,7 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 		e := newLogbookEnv(t, false)
 		in := build()
 		in.Strict = false
-		if _, err := ImportLogbook(ctx, e.lbRepo, e.userID, in); err != nil {
+		if _, err := importIt(e, in); err != nil {
 			t.Fatal(err)
 		}
 		if mode, _ := e.lbRepo.GetMode(ctx, e.userID); mode.Strict {
@@ -658,12 +694,10 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 
 	t.Run("importing twice stores nothing new", func(t *testing.T) {
 		e := newLogbookEnv(t, false)
-		if _, err := ImportLogbook(ctx, e.lbRepo, e.userID, build()); err != nil {
+		if _, err := importIt(e, build()); err != nil {
 			t.Fatal(err)
 		}
-		in := build()
-		in.FlightIDs = map[uuid.UUID]uuid.UUID{oldFlight: restoredFlight}
-		res, err := ImportLogbook(ctx, e.lbRepo, e.userID, in)
+		res, err := importIt(e, build())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -674,17 +708,20 @@ func TestLogbookService_ImportLogbook(t *testing.T) {
 
 	t.Run("rejects values the schema cannot store", func(t *testing.T) {
 		tests := map[string]func(*LogbookImport){
-			"revision kind":   func(in *LogbookImport) { in.Revisions[0].Kind = "rewrite" },
-			"revision number": func(in *LogbookImport) { in.Revisions[0].RevisionNo = 0 },
-			"event trigger":   func(in *LogbookImport) { in.Events[0].Trigger = "admin" },
-			"snapshot":        func(in *LogbookImport) { in.Revisions[0].Snapshot = json.RawMessage(`[1]`) },
+			"revision kind":             func(in *LogbookImport) { in.Revisions[0].Kind = "rewrite" },
+			"revision number":           func(in *LogbookImport) { in.Revisions[0].RevisionNo = 0 },
+			"event trigger":             func(in *LogbookImport) { in.Events[0].Trigger = "admin" },
+			"snapshot":                  func(in *LogbookImport) { in.Revisions[0].Snapshot = json.RawMessage(`[1]`) },
+			"revision changedAt":        func(in *LogbookImport) { in.Revisions[1].ChangedAt = time.Time{} },
+			"event createdAt":           func(in *LogbookImport) { in.Events[0].CreatedAt = time.Time{} },
+			"certification certifiedAt": func(in *LogbookImport) { in.Certifications[0].CertifiedAt = time.Time{} },
 		}
 		for name, mutate := range tests {
 			t.Run(name, func(t *testing.T) {
 				e := newLogbookEnv(t, false)
 				in := build()
 				mutate(&in)
-				if _, err := ImportLogbook(ctx, e.lbRepo, e.userID, in); !errors.Is(err, ErrInvalidLogbookImport) {
+				if _, err := importIt(e, in); !errors.Is(err, ErrInvalidLogbookImport) {
 					t.Fatalf("error = %v, want ErrInvalidLogbookImport", err)
 				}
 				if len(e.lbRepo.revisions) != 0 || len(e.lbRepo.events) != 0 {

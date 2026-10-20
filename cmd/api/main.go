@@ -354,7 +354,6 @@ func main() {
 	flightSignatureRepo := postgres.NewFlightSignatureRepository(db)
 	logbookService := service.NewLogbookService(logbookRepo, licenseRepo, flightRepo, flightSignatureRepo)
 	flightService.SetLogbookService(logbookService)
-	contactService.SetLogbookService(logbookService)
 	flightService.SetCrewRepository(flightCrewRepo)
 
 	apiHandler := handlers.NewAPIHandler(authService, licenseService, flightService, credentialService, aircraftService, notificationService, twoFactorService, contactService, classRatingService, currencyService, webauthnService, jwtManager, flightCrewRepo, adminRoleService)
@@ -377,7 +376,9 @@ func main() {
 	apiHandler.SetFlightImportRepository(postgres.NewFlightImportRepository(db))
 	apiHandler.SetReportsRepository(postgres.NewReportsRepository(db))
 	apiHandler.SetUserContentRepository(postgres.NewUserContentRepository(db))
-	apiHandler.SetRestorer(cloudbackup.NewRestorer(postgres.NewRestoreStore(db, restoreStatementTimeout)))
+	restorer := cloudbackup.NewRestorer(postgres.NewRestoreStore(db, restoreStatementTimeout))
+	restorer.SetLogbookService(logbookService)
+	apiHandler.SetRestorer(restorer)
 	apiHandler.SetEmailSender(emailSender)
 	flightSessionService := service.NewFlightSessionService(flightSessionRepo, aircraftRepo, flightService)
 	apiHandler.SetFlightSessionService(flightSessionService)

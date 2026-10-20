@@ -61,7 +61,7 @@ func (m *mockContactRepo) FindOrCreateByName(ctx context.Context, userID uuid.UU
 	return c, true, nil
 }
 
-func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ *repository.CrewRename) (int, error) {
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ string) (int, error) {
 	if err := m.Update(ctx, c); err != nil {
 		return 0, err
 	}

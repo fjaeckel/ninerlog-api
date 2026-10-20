@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Rows per multi-row INSERT; each chunk stays far below PostgreSQL's limit of
@@ -19,6 +21,7 @@ const (
 	contactInsertChunk  = 1000
 	crewInsertChunk     = 1000
 	revisionInsertChunk = 1000
+	uuidChunk           = 20000
 )
 
 // queryExecer is the part of *sql.DB and *sql.Tx that single-row inserts use.
@@ -96,7 +99,12 @@ func (t *restoreTx) CountAttachments(ctx context.Context, userID uuid.UUID) (rep
 	return a, err
 }
 
-func (t *restoreTx) WipeContent(ctx context.Context, userID uuid.UUID) error {
+func (t *restoreTx) WipeContent(ctx context.Context, userID uuid.UUID, correctionFlightIDs []uuid.UUID) error {
+	if len(correctionFlightIDs) > 0 {
+		if err := t.deleteFlights(ctx, userID, correctionFlightIDs); err != nil {
+			return err
+		}
+	}
 	queries := append(append([]string{}, logbookWipeQueries...),
 		`DELETE FROM custom_currency_rules WHERE user_id = $1`,
 		`DELETE FROM custom_reports WHERE user_id = $1`,
@@ -107,6 +115,85 @@ func (t *restoreTx) WipeContent(ctx context.Context, userID uuid.UUID) error {
 		}
 	}
 	return nil
+}
+
+// deleteFlights deletes the flights and their crew with the correction flag
+// set, then puts the flag of the change context back.
+func (t *restoreTx) deleteFlights(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) error {
+	if err := t.setCorrection(ctx, true); err != nil {
+		return err
+	}
+	for start := 0; start < len(ids); start += uuidChunk {
+		chunk := pq.Array(ids[start:min(start+uuidChunk, len(ids))])
+		if _, err := t.tx.ExecContext(ctx, `DELETE FROM flight_crew_members WHERE flight_id = ANY($1::uuid[])`, chunk); err != nil {
+			return err
+		}
+		if _, err := t.tx.ExecContext(ctx, `DELETE FROM flights WHERE user_id = $1 AND id = ANY($2::uuid[])`, userID, chunk); err != nil {
+			return err
+		}
+	}
+	cc, _ := repository.ChangeContextFrom(ctx)
+	return t.setCorrection(ctx, cc.IsCorrection)
+}
+
+func (t *restoreTx) setCorrection(ctx context.Context, correction bool) error {
+	_, err := t.tx.ExecContext(ctx, `SELECT set_config('ninerlog.change_correction', $1, true)`, strconv.FormatBool(correction))
+	return err
+}
+
+func (t *restoreTx) ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error) {
+	rows, err := t.tx.QueryContext(ctx,
+		`SELECT id, date, off_block_time, on_block_time, departure_icao FROM flights WHERE user_id = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []*models.Flight
+	for rows.Next() {
+		f := &models.Flight{UserID: userID}
+		var off, on *time.Time
+		if err := rows.Scan(&f.ID, &f.Date, &off, &on, &f.DepartureICAO); err != nil {
+			return nil, err
+		}
+		f.OffBlockTime, f.OnBlockTime = timeToString(off), timeToString(on)
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+func (t *restoreTx) FlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) (repository.FlightIDUsage, error) {
+	usage := repository.FlightIDUsage{Taken: map[uuid.UUID]bool{}, Voided: map[uuid.UUID]bool{}}
+	for start := 0; start < len(ids); start += uuidChunk {
+		if err := t.collectFlightIDUsage(ctx, userID, ids[start:min(start+uuidChunk, len(ids))], &usage); err != nil {
+			return usage, err
+		}
+	}
+	return usage, nil
+}
+
+func (t *restoreTx) collectFlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID, usage *repository.FlightIDUsage) error {
+	rows, err := t.tx.QueryContext(ctx, `
+		SELECT id, true FROM flights WHERE id = ANY($1::uuid[])
+		UNION
+		SELECT flight_id, user_id <> $2 FROM flight_revisions
+		 WHERE flight_id = ANY($1::uuid[]) AND (user_id <> $2 OR kind = 'delete')`, pq.Array(ids), userID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id uuid.UUID
+		var taken bool
+		if err := rows.Scan(&id, &taken); err != nil {
+			return err
+		}
+		if taken {
+			usage.Taken[id] = true
+		} else {
+			usage.Voided[id] = true
+		}
+	}
+	return rows.Err()
 }
 
 func (t *restoreTx) InsertAircraft(ctx context.Context, aircraft *models.Aircraft) error {

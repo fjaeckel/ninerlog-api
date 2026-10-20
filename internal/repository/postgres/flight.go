@@ -237,7 +237,7 @@ func (r *flightRepository) CreateWithCrew(ctx context.Context, flight *models.Fl
 		return err
 	}
 	if err := insertCrewMembers(ctx, tx, flight.ID, crew); err != nil {
-		return err
+		return &repository.CrewWriteError{Err: err}
 	}
 	return tx.Commit()
 }

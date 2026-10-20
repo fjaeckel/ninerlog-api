@@ -461,6 +461,14 @@ func instantsOf(flight *models.Flight) flightInstants {
 	return in
 }
 
+// OnBlockInstant returns the UTC instant of the flight's on-block time, rolled
+// to the next day when it is earlier than off-block. ok is false when the
+// flight has no parseable on-block time.
+func OnBlockInstant(flight *models.Flight) (t time.Time, ok bool) {
+	t = instantsOf(flight).onBlock
+	return t, !t.IsZero()
+}
+
 // takeoffAt returns the takeoff instant, or off-block when takeoff is absent
 // or outside the block window.
 func (in flightInstants) takeoffAt() time.Time {

@@ -315,6 +315,7 @@ func (e BackupFlightRevisionKind) Valid() bool {
 // Defines values for BackupFlightRevisionSource.
 const (
 	BackupFlightRevisionSourceAircraftRename BackupFlightRevisionSource = "aircraft_rename"
+	BackupFlightRevisionSourceContactRename  BackupFlightRevisionSource = "contact_rename"
 	BackupFlightRevisionSourceImport         BackupFlightRevisionSource = "import"
 	BackupFlightRevisionSourceRecalc         BackupFlightRevisionSource = "recalc"
 	BackupFlightRevisionSourceUnknown        BackupFlightRevisionSource = "unknown"
@@ -325,6 +326,8 @@ const (
 func (e BackupFlightRevisionSource) Valid() bool {
 	switch e {
 	case BackupFlightRevisionSourceAircraftRename:
+		return true
+	case BackupFlightRevisionSourceContactRename:
 		return true
 	case BackupFlightRevisionSourceImport:
 		return true
@@ -1341,6 +1344,7 @@ func (e FlightRevisionKind) Valid() bool {
 // Defines values for FlightRevisionSource.
 const (
 	FlightRevisionSourceAircraftRename FlightRevisionSource = "aircraft_rename"
+	FlightRevisionSourceContactRename  FlightRevisionSource = "contact_rename"
 	FlightRevisionSourceImport         FlightRevisionSource = "import"
 	FlightRevisionSourceRecalc         FlightRevisionSource = "recalc"
 	FlightRevisionSourceUnknown        FlightRevisionSource = "unknown"
@@ -1351,6 +1355,8 @@ const (
 func (e FlightRevisionSource) Valid() bool {
 	switch e {
 	case FlightRevisionSourceAircraftRename:
+		return true
+	case FlightRevisionSourceContactRename:
 		return true
 	case FlightRevisionSourceImport:
 		return true
@@ -2184,6 +2190,7 @@ func (e UserTimeDisplayFormat) Valid() bool {
 // Defines values for VoidedFlightSource.
 const (
 	VoidedFlightSourceAircraftRename VoidedFlightSource = "aircraft_rename"
+	VoidedFlightSourceContactRename  VoidedFlightSource = "contact_rename"
 	VoidedFlightSourceImport         VoidedFlightSource = "import"
 	VoidedFlightSourceRecalc         VoidedFlightSource = "recalc"
 	VoidedFlightSourceUnknown        VoidedFlightSource = "unknown"
@@ -2194,6 +2201,8 @@ const (
 func (e VoidedFlightSource) Valid() bool {
 	switch e {
 	case VoidedFlightSourceAircraftRename:
+		return true
+	case VoidedFlightSourceContactRename:
 		return true
 	case VoidedFlightSourceImport:
 		return true
@@ -4061,7 +4070,7 @@ type BackupFieldSchema struct {
 // BackupFieldType Hint for rendering provider config/credential form fields.
 type BackupFieldType string
 
-// BackupFlight A flight as written to a backup: the stored columns of the flight, its crew and its approaches. Identifiers and timestamps are reassigned on restore.
+// BackupFlight A flight as written to a backup: the stored columns of the flight, its crew and its approaches. The flight id is kept on restore when nothing holds it and reassigned otherwise; the other identifiers are reassigned.
 type BackupFlight struct {
 	// ActualInstrumentTime Actual instrument flight time in minutes (under IMC or simulated IMC with view-limiting device)
 	//
@@ -7399,7 +7408,7 @@ type LogbookCertificationCreate struct {
 
 // LogbookMode defines model for LogbookMode.
 type LogbookMode struct {
-	// DraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand
+	// DraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand. flight_day ends with the flight's calendar day, hours_48 48 hours after the flight landed
 	DraftWindow *LogbookModeDraftWindow `json:"draftWindow,omitempty"`
 
 	// Events Every switch, oldest first
@@ -7418,9 +7427,12 @@ type LogbookMode struct {
 
 	// SuggestedBy Licences whose rules suggest strict mode without requiring it
 	SuggestedBy []LogbookModeLicence `json:"suggestedBy"`
+
+	// VoidedCount Number of deleted flights kept as void records, whatever the current mode
+	VoidedCount int `json:"voidedCount"`
 }
 
-// LogbookModeDraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand
+// LogbookModeDraftWindow The shortest free-edit window across requiring licences; flight_day when strict mode was switched on by hand. flight_day ends with the flight's calendar day, hours_48 48 hours after the flight landed
 type LogbookModeDraftWindow string
 
 // LogbookModeEvent defines model for LogbookModeEvent.

@@ -202,18 +202,18 @@ func (r *ContactRepository) Update(ctx context.Context, contact *models.Contact)
 // UpdateWithCrewRename updates the contact and carries a name change into the
 // crew rows of the user's unsigned flights, returning how many crew rows were
 // rewritten. Signed flights keep the crew name they were signed with.
-// contact.UserID must be set by the caller. rename sets the reason and the
-// correction flag recorded on the revisions the rewrite produces.
-func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *models.Contact, rename *repository.CrewRename) (int, error) {
+// contact.UserID must be set by the caller. reason is recorded on the
+// revisions the rewrite produces, under the contact_rename source.
+func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *models.Contact, reason string) (int, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 
-	change := repository.ChangeContext{Source: repository.ChangeSourceUserEdit}
-	if rename != nil && rename.Reason != "" {
-		change.Reason = &rename.Reason
+	change := repository.ChangeContext{Source: repository.ChangeSourceContactRename}
+	if reason != "" {
+		change.Reason = &reason
 	}
 	if err := applyChangeContext(repository.WithChangeContext(ctx, change), tx); err != nil {
 		return 0, err
@@ -237,28 +237,9 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 		return 0, repository.ErrNotFound
 	}
 
-	corrections := map[uuid.UUID]bool{}
-	if rename != nil && rename.Corrections != nil {
-		affected, err := affectedRenameFlights(ctx, tx, contact)
-		if err != nil {
-			return 0, err
-		}
-		if len(affected) > 0 {
-			if corrections, err = rename.Corrections(ctx, affected); err != nil {
-				return 0, err
-			}
-		}
-	}
-	correctionIDs := make([]uuid.UUID, 0, len(corrections))
-	for id, isCorrection := range corrections {
-		if isCorrection {
-			correctionIDs = append(correctionIDs, id)
-		}
-	}
-
 	// signature_id IS NULL: signed flights keep the crew name they were
 	// signed with.
-	const renameCrew = `
+	crewResult, err := tx.ExecContext(ctx, `
 		UPDATE flight_crew_members fcm
 		SET name = $1
 		FROM flights f
@@ -266,29 +247,15 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 		  AND fcm.contact_id = $2
 		  AND f.user_id = $3
 		  AND f.signature_id IS NULL
-		  AND fcm.name <> $1
-		  AND (f.id = ANY($4)) = $5`
-	var crewUpdated int64
-	for _, correction := range []bool{false, true} {
-		if len(correctionIDs) == 0 && correction {
-			continue
-		}
-		if len(correctionIDs) > 0 {
-			change.IsCorrection = correction
-			if err := applyChangeContext(repository.WithChangeContext(ctx, change), tx); err != nil {
-				return 0, err
-			}
-		}
-		res, err := tx.ExecContext(ctx, renameCrew,
-			contact.Name, contact.ID, contact.UserID, pq.Array(correctionIDs), correction)
-		if err != nil {
-			return 0, err
-		}
-		n, err := res.RowsAffected()
-		if err != nil {
-			return 0, err
-		}
-		crewUpdated += n
+		  AND fcm.name <> $1`,
+		contact.Name, contact.ID, contact.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	crewUpdated, err := crewResult.RowsAffected()
+	if err != nil {
+		return 0, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -296,33 +263,6 @@ func (r *ContactRepository) UpdateWithCrewRename(ctx context.Context, contact *m
 	}
 	contact.UpdatedAt = now
 	return int(crewUpdated), nil
-}
-
-// affectedRenameFlights lists the unsigned flights whose crew rows linked to
-// the contact differ from the contact's new name.
-func affectedRenameFlights(ctx context.Context, tx *sql.Tx, contact *models.Contact) ([]*models.Flight, error) {
-	rows, err := tx.QueryContext(ctx, `
-		SELECT DISTINCT f.id, f.user_id, f.date, f.created_at, f.departure_icao
-		FROM flight_crew_members fcm
-		JOIN flights f ON f.id = fcm.flight_id
-		WHERE fcm.contact_id = $1
-		  AND f.user_id = $2
-		  AND f.signature_id IS NULL
-		  AND fcm.name <> $3`,
-		contact.ID, contact.UserID, contact.Name)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var out []*models.Flight
-	for rows.Next() {
-		f := &models.Flight{}
-		if err := rows.Scan(&f.ID, &f.UserID, &f.Date, &f.CreatedAt, &f.DepartureICAO); err != nil {
-			return nil, err
-		}
-		out = append(out, f)
-	}
-	return out, rows.Err()
 }
 
 // RolesByContact returns the distinct crew roles each of the user's contacts

@@ -410,9 +410,10 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	userName := h.getUserNameFromContext(c)
 
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, userName,
-		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
+	flightcalc.ApplyAutoCalculations(&flight, userName, facts)
 
 	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
 	// auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -422,7 +423,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	createOpts := service.FlightWriteOptions{
 		UserName: userName,
-		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
+		Facts:    facts,
 	}
 	if len(flight.CrewMembers) > 0 {
 		createOpts.Crew = &flight.CrewMembers
@@ -640,9 +641,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	userName := h.getUserNameFromContext(c)
 
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
-	flightcalc.ApplyAutoCalculations(flight, userName,
-		h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg))
+	flightcalc.ApplyAutoCalculations(flight, userName, facts)
 
 	// Auto-set PIC name if not explicitly provided. Runs AFTER crew parsing
 	// and auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -654,7 +656,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	opts := service.FlightWriteOptions{
 		UserName: userName,
-		Facts:    h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg),
+		Facts:    facts,
 	}
 	if req.CorrectionReason != nil {
 		if utf8.RuneCountInString(*req.CorrectionReason) > maxReasonLen {

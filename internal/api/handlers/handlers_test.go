@@ -203,7 +203,7 @@ func (m *mockContactRepo) Update(_ context.Context, c *models.Contact) error {
 	m.contacts[c.ID] = c
 	return nil
 }
-func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ *repository.CrewRename) (int, error) {
+func (m *mockContactRepo) UpdateWithCrewRename(ctx context.Context, c *models.Contact, _ string) (int, error) {
 	return 0, m.Update(ctx, c)
 }
 func (m *mockContactRepo) RolesByContact(_ context.Context, userID uuid.UUID) (map[uuid.UUID][]string, error) {
@@ -428,6 +428,10 @@ type mockFlightRepo struct {
 	crew interface {
 		SetCrewMembers(ctx context.Context, flightID uuid.UUID, members []models.FlightCrewMember) error
 	}
+	// createErr, when set, is returned by CreateWithCrew before anything is
+	// stored; createCalls counts the calls.
+	createErr   error
+	createCalls int
 }
 
 func newMockFlightRepo() *mockFlightRepo {
@@ -442,13 +446,17 @@ func (m *mockFlightRepo) Create(_ context.Context, f *models.Flight) error {
 	return nil
 }
 func (m *mockFlightRepo) CreateWithCrew(ctx context.Context, f *models.Flight, crew []models.FlightCrewMember) error {
+	m.createCalls++
+	if m.createErr != nil {
+		return m.createErr
+	}
 	if err := m.Create(ctx, f); err != nil {
 		return err
 	}
 	if m.crew != nil && len(crew) > 0 {
 		if err := m.crew.SetCrewMembers(ctx, f.ID, crew); err != nil {
 			delete(m.flights, f.ID)
-			return err
+			return &repository.CrewWriteError{Err: err}
 		}
 	}
 	return nil

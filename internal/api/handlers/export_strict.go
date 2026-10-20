@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/google/uuid"
 )
@@ -34,11 +35,12 @@ func (h *APIHandler) loadStrictExport(ctx context.Context, userID uuid.UUID, fli
 // *csvCorrections adds nothing.
 type csvCorrections struct {
 	lastCorrectedAt map[uuid.UUID]time.Time
+	prefs           exportPrefs
 }
 
 // loadCSVCorrections returns the strict-mode CSV columns for the user, or nil
 // in standard mode or when the logbook service is not wired.
-func (h *APIHandler) loadCSVCorrections(ctx context.Context, userID uuid.UUID) (*csvCorrections, error) {
+func (h *APIHandler) loadCSVCorrections(ctx context.Context, userID uuid.UUID, prefs exportPrefs) (*csvCorrections, error) {
 	if h.logbookService == nil {
 		return nil, nil
 	}
@@ -46,7 +48,7 @@ func (h *APIHandler) loadCSVCorrections(ctx context.Context, userID uuid.UUID) (
 	if err != nil || !strict {
 		return nil, err
 	}
-	return &csvCorrections{lastCorrectedAt: last}, nil
+	return &csvCorrections{lastCorrectedAt: last, prefs: prefs}, nil
 }
 
 func (c *csvCorrections) header(h []string) []string {
@@ -62,9 +64,10 @@ func (c *csvCorrections) row(r []string, f *models.Flight) []string {
 	}
 	at, ok := c.lastCorrectedAt[f.ID]
 	if !ok {
-		return append(r, "no", "")
+		return append(r, "false", "")
 	}
-	return append(r, "yes", at.UTC().Format(time.RFC3339))
+	at = at.UTC()
+	return append(r, "true", c.prefs.formatDate(at)+" "+at.Format("15:04"))
 }
 
 func (c *csvCorrections) totals(r []string) []string {
@@ -279,13 +282,15 @@ func orDash(s string) string {
 
 func sourceLabel(source string) string {
 	switch source {
-	case "user_edit":
+	case repository.ChangeSourceUserEdit:
 		return "User edit"
-	case "recalc":
+	case repository.ChangeSourceRecalc:
 		return "System: recalculation"
-	case "aircraft_rename":
+	case repository.ChangeSourceAircraftRename:
 		return "System: aircraft re-registration"
-	case "import":
+	case repository.ChangeSourceContactRename:
+		return "System: contact rename"
+	case repository.ChangeSourceImport:
 		return "System: import"
 	default:
 		return "System: unknown"

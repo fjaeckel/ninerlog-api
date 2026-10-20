@@ -38,16 +38,18 @@ type restorePlan struct {
 	contactsSkipped  int
 	contactsCreated  int
 
-	flights   []*models.Flight
-	flightIDs map[uuid.UUID]uuid.UUID
-	crew      []models.FlightCrewMember
+	flights []*models.Flight
+	// flightBackupIDs holds each planned flight's id in the backup, in the
+	// order of flights; uuid.Nil when the backup gave none.
+	flightBackupIDs []uuid.UUID
+	crew            []models.FlightCrewMember
 
 	rules    []*models.CustomCurrencyRule
 	reports  []*models.CustomReport
 	prefs    *models.NotificationPreferences
 	baseline *models.FlightBaseline
 
-	logbook service.LogbookImport
+	logbook *service.PreparedLogbook
 
 	warnings warningList
 }
@@ -239,17 +241,15 @@ func (pl *restorePlan) planContacts(p *Payload) (map[string]uuid.UUID, error) {
 func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) error {
 	now := time.Now()
 	pl.flights = make([]*models.Flight, 0, len(p.Flights))
-	pl.flightIDs = make(map[uuid.UUID]uuid.UUID, len(p.Flights))
+	pl.flightBackupIDs = make([]uuid.UUID, 0, len(p.Flights))
 	for i, src := range p.Flights {
 		if src == nil {
 			return invalidEntry("flights", i, nil)
 		}
 		f := *src
 		f.ID = uuid.New()
-		f.CreatedAt = restoredCreatedAt(src.CreatedAt, now)
-		if src.ID != uuid.Nil {
-			pl.flightIDs[src.ID] = f.ID
-		}
+		f.CreatedAt = restoredCreatedAt(src.CreatedAt, src.Date, now)
+		pl.flightBackupIDs = append(pl.flightBackupIDs, src.ID)
 		f.UserID = pl.userID
 		f.SignatureID = nil
 		f.AircraftReg = registration.Canonical(f.AircraftReg)
@@ -383,7 +383,7 @@ func (pl *restorePlan) planSettings(p *Payload) {
 // planLogbook plans strict logbook mode, its switch events, the flight
 // revisions and the certifications. Licence ids are mapped when applied.
 func (pl *restorePlan) planLogbook(p *Payload) error {
-	in := service.LogbookImport{FlightIDs: pl.flightIDs}
+	var in service.LogbookImport
 	if m := p.LogbookMode; m != nil {
 		in.Strict = m.Strict
 		in.Since = m.Since
@@ -409,21 +409,30 @@ func (pl *restorePlan) planLogbook(p *Payload) error {
 			CertifiedThrough: through, CertifiedAt: c.CertifiedAt,
 		})
 	}
-	if err := in.Validate(); err != nil {
+	prepared, err := in.Prepare()
+	if err != nil {
 		var entry *service.LogbookImportError
 		if errors.As(err, &entry) {
 			return invalidEntry(entry.Section, entry.Index, err)
 		}
 		return &InvalidBackupError{Message: "Invalid logbook history in backup", Detail: err.Error()}
 	}
-	pl.logbook = in
+	pl.logbook = prepared
 	return nil
 }
 
 // restoredCreatedAt returns the creation time a restored flight keeps: the
-// backup's value, never later than now.
-func restoredCreatedAt(backup, now time.Time) time.Time {
-	if backup.IsZero() || backup.After(now) {
+// backup's value, or the flight date at 00:00 UTC when it has none, never
+// later than now.
+func restoredCreatedAt(backup, flightDate, now time.Time) time.Time {
+	if backup.IsZero() && flightDate.IsZero() {
+		return now
+	}
+	if backup.IsZero() {
+		y, m, d := flightDate.Date()
+		backup = time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}
+	if backup.After(now) {
 		return now
 	}
 	return backup

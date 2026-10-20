@@ -453,14 +453,18 @@ rules. Nothing below is recorded outside strict mode.
 
 | Operation | Behaviour |
 | --- | --- |
-| `GET /logbook/mode` | `strict`, `since`, the shortest `draftWindow` (`flight_day` / `hours_48`), `overridesDownwardOnly`, `latestCertifiedThrough`, the licences that require (`requiredBy`) or suggest (`suggestedBy`) strict mode with their `basis`, and every switch (`events`, oldest first). |
+| `GET /logbook/mode` | `strict`, `since`, the shortest `draftWindow` (`flight_day` / `hours_48`), `overridesDownwardOnly`, `latestCertifiedThrough`, `voidedCount` (the user's void records, whatever the current mode), the licences that require (`requiredBy`) or suggest (`suggestedBy`) strict mode with their `basis`, and every switch (`events`, oldest first). |
 | `PUT /logbook/mode` | `{strict}`. Stores a `manual` event only when the state changes; switching on sets `since`. Switching off is always allowed, also while a licence requires strict mode. |
 | `GET /logbook/certifications` | The user's "certified through" statements, newest first. |
 | `POST /logbook/certifications` | `{certifiedThrough}` (a date). `201`; `409` `strict_mode_required` when strict mode is off; `422` `certification_in_future` (later than today at UTC+14) or `certification_before_latest`. |
 | `GET /flights/{flightId}/revisions` | The flight's revisions, newest first, each with `changes` (field, old value, new value) computed on the server against the next state (the next revision, or the current flight and crew for the newest). Field names are the `Flight` schema's camelCase names; the crew appears as one `crewMembers` change of `{name, role}` arrays. A delete revision has no changes. Owner only (`404` otherwise); works for a deleted flight while a void record exists. |
 | `GET /flights/voided` | The user's deleted flights, newest first, with the reason and the flight's last state. |
 
-`PUT /flights/{flightId}` accepts `correctionReason` (max 500 characters). In strict mode an
+`PUT /flights/{flightId}` accepts `correctionReason` (max 500 characters). The free-edit window
+is anchored on the flight: `hours_48` ends 48 hours after its landing (date plus on-block time in
+UTC, rolled to the next day for an overnight flight; the end of the flight day when there is no
+on-block time) and `flight_day` at the end of the flight day, so a flight entered after its day
+is already a correction. In strict mode an
 edit that is a correction without a reason (and without a voided signature to take it from) is
 `422` with `code: correction_reason_required`, and nothing is written. Under a Swiss licence
 `POST /flights` and `PUT /flights/{flightId}` answer `422` with
@@ -694,8 +698,9 @@ run in one database transaction, so a failure writes nothing.
   signed flights, which a backup does not carry, it answers `409` with
   `code: replace_would_drop_attachments` and nothing is written.
 - Notification preferences and the flight baseline are overwritten by a backup that carries
-  them, in both modes. All IDs are regenerated. A custom currency rule's sharing state is
-  never carried over; a custom report scoped to a licence is re-pointed at that licence's
+  them, in both modes. A flight keeps its ID when no flight, no other user's history and no
+  void record of the account holds it, and gets a new one otherwise (its crew follows); every
+  other ID is regenerated. A custom currency rule's sharing state is never carried over; a custom report scoped to a licence is re-pointed at that licence's
   restored copy, or loses the scope if the backup does not carry it.
 - Restoring does not go through the per-account limit on custom currency rules or reports,
   and a rule or report whose definition fails today's validation is still restored: rules
@@ -704,18 +709,24 @@ run in one database transaction, so a failure writes nothing.
   row the database cannot store, such as an unknown crew role or an over-long name, fails the
   restore with `400` naming the section and position.
 - The logbook history is restored in the same transaction. Revisions follow their flights to
-  the restored ids (a deleted flight's void records share one fresh id), keep their revision
-  number, kind, source, reason, correction flag and time, and lose crew contact links. Mode
-  switches and certifications keep their timestamps; a restored flight keeps its
-  `createdAt`, never later than the time of the restore. A strict backup switches a
+  the restored ids (a deleted flight's void records keep its id, or share one fresh id when
+  something else holds it), keep their revision number, kind, source, reason, correction flag
+  and time, and lose crew contact links; a revision whose number the account already holds is
+  skipped. Mode switches and certifications keep their timestamps; a restored flight keeps its
+  `createdAt` (the flight date at 00:00 UTC when the backup has none), never later than the
+  time of the restore. A strict backup switches a
   non-strict account to strict mode with an `import` event. A revision whose snapshot is not
   a JSON object with a valid `id` and `YYYY-MM-DD` `date` (or whose crew snapshot is
-  malformed), an unknown kind or trigger, or a certification with an unreadable date fails
-  the restore with `400`. The result reports `flightRevisionsImported` and
+  malformed), an unknown kind or trigger, a certification with an unreadable date, or a
+  revision without `changedAt`, a mode event without `createdAt` or a certification without
+  `certifiedAt` fails the restore with `400`. The result reports `flightRevisionsImported` and
   `logbookCertificationsImported`.
 - In a strict account `replace` keeps the history: the wipe runs with change source `import`
-  and reason "Replaced by backup restore", so every deleted flight gets a void record, and
-  existing revisions, mode switches and certifications stay; the backup's are added.
+  and reason "Replaced by backup restore". A flight that comes back under its own ID is
+  unchanged by the wipe and gets no void record; every other deleted flight gets one, flagged
+  as a correction when deleting it would be one. Existing revisions, mode switches and
+  certifications stay; the backup's are added, so replacing an account with its own backup
+  twice adds nothing.
 - Errors never carry internal text. Unreadable JSON, a wrong `format` and invalid entries are
   `400`; a body over the limit is `413`; an unsupported version is `422`.
 
@@ -749,8 +760,9 @@ flight: `Total (N flights)` in the first column and the sum of every time, count
 column in that layout's format. A file with a totals row is a report, not an import source.
 
 In strict logbook mode the standard, EASA and FAA layouts end in two more columns:
-`corrected` (`yes` or `no`) and `last_corrected_at` (the latest correction as RFC 3339
-UTC, empty when the flight has none); the totals row is padded to match. A standard-mode
+`corrected` (`true` or `false`, like the other boolean columns) and `last_corrected_at` (the
+latest correction: its UTC date in the user's `dateFormat`, then the time as `HH:MM`; empty
+when the flight has none); the totals row is padded to match. A standard-mode
 user gets the unchanged layout, byte for byte. The web-logbook layout never carries them.
 
 `GET /exports/vcard` returns the address book as a vCard 3.0 `.vcf` attachment: name,

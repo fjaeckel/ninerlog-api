@@ -277,6 +277,13 @@ func (r *logbookRepository) ListVoided(ctx context.Context, userID uuid.UUID) ([
 	return scanFlightRevisions(rows)
 }
 
+func (r *logbookRepository) CountVoided(ctx context.Context, userID uuid.UUID) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM flight_revisions WHERE user_id = $1 AND kind = 'delete'`, userID).Scan(&n)
+	return n, err
+}
+
 func (r *logbookRepository) ImportRevisions(ctx context.Context, revs []models.FlightRevision) (int, error) {
 	const perRow = 10
 	stored := 0

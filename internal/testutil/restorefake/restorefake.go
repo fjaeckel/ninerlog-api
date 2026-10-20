@@ -69,6 +69,12 @@ type Store struct {
 
 	// ChangeContext is the change context carried into the last transaction.
 	ChangeContext repository.ChangeContext
+
+	// ForeignFlightIDs are flight ids held by another user.
+	ForeignFlightIDs map[uuid.UUID]bool
+	// WipeCorrections are the flight ids the last wipe was told to delete as
+	// corrections.
+	WipeCorrections []uuid.UUID
 }
 
 // Operation names accepted by FailAt.
@@ -149,10 +155,11 @@ func (t *tx) CountAttachments(ctx context.Context, userID uuid.UUID) (repository
 	return t.store.Attachments, nil
 }
 
-func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID) error {
+func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID, correctionFlightIDs []uuid.UUID) error {
 	if err := t.hit(OpWipe); err != nil {
 		return err
 	}
+	t.store.WipeCorrections = correctionFlightIDs
 	st := &t.store.State
 	*st = State{
 		Prefs: st.Prefs, Baseline: st.Baseline,
@@ -160,6 +167,28 @@ func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID) error {
 		ModeEvents: st.ModeEvents, Revisions: st.Revisions, Certifications: st.Certifications,
 	}
 	return nil
+}
+
+func (t *tx) ListFlightTimings(ctx context.Context, userID uuid.UUID) ([]*models.Flight, error) {
+	return append([]*models.Flight(nil), t.store.State.Flights...), nil
+}
+
+func (t *tx) FlightIDUsage(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) (repository.FlightIDUsage, error) {
+	usage := repository.FlightIDUsage{Taken: map[uuid.UUID]bool{}, Voided: map[uuid.UUID]bool{}}
+	for _, id := range ids {
+		if t.store.ForeignFlightIDs[id] {
+			usage.Taken[id] = true
+		}
+	}
+	for _, f := range t.store.State.Flights {
+		usage.Taken[f.ID] = true
+	}
+	for _, r := range t.store.State.Revisions {
+		if r.Kind == models.RevisionKindDelete {
+			usage.Voided[r.FlightID] = true
+		}
+	}
+	return usage, nil
 }
 
 func ensureID(id *uuid.UUID) {

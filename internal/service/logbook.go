@@ -98,6 +98,7 @@ type ModeView struct {
 	Required               []logbookrules.Match
 	Suggested              []logbookrules.Match
 	Events                 []models.LogbookModeEvent
+	VoidedCount            int
 }
 
 func (s *LogbookService) assess(ctx context.Context, userID uuid.UUID) (logbookrules.Assessment, error) {
@@ -140,7 +141,13 @@ func (s *LogbookService) GetMode(ctx context.Context, userID uuid.UUID) (*ModeVi
 		return nil, err
 	}
 
+	voided, err := s.repo.CountVoided(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	view := &ModeView{
+		VoidedCount:            voided,
 		Strict:                 mode.Strict,
 		Required:               assessment.Required,
 		Suggested:              assessment.Suggested,
@@ -279,13 +286,7 @@ func (s *LogbookService) ClassifyEditWith(ctx context.Context, state *StrictStat
 		return EditClassification{}, nil
 	}
 	result := EditClassification{Strict: true}
-
-	now := s.now()
-	lon := s.lonOf(existing)
-
-	if now.After(state.Assessment.Deadline(existing.CreatedAt, existing.Date, lon)) {
-		result.IsCorrection = true
-	}
+	result.IsCorrection = s.outsideWindow(state, existing, updated)
 
 	sigs, err := s.sigRepo.ListByFlightID(ctx, existing.ID)
 	if err != nil {
@@ -305,6 +306,20 @@ func (s *LogbookService) ClassifyEditWith(ctx context.Context, state *StrictStat
 	if latestVoid != nil {
 		result.DefaultReason = strings.TrimSpace(*latestVoid.VoidedReason)
 	}
+	return result, nil
+}
+
+// outsideWindow applies the signature-independent correction rules: the free
+// edit window has closed, the flight lies in a certified range, or an
+// override was raised after the flight day. updated may be nil for a delete.
+func (s *LogbookService) outsideWindow(state *StrictState, existing, updated *models.Flight) bool {
+	now := s.now()
+	lon := s.lonOf(existing)
+
+	landedAt, _ := flightcalc.OnBlockInstant(existing)
+	if now.After(state.Assessment.Deadline(existing.Date, landedAt, lon)) {
+		return true
+	}
 
 	if latest := state.LatestCertified; latest != nil {
 		earliest := dateOnly(existing.Date)
@@ -312,29 +327,45 @@ func (s *LogbookService) ClassifyEditWith(ctx context.Context, state *StrictStat
 			earliest = dateOnly(updated.Date)
 		}
 		if !earliest.After(dateOnly(*latest)) {
-			result.IsCorrection = true
+			return true
 		}
 	}
 
-	if updated != nil && overridesTouched(existing, updated) &&
-		now.After(logbookrules.FlightDayEnd(existing.Date, lon)) {
-		result.IsCorrection = true
-	}
-	return result, nil
+	return updated != nil && overridesTouched(existing, updated) &&
+		now.After(logbookrules.FlightDayEnd(existing.Date, lon))
 }
 
-// RenameCorrections returns, per flight, whether rewriting its crew counts as
-// a correction under the normal correction rules.
-func (s *LogbookService) RenameCorrections(ctx context.Context, state *StrictState, flights []*models.Flight) (map[uuid.UUID]bool, error) {
-	out := make(map[uuid.UUID]bool, len(flights))
-	for _, f := range flights {
-		class, err := s.ClassifyEditWith(ctx, state, f, nil)
-		if err != nil {
-			return nil, err
-		}
-		out[f.ID] = class.IsCorrection
+// DeleteClassifier classifies the deletion of many of a user's flights
+// against one loaded strict-mode state.
+type DeleteClassifier struct {
+	s     *LogbookService
+	state *StrictState
+}
+
+// NewDeleteClassifier loads the user's strict-mode state. It returns nil when
+// the user is not in strict mode.
+func (s *LogbookService) NewDeleteClassifier(ctx context.Context, userID uuid.UUID) (*DeleteClassifier, error) {
+	state, err := s.LoadState(ctx, userID)
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+	if !state.Strict {
+		return nil, nil
+	}
+	return &DeleteClassifier{s: s, state: state}, nil
+}
+
+// Corrections returns the ids of the flights whose deletion is a correction
+// under the free-edit window and the certified range. Signature history is
+// not consulted.
+func (c *DeleteClassifier) Corrections(flights []*models.Flight) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, f := range flights {
+		if c.s.outsideWindow(c.state, f, nil) {
+			ids = append(ids, f.ID)
+		}
+	}
+	return ids
 }
 
 func voidedAfter(a, b *models.FlightSignature) bool {

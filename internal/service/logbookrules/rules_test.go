@@ -27,7 +27,38 @@ func TestRuleFor(t *testing.T) {
 		{"AT hang glider", Licence{IssuingCountry: "AT", LicenseType: "Hang Glider"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
 		{"AT paraglider German", Licence{IssuingCountry: "AT", LicenseType: "Paragleiter"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
 		{"AT national glider", Licence{IssuingCountry: "AT", LicenseType: "national glider"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT gyroplane GPL is Part-FCL", Licence{IssuingCountry: "AT", LicenseType: "GPL"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT PPG is not PG", Licence{IssuingCountry: "AT", LicenseType: "PPG"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT UPG is not UL", Licence{IssuingCountry: "AT", LicenseType: "UPG"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT Gleitschirm", Licence{IssuingCountry: "AT", LicenseType: "Gleitschirm"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT Drachen", Licence{IssuingCountry: "AT", LicenseType: "Drachen"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT Motorschirm", Licence{IssuingCountry: "AT", LicenseType: "Motorschirm"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT Hängegleiter", Licence{IssuingCountry: "AT", LicenseType: "HÄNGEGLEITER"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT Haengegleiter", Licence{IssuingCountry: "AT", LicenseType: "haengegleiter"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT hanglider one word", Licence{IssuingCountry: "AT", LicenseType: "Hangglider"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT HG", Licence{IssuingCountry: "AT", LicenseType: "HG"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT PG in a phrase", Licence{IssuingCountry: "AT", LicenseType: "PG (Paragliding)"}, RequirementRequired, WindowFlightDay, "ZLPV 2006 Anlage 6", false},
+		{"AT glider alone is Part-FCL", Licence{IssuingCountry: "AT", LicenseType: "glider"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT SPL is Part-FCL", Licence{IssuingCountry: "AT", LicenseType: "SPL"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT Part-FCL PPL", Licence{IssuingCountry: "AT", LicenseType: "PPL"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
 		{"AT Part-FCL", Licence{IssuingCountry: "AT", LicenseType: "PPL"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"DE DULV authority", Licence{IssuingCountry: "DE", RegulatoryAuthority: " dulv ", LicenseType: "PPL"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE DAeC authority", Licence{IssuingCountry: "DE", RegulatoryAuthority: "DAeC", LicenseType: "SPL"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Sportpilotenlizenz with DULV", Licence{IssuingCountry: "DE", RegulatoryAuthority: "DULV", LicenseType: "Sportpilotenlizenz"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Sportpilotenlizenz alone", Licence{IssuingCountry: "DE", LicenseType: "Sportpilotenlizenz"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Gleitschirm", Licence{IssuingCountry: "DE", LicenseType: "Gleitschirm"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Motorschirm", Licence{IssuingCountry: "DE", LicenseType: "Motorschirm"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Trike", Licence{IssuingCountry: "DE", LicenseType: "Trike"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Drachen", Licence{IssuingCountry: "DE", LicenseType: "Drachen"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Hängegleiter", Licence{IssuingCountry: "DE", LicenseType: "Hängegleiter"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Haengegleiter", Licence{IssuingCountry: "DE", LicenseType: "Haengegleiter"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE Tragschrauber", Licence{IssuingCountry: "DE", LicenseType: "Tragschrauber"}, RequirementSuggested, "", "§120 LuftPersV", false},
+		{"DE GPL gyroplane stays required", Licence{IssuingCountry: "DE", RegulatoryAuthority: "EASA", LicenseType: "GPL"}, RequirementRequired, WindowFlightDay, "NfL 2212-21 §4.3.2", false},
+		{"DE PPG stays required", Licence{IssuingCountry: "DE", LicenseType: "PPG"}, RequirementRequired, WindowFlightDay, "NfL 2212-21 §4.3.2", false},
+		{"DE SPL stays required", Licence{IssuingCountry: "DE", RegulatoryAuthority: "EASA", LicenseType: "SPL"}, RequirementRequired, WindowFlightDay, "NfL 2212-21 §4.3.2", false},
+		{"DE UPG stays required", Licence{IssuingCountry: "DE", LicenseType: "UPG"}, RequirementRequired, WindowFlightDay, "NfL 2212-21 §4.3.2", false},
+		{"AT Trike is not a national term", Licence{IssuingCountry: "AT", LicenseType: "Trike"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
+		{"AT Sportpilotenlizenz with DULV is Part-FCL", Licence{IssuingCountry: "AT", RegulatoryAuthority: "DULV", LicenseType: "Sportpilotenlizenz"}, RequirementSuggested, "", "AMC1 FCL.050 (e)(2)", false},
 		{"AU", Licence{IssuingCountry: "AU", LicenseType: "PPL"}, RequirementRequired, WindowFlightDay, "CASR 61.355, RAAP 13", false},
 		{"NZ", Licence{IssuingCountry: "NZ", LicenseType: "PPL"}, RequirementRequired, WindowFlightDay, "Part 61.29(e)", false},
 		{"JP", Licence{IssuingCountry: "JP", LicenseType: "PPL"}, RequirementRequired, WindowFlightDay, "国空乗390号", false},
@@ -118,34 +149,30 @@ func TestFlightDayEnd(t *testing.T) {
 }
 
 func TestAssessmentDeadline(t *testing.T) {
-	created := time.Date(2026, 5, 10, 18, 30, 0, 0, time.UTC)
+	landed := time.Date(2026, 5, 10, 18, 30, 0, 0, time.UTC)
 	flight := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
 	ch := Licence{IssuingCountry: "CH", LicenseType: "PPL"}
 	de := Licence{IssuingCountry: "DE", LicenseType: "PPL"}
+	dayEnd := time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name     string
 		licences []Licence
+		landedAt time.Time
 		want     time.Time
 	}{
-		{"manual strict uses flight day", nil, time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC)},
-		{"CH is 48h after creation", []Licence{ch}, created.Add(48 * time.Hour)},
-		{"DE is end of flight day", []Licence{de}, time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC)},
-		{"earliest of both", []Licence{ch, de}, time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC)},
+		{"manual strict uses flight day", nil, landed, dayEnd},
+		{"CH is 48h after landing", []Licence{ch}, landed, landed.Add(48 * time.Hour)},
+		{"CH without landing is end of flight day", []Licence{ch}, time.Time{}, dayEnd},
+		{"DE is end of flight day", []Licence{de}, landed, dayEnd},
+		{"DE ignores landing", []Licence{de}, time.Time{}, dayEnd},
+		{"earliest of both", []Licence{ch, de}, landed, dayEnd},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Assess(tt.licences).Deadline(created, flight, 0); !tt.want.Equal(got) {
+			if got := Assess(tt.licences).Deadline(flight, tt.landedAt, 0); !tt.want.Equal(got) {
 				t.Errorf("Deadline() = %s, want %s", got, tt.want)
 			}
 		})
 	}
-
-	t.Run("late-created CH entry still closes before flight-day DE", func(t *testing.T) {
-		late := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
-		got := Assess([]Licence{ch, de}).Deadline(late, flight, 0)
-		if want := time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC); !want.Equal(got) {
-			t.Errorf("Deadline() = %s, want %s", got, want)
-		}
-	})
 }

@@ -86,7 +86,7 @@ func TestRestoreLogbookIntegration(t *testing.T) {
 		}
 
 		err := store.InRestoreTx(replaceContext(), userID, func(tx repository.RestoreTx) error {
-			if err := tx.WipeContent(ctx, userID); err != nil {
+			if err := tx.WipeContent(ctx, userID, nil); err != nil {
 				return err
 			}
 			if err := tx.InsertFlights(ctx, []*models.Flight{restored}); err != nil {

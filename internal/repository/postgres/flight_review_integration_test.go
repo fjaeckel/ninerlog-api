@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,11 +54,8 @@ func TestContactRenameRevisionsIntegration(t *testing.T) {
 	flightRepo := postgres.NewFlightRepository(db)
 	logbookRepo := postgres.NewLogbookRepository(db)
 	contactRepo := postgres.NewContactRepository(db)
-	licenseRepo := postgres.NewLicenseRepository(db)
-	sigRepo := postgres.NewFlightSignatureRepository(db)
 
 	contactSvc := service.NewContactService(contactRepo)
-	contactSvc.SetLogbookService(service.NewLogbookService(logbookRepo, licenseRepo, flightRepo, sigRepo))
 
 	setup := func(t *testing.T, strict bool) (uuid.UUID, *models.Contact, map[string]*models.Flight) {
 		userID := newReviewUser(t, ctx, userRepo, logbookRepo, strict)
@@ -99,7 +97,7 @@ func TestContactRenameRevisionsIntegration(t *testing.T) {
 		return revs
 	}
 
-	t.Run("strict rename classifies each flight and skips signed ones", func(t *testing.T) {
+	t.Run("strict rename records a contact_rename revision per flight and skips signed ones", func(t *testing.T) {
 		userID, contact, flights := setup(t, true)
 
 		renamed, err := contactSvc.UpdateContact(ctx, &models.Contact{ID: contact.ID, Name: "Hans Mueller"}, userID)
@@ -111,16 +109,16 @@ func TestContactRenameRevisionsIntegration(t *testing.T) {
 		}
 
 		const wantReason = "Crew contact renamed: Hans Müller → Hans Mueller"
-		for name, wantCorrection := range map[string]bool{"fresh": false, "late": true} {
+		for _, name := range []string{"fresh", "late"} {
 			revs := revisions(t, userID, flights[name].ID)
 			if len(revs) != 1 {
 				t.Fatalf("%s: revisions = %d, want 1", name, len(revs))
 			}
 			r := revs[0]
-			if r.IsCorrection != wantCorrection {
-				t.Errorf("%s: is_correction = %v, want %v", name, r.IsCorrection, wantCorrection)
+			if r.IsCorrection {
+				t.Errorf("%s: a contact rename is never a correction", name)
 			}
-			if r.Source != repository.ChangeSourceUserEdit {
+			if r.Source != repository.ChangeSourceContactRename {
 				t.Errorf("%s: source = %q", name, r.Source)
 			}
 			if r.Reason == nil || *r.Reason != wantReason {
@@ -171,6 +169,12 @@ func TestCreateWithCrewIsAtomic(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("CreateWithCrew() accepted an invalid crew role")
+	}
+	if !errors.Is(err, repository.ErrCrewWrite) {
+		t.Fatalf("CreateWithCrew() error = %v, want ErrCrewWrite", err)
+	}
+	if _, err := flightRepo.GetByUserID(ctx, userID, nil); err != nil {
+		t.Fatal(err)
 	}
 	var n int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM flights WHERE user_id = $1`, userID).Scan(&n); err != nil || n != 0 {

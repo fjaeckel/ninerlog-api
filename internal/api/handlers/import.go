@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/airports"
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
@@ -616,7 +618,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 		err := h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, createOpts)
 		crewSaved := true
-		if err != nil && createOpts.Crew != nil {
+		if err != nil && createOpts.Crew != nil && errors.Is(err, repository.ErrCrewWrite) {
 			crewErr := err
 			if err = h.flightService.CreateFlightWith(c.Request.Context(), &newFlight, service.FlightWriteOptions{}); err == nil {
 				slog.Warn("import: failed to save crew members",

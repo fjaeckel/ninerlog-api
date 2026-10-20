@@ -5,6 +5,8 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
+	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -387,6 +389,17 @@ func TestVoidedFlights(t *testing.T) {
 		}
 	})
 
+	t.Run("the logbook mode counts void records in both modes", func(t *testing.T) {
+		if m := switchModeGet(t, c); m["voidedCount"] != float64(1) {
+			t.Errorf("voidedCount = %v, want 1", m["voidedCount"])
+		}
+		off := switchStrict(t, c, false)
+		if off["voidedCount"] != float64(1) {
+			t.Errorf("voidedCount with strict mode off = %v, want 1", off["voidedCount"])
+		}
+		switchStrict(t, c, true)
+	})
+
 	t.Run("another user sees neither", func(t *testing.T) {
 		other := NewE2EClient(t)
 		registerAndLogin(t, other, uniqueEmail("void-other"), "SecurePass123!", "Other")
@@ -652,50 +665,37 @@ func TestReplaceRestoreKeepsLogbookHistory(t *testing.T) {
 	requireStatus(t, rr, http.StatusOK)
 	var result map[string]interface{}
 	rr.MustJSON(t, &result)
-	if result["flightsImported"].(float64) != 1 || result["flightRevisionsImported"].(float64) != 1 {
+	if result["flightsImported"].(float64) != 1 || result["flightRevisionsImported"].(float64) != 0 {
 		t.Fatalf("restore result = %v", result)
 	}
 
-	t.Run("every wiped flight gets a void record naming the restore", func(t *testing.T) {
+	t.Run("only a flight missing from the backup gets a void record naming the restore", func(t *testing.T) {
 		r := c.GET("/flights/voided")
 		requireStatus(t, r, http.StatusOK)
 		var voided []map[string]interface{}
 		r.MustJSON(t, &voided)
-		byID := map[string]map[string]interface{}{}
-		for _, v := range voided {
-			byID[v["flightId"].(string)] = v
+		if len(voided) != 1 || voided[0]["flightId"] != later {
+			t.Fatalf("voided = %v, want only %s", voided, later)
 		}
-		for _, id := range []string{kept, later} {
-			v := byID[id]
-			if v == nil {
-				t.Fatalf("no void record for %s in %v", id, voided)
-			}
-			if v["source"] != "import" || v["reason"] != "Replaced by backup restore" {
-				t.Errorf("void record = %v", v)
-			}
+		v := voided[0]
+		if v["source"] != "import" || v["reason"] != "Replaced by backup restore" || v["isCorrection"] != true {
+			t.Errorf("void record = %v", v)
 		}
 	})
 
-	t.Run("the wiped flight keeps its earlier revisions", func(t *testing.T) {
-		revs := listRevisions(t, c, kept)
-		if len(revs) != 2 || revs[0]["kind"] != "delete" || revs[1]["kind"] != "update" {
-			t.Fatalf("revisions of the wiped flight = %v", revs)
-		}
-	})
-
-	t.Run("the restored flight carries the backup's revision", func(t *testing.T) {
+	t.Run("the restored flight keeps its id and its history", func(t *testing.T) {
 		fr := c.GET("/flights?pageSize=50")
 		requireStatus(t, fr, http.StatusOK)
 		var page struct {
 			Data []map[string]interface{} `json:"data"`
 		}
 		fr.MustJSON(t, &page)
-		if len(page.Data) != 1 || page.Data[0]["id"] == kept {
+		if len(page.Data) != 1 || page.Data[0]["id"] != kept {
 			t.Fatalf("flights after replace = %v", page.Data)
 		}
-		revs := listRevisions(t, c, page.Data[0]["id"].(string))
-		if len(revs) != 1 || revs[0]["source"] != "user_edit" {
-			t.Fatalf("restored revisions = %v", revs)
+		revs := listRevisions(t, c, kept)
+		if len(revs) != 1 || revs[0]["source"] != "user_edit" || revs[0]["kind"] != "update" {
+			t.Fatalf("revisions = %v", revs)
 		}
 	})
 
@@ -712,6 +712,68 @@ func TestReplaceRestoreKeepsLogbookHistory(t *testing.T) {
 			t.Errorf("certifications = %v", certs)
 		}
 	})
+}
+
+func TestReplaceWithOwnBackupTwice(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("lb-twice"), "SecurePass123!", "Twice")
+	switchStrict(t, c, true)
+
+	live := []string{
+		createFlightID(t, c, newFlightBody(today(), "D-ETW1")),
+		createFlightID(t, c, newFlightBody(today(), "D-ETW2")),
+	}
+	edit := newFlightBody(today(), "D-ETW1")
+	edit["remarks"] = "edited"
+	requireStatus(t, putFlight(c, live[0], edit), http.StatusOK)
+	for i, reg := range []string{"D-EGN1", "D-EGN2", "D-EGN3"} {
+		id := createFlightID(t, c, newFlightBody(today(), reg))
+		requireStatus(t, c.DELETE("/flights/"+id+"?reason=gone+"+string(rune('a'+i))), http.StatusNoContent)
+	}
+
+	voidedFlightIDs := func() []string {
+		r := c.GET("/flights/voided")
+		requireStatus(t, r, http.StatusOK)
+		var voided []map[string]interface{}
+		r.MustJSON(t, &voided)
+		ids := make([]string, 0, len(voided))
+		for _, v := range voided {
+			ids = append(ids, v["flightId"].(string))
+		}
+		sort.Strings(ids)
+		return ids
+	}
+	revisionsOf := func(id string) []map[string]interface{} { return listRevisions(t, c, id) }
+
+	wantVoided := voidedFlightIDs()
+	if len(wantVoided) != 3 {
+		t.Fatalf("voided before = %v", wantVoided)
+	}
+	wantHistory := map[string]int{live[0]: len(revisionsOf(live[0])), live[1]: len(revisionsOf(live[1]))}
+
+	export := c.GET("/users/me/data")
+	requireStatus(t, export, http.StatusOK)
+	var payload map[string]interface{}
+	export.MustJSON(t, &payload)
+
+	for round := 1; round <= 2; round++ {
+		rr := c.POST("/users/me/data?mode=replace", payload)
+		requireStatus(t, rr, http.StatusOK)
+		var result map[string]interface{}
+		rr.MustJSON(t, &result)
+		if result["flightsImported"].(float64) != 2 || result["flightRevisionsImported"].(float64) != 0 {
+			t.Fatalf("round %d: restore result = %v", round, result)
+		}
+		if got := voidedFlightIDs(); !reflect.DeepEqual(got, wantVoided) {
+			t.Fatalf("round %d: voided = %v, want %v", round, got, wantVoided)
+		}
+		for _, id := range live {
+			requireStatus(t, c.GET("/flights/"+id), http.StatusOK)
+			if got := len(revisionsOf(id)); got != wantHistory[id] {
+				t.Errorf("round %d: revisions of %s = %d, want %d", round, id, got, wantHistory[id])
+			}
+		}
+	}
 }
 
 func TestLogbookAdminStats(t *testing.T) {

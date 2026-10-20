@@ -220,8 +220,8 @@ func TestStandardExportPDFCarriesNoAuditTrail(t *testing.T) {
 func TestStrictExportCSVColumns(t *testing.T) {
 	flights := buildSamplePDFFlights(3)
 	corrected := time.Date(2026, 5, 4, 10, 20, 30, 0, time.FixedZone("x", 3600))
-	marks := &csvCorrections{lastCorrectedAt: map[uuid.UUID]time.Time{flights[1].ID: corrected}}
 	prefs := exportPrefs{DateFormat: "YYYY-MM-DD", DecimalSeparator: "dot"}
+	marks := &csvCorrections{lastCorrectedAt: map[uuid.UUID]time.Time{flights[1].ID: corrected}, prefs: prefs}
 
 	write := map[string]func(w *csv.Writer, m *csvCorrections){
 		"standard": func(w *csv.Writer, m *csvCorrections) { writeStandardCSVWith(w, flights, prefs, m) },
@@ -264,11 +264,23 @@ func TestStrictExportCSVColumns(t *testing.T) {
 			for i := 1; i < len(strict); i++ {
 				mustEqual(t, standard[i], strict[i][:width])
 			}
-			mustEqual(t, []string{"no", ""}, strict[1][width:])
-			mustEqual(t, []string{"yes", "2026-05-04T09:20:30Z"}, strict[2][width:])
-			mustEqual(t, []string{"no", ""}, strict[3][width:])
+			mustEqual(t, []string{"false", ""}, strict[1][width:])
+			mustEqual(t, []string{"true", "2026-05-04 09:20"}, strict[2][width:])
+			mustEqual(t, []string{"false", ""}, strict[3][width:])
 		})
 	}
+
+	t.Run("last_corrected_at follows the user's date format", func(t *testing.T) {
+		for format, want := range map[string]string{
+			"DD.MM.YYYY": "04.05.2026 09:20", "MM/DD/YYYY": "05/04/2026 09:20", "YYYY-MM-DD": "2026-05-04 09:20",
+		} {
+			m := &csvCorrections{
+				lastCorrectedAt: map[uuid.UUID]time.Time{flights[0].ID: corrected},
+				prefs:           exportPrefs{DateFormat: format},
+			}
+			mustEqual(t, []string{"true", want}, m.row(nil, flights[0]))
+		}
+	})
 
 	t.Run("totals row keeps the column count", func(t *testing.T) {
 		mustEqual(t, 3, len(marks.totals([]string{"a"})))

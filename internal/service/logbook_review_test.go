@@ -48,15 +48,12 @@ func TestLogbookImport_RejectsUnreadableRevisions(t *testing.T) {
 			in := LogbookImport{
 				Strict: true,
 				Revisions: []models.FlightRevision{
-					{FlightID: flightID, RevisionNo: 1, Kind: "update", Snapshot: good, CrewSnapshot: json.RawMessage("[]"), Source: "user_edit"},
-					{FlightID: flightID, RevisionNo: 2, Kind: "update", Snapshot: tt.snapshot, CrewSnapshot: tt.crew, Source: "user_edit"},
+					{FlightID: flightID, RevisionNo: 1, Kind: "update", Snapshot: good, CrewSnapshot: json.RawMessage("[]"), Source: "user_edit", ChangedAt: testNow},
+					{FlightID: flightID, RevisionNo: 2, Kind: "update", Snapshot: tt.snapshot, CrewSnapshot: tt.crew, Source: "user_edit", ChangedAt: testNow},
 				},
 			}
-			if err := in.Validate(); !errors.Is(err, ErrInvalidLogbookImport) {
-				t.Fatalf("Validate() = %v, want ErrInvalidLogbookImport", err)
-			}
-			if _, err := ImportLogbook(context.Background(), e.lbRepo, e.userID, in); !errors.Is(err, ErrInvalidLogbookImport) {
-				t.Fatalf("ImportLogbook() = %v, want ErrInvalidLogbookImport", err)
+			if _, err := in.Prepare(); !errors.Is(err, ErrInvalidLogbookImport) {
+				t.Fatalf("Prepare() = %v, want ErrInvalidLogbookImport", err)
 			}
 			if len(e.lbRepo.revisions) != 0 || len(e.lbRepo.events) != 0 || e.lbRepo.mode(e.userID).Strict {
 				t.Fatalf("a rejected restore stored data: %d revisions, %d events", len(e.lbRepo.revisions), len(e.lbRepo.events))
@@ -68,12 +65,12 @@ func TestLogbookImport_RejectsUnreadableRevisions(t *testing.T) {
 func TestLogbookImport_AcceptsReadableRevisions(t *testing.T) {
 	flightID := uuid.New()
 	in := LogbookImport{Revisions: []models.FlightRevision{
-		{FlightID: flightID, RevisionNo: 1, Kind: "update", Snapshot: revisionSnapshot(flightID, "2026-03-01"), Source: "user_edit"},
+		{FlightID: flightID, RevisionNo: 1, Kind: "update", Snapshot: revisionSnapshot(flightID, "2026-03-01"), Source: "user_edit", ChangedAt: testNow},
 		{FlightID: flightID, RevisionNo: 2, Kind: "update", Snapshot: revisionSnapshot(flightID, "2026-03-01"),
-			CrewSnapshot: json.RawMessage(`[{"name":"Pat","role":"Instructor"}]`), Source: "user_edit"},
+			CrewSnapshot: json.RawMessage(`[{"name":"Pat","role":"Instructor"}]`), Source: "user_edit", ChangedAt: testNow},
 	}}
-	if err := in.Validate(); err != nil {
-		t.Fatalf("Validate() = %v", err)
+	if _, err := in.Prepare(); err != nil {
+		t.Fatalf("Prepare() = %v", err)
 	}
 }
 
@@ -221,7 +218,7 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 
 	t.Run("non-strict user pays for the mode lookup only", func(t *testing.T) {
 		e := newCorrectionEnv(t, false, "CH")
-		stored := e.seed(t, 30, 30*24*time.Hour)
+		stored := e.seed(t, 30)
 		crewReads := 0
 		e.svc.SetCrewRepository(countingCrewRepo{fakeCrewRepo: e.crew, reads: &crewReads})
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x"); f.NightTime = 5; f.NightTimeOverride = true })
@@ -243,7 +240,7 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 
 	t.Run("strict user loads mode and licences once for both checks", func(t *testing.T) {
 		e := newCorrectionEnv(t, true, "CH")
-		stored := e.seed(t, 0, time.Hour)
+		stored := e.seed(t, 0)
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x"); f.NightTime = 0; f.NightTimeOverride = true })
 
 		if err := e.svc.UpdateFlightWith(ctx, updated, e.userID, FlightWriteOptions{}); err != nil {
@@ -260,7 +257,7 @@ func TestFlightService_UpdateLoadsStrictStateOnce(t *testing.T) {
 	t.Run("a recalculation pass does no logbook lookups", func(t *testing.T) {
 		e := newCorrectionEnv(t, true, "CH")
 		for i := 0; i < 3; i++ {
-			stored := e.seed(t, 30, 30*24*time.Hour)
+			stored := e.seed(t, 30)
 			updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Distance = 12.5 })
 			if err := e.svc.UpdateFlightWith(ctx, updated, e.userID, FlightWriteOptions{Source: repository.ChangeSourceRecalc}); err != nil {
 				t.Fatal(err)
@@ -291,7 +288,6 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 		strict    bool
 		countries []string
 		daysAgo   int
-		created   time.Duration
 		mutate    func(*models.Flight)
 		reason    string
 		prepare   func(*correctionEnv, *models.Flight)
@@ -299,33 +295,33 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 		wantErr   error
 		wantCalls int
 	}{
-		{name: "accepted edit", strict: true, daysAgo: 0, created: time.Hour,
+		{name: "accepted edit", strict: true, daysAgo: 0,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantCalls: 1},
-		{name: "accepted edit of a non-strict user", strict: false, daysAgo: 9, created: 9 * 24 * time.Hour,
+		{name: "accepted edit of a non-strict user", strict: false, daysAgo: 9,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantCalls: 1},
-		{name: "correction without a reason", strict: true, daysAgo: 3, created: 72 * time.Hour,
+		{name: "correction without a reason", strict: true, daysAgo: 3,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired},
-		{name: "correction with a reason", strict: true, daysAgo: 3, created: 72 * time.Hour,
+		{name: "correction with a reason", strict: true, daysAgo: 3,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, reason: "typo", wantCalls: 1},
-		{name: "override above the calculated value", strict: true, countries: []string{"CH"}, daysAgo: 0, created: time.Hour,
+		{name: "override above the calculated value", strict: true, countries: []string{"CH"}, daysAgo: 0,
 			mutate:  func(f *models.Flight) { f.NightTime = 59; f.NightTimeOverride = true },
 			wantErr: ErrOverrideExceedsCalculated},
-		{name: "locked flight", strict: true, daysAgo: 0, created: time.Hour,
+		{name: "locked flight", strict: true, daysAgo: 0,
 			mutate:  func(f *models.Flight) { f.Remarks = strp("x") },
 			prepare: func(_ *correctionEnv, f *models.Flight) { id := uuid.New(); f.SignatureID = &id },
 			wantErr: ErrFlightLocked},
-		{name: "other user's flight", strict: true, daysAgo: 0, created: time.Hour,
+		{name: "other user's flight", strict: true, daysAgo: 0,
 			mutate:  func(f *models.Flight) { f.Remarks = strp("x") },
 			asUser:  func(*correctionEnv) uuid.UUID { return uuid.New() },
 			wantErr: ErrUnauthorizedFlight},
-		{name: "invalid flight", strict: true, daysAgo: 0, created: time.Hour,
+		{name: "invalid flight", strict: true, daysAgo: 0,
 			mutate:  func(f *models.Flight) { f.AircraftType = "" },
 			wantErr: ErrInvalidFlight},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newCorrectionEnv(t, tt.strict, tt.countries...)
-			stored := e.seed(t, tt.daysAgo, tt.created)
+			stored := e.seed(t, tt.daysAgo)
 			if tt.prepare != nil {
 				tt.prepare(e, stored)
 			}
@@ -354,7 +350,7 @@ func TestFlightService_BeforeWriteRunsOnlyForAcceptedWrites(t *testing.T) {
 
 	t.Run("a failing BeforeWrite stops the write", func(t *testing.T) {
 		e := newCorrectionEnv(t, false)
-		stored := e.seed(t, 0, time.Hour)
+		stored := e.seed(t, 0)
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
 		boom := errors.New("boom")
 		err := e.svc.UpdateFlightWith(ctx, updated, e.userID, FlightWriteOptions{BeforeWrite: func(context.Context) error { return boom }})

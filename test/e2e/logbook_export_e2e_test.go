@@ -57,12 +57,12 @@ func TestStrictModeExports(t *testing.T) {
 			yes, no := 0, 0
 			for _, row := range rows[1:] {
 				switch row[ci] {
-				case "yes":
+				case "true":
 					yes++
-					if _, err := time.Parse(time.RFC3339, row[ti]); err != nil {
+					if _, err := time.Parse("02.01.2006 15:04", row[ti]); err != nil {
 						t.Errorf("last_corrected_at = %q: %v", row[ti], err)
 					}
-				case "no":
+				case "false":
 					no++
 					if row[ti] != "" {
 						t.Errorf("uncorrected row has last_corrected_at = %q", row[ti])

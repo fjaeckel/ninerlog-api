@@ -38,7 +38,7 @@ CREATE TABLE flight_revisions (
     kind          TEXT NOT NULL CHECK (kind IN ('update', 'delete')),
     snapshot      JSONB NOT NULL,
     crew_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb,
-    source        TEXT NOT NULL CHECK (source IN ('user_edit', 'recalc', 'aircraft_rename', 'import', 'unknown')),
+    source        TEXT NOT NULL CHECK (source IN ('user_edit', 'recalc', 'aircraft_rename', 'contact_rename', 'import', 'unknown')),
     reason        TEXT,
     is_correction BOOLEAN NOT NULL DEFAULT false,
     changed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -171,7 +171,7 @@ BEGIN
         (user_id, flight_id, revision_no, kind, snapshot, crew_snapshot, source, reason, is_correction)
     VALUES (
         NEW.user_id, NEW.flight_id, next_no, rev_kind, NEW.snapshot, NEW.crew_snapshot,
-        CASE WHEN NEW.source IN ('user_edit', 'recalc', 'aircraft_rename', 'import') THEN NEW.source ELSE 'unknown' END,
+        CASE WHEN NEW.source IN ('user_edit', 'recalc', 'aircraft_rename', 'contact_rename', 'import') THEN NEW.source ELSE 'unknown' END,
         NEW.reason, NEW.is_correction);
     RETURN NULL;
 END;

@@ -31,7 +31,7 @@ func (m RestoreMode) Valid() bool {
 const (
 	MaxRestoreFlights   = 100000
 	MaxRestoreContacts  = 100000
-	MaxRestoreRevisions = 100000
+	MaxRestoreRevisions = 1000000
 	MaxRestoreEntities  = 2000
 
 	maxRestoreWarnings = 1000
@@ -110,7 +110,14 @@ type RestoreResult struct {
 
 // Restorer restores a Payload into a user's account in one transaction.
 type Restorer struct {
-	store repository.RestoreStore
+	store   repository.RestoreStore
+	logbook *service.LogbookService
+}
+
+// SetLogbookService attaches the strict logbook rules that classify the
+// flights a replace-mode restore deletes.
+func (r *Restorer) SetLogbookService(l *service.LogbookService) {
+	r.logbook = l
 }
 
 // NewRestorer creates a Restorer over the given store.
@@ -140,10 +147,17 @@ func (r *Restorer) Restore(ctx context.Context, userID uuid.UUID, p *Payload, mo
 		return nil, err
 	}
 
+	var classifier *service.DeleteClassifier
+	if mode == RestoreModeReplace && r.logbook != nil {
+		if classifier, err = r.logbook.NewDeleteClassifier(ctx, userID); err != nil {
+			return nil, fmt.Errorf("load logbook state: %w", err)
+		}
+	}
+
 	var result *RestoreResult
 	err = r.store.InRestoreTx(restoreChangeContext(ctx, mode), userID, func(tx repository.RestoreTx) error {
 		var err error
-		result, err = plan.apply(ctx, tx, mode)
+		result, err = plan.apply(ctx, tx, mode, classifier)
 		return err
 	})
 	if err != nil {
@@ -223,7 +237,9 @@ func checkVersion(v string) error {
 }
 
 // apply runs the refusal checks, the optional wipe and every insert in tx.
-func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode) (*RestoreResult, error) {
+// classifier, when set, flags the void records of wiped flights that are
+// corrections.
+func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode RestoreMode, classifier *service.DeleteClassifier) (*RestoreResult, error) {
 	switch mode {
 	case RestoreModeRestore:
 		content, err := tx.CountContent(ctx, pl.userID)
@@ -241,9 +257,22 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		if attachments.Any() {
 			return nil, ErrReplaceWouldDropAttachments
 		}
-		if err := tx.WipeContent(ctx, pl.userID); err != nil {
+		var corrections []uuid.UUID
+		if classifier != nil {
+			flights, err := tx.ListFlightTimings(ctx, pl.userID)
+			if err != nil {
+				return nil, fmt.Errorf("list flights: %w", err)
+			}
+			corrections = classifier.Corrections(flights)
+		}
+		if err := tx.WipeContent(ctx, pl.userID, corrections); err != nil {
 			return nil, fmt.Errorf("wipe content: %w", err)
 		}
+	}
+
+	flightIDs, err := pl.assignFlightIDs(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("assign flight ids: %w", err)
 	}
 
 	for i, a := range pl.aircraft {
@@ -314,8 +343,7 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		}
 	}
 
-	pl.logbook.LicenseIDs = licenseIDs
-	logbook, err := service.ImportLogbook(ctx, tx, pl.userID, pl.logbook)
+	logbook, err := service.ImportLogbook(ctx, tx, pl.userID, pl.logbook, flightIDs, licenseIDs)
 	var entry *service.LogbookImportError
 	if errors.As(err, &entry) {
 		return nil, invalidEntry(entry.Section, entry.Index, err)
@@ -344,4 +372,61 @@ func (pl *restorePlan) apply(ctx context.Context, tx repository.RestoreTx, mode 
 		LogbookCertificationsImported:   logbook.Certifications,
 		Warnings:                        pl.warnings.list(),
 	}, nil
+}
+
+// assignFlightIDs gives each planned flight its id in the backup when no
+// flight, no other user's history and no void record of this user holds it,
+// and keeps the minted id otherwise. Crew follows its flight. The result maps
+// every flight id of the backup, including those that only its revisions
+// mention, to the id used in the restore.
+func (pl *restorePlan) assignFlightIDs(ctx context.Context, tx repository.RestoreTx) (map[uuid.UUID]uuid.UUID, error) {
+	candidates := make([]uuid.UUID, 0, len(pl.flightBackupIDs))
+	seen := make(map[uuid.UUID]bool, len(pl.flightBackupIDs))
+	add := func(id uuid.UUID) {
+		if id != uuid.Nil && !seen[id] {
+			seen[id] = true
+			candidates = append(candidates, id)
+		}
+	}
+	for _, id := range pl.flightBackupIDs {
+		add(id)
+	}
+	revisionIDs := pl.logbook.RevisionFlightIDs()
+	for _, id := range revisionIDs {
+		add(id)
+	}
+	usage, err := tx.FlightIDUsage(ctx, pl.userID, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make(map[uuid.UUID]uuid.UUID, len(candidates))
+	kept := make(map[uuid.UUID]uuid.UUID)
+	for i, f := range pl.flights {
+		backupID := pl.flightBackupIDs[i]
+		if backupID == uuid.Nil {
+			continue
+		}
+		if _, claimed := ids[backupID]; claimed {
+			continue
+		}
+		if usage.Taken[backupID] || usage.Voided[backupID] {
+			ids[backupID] = f.ID
+			continue
+		}
+		kept[f.ID] = backupID
+		ids[backupID] = backupID
+		f.ID = backupID
+	}
+	for i := range pl.crew {
+		if id, ok := kept[pl.crew[i].FlightID]; ok {
+			pl.crew[i].FlightID = id
+		}
+	}
+	for _, id := range revisionIDs {
+		if _, restored := ids[id]; !restored && !usage.Taken[id] {
+			ids[id] = id
+		}
+	}
+	return ids, nil
 }

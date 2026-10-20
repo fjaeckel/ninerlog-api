@@ -7,8 +7,16 @@ const (
 	ChangeSourceUserEdit       = "user_edit"
 	ChangeSourceRecalc         = "recalc"
 	ChangeSourceAircraftRename = "aircraft_rename"
+	ChangeSourceContactRename  = "contact_rename"
 	ChangeSourceImport         = "import"
+	ChangeSourceUnknown        = "unknown"
 )
+
+// ChangeSources lists the sources a stored revision can carry.
+var ChangeSources = []string{
+	ChangeSourceUserEdit, ChangeSourceRecalc, ChangeSourceAircraftRename,
+	ChangeSourceContactRename, ChangeSourceImport, ChangeSourceUnknown,
+}
 
 // ChangeContext describes why a write touches flights or their crew.
 type ChangeContext struct {

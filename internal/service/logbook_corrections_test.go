@@ -26,18 +26,25 @@ func newCorrectionEnv(t *testing.T, strict bool, licenceCountries ...string) *co
 	return &correctionEnv{logbookEnv: e, svc: svc}
 }
 
-// seed stores a flight dated daysAgo days before testNow, created createdAgo before testNow.
-func (e *logbookEnv) seed(t *testing.T, daysAgo int, createdAgo time.Duration) *models.Flight {
+// seed stores a flight dated daysAgo days before testNow with no block times.
+func (e *logbookEnv) seed(t *testing.T, daysAgo int) *models.Flight {
+	t.Helper()
+	return e.seedBlocks(t, daysAgo, nil, nil)
+}
+
+// seedBlocks is seed with off-block and on-block times.
+func (e *logbookEnv) seedBlocks(t *testing.T, daysAgo int, off, on *string) *models.Flight {
 	t.Helper()
 	day := time.Date(testNow.Year(), testNow.Month(), testNow.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -daysAgo)
 	f := &models.Flight{
 		UserID: e.userID, Date: day, AircraftReg: "D-EABC", AircraftType: "C172",
+		OffBlockTime: off, OnBlockTime: on,
 		TotalTime: 60, PICTime: 60, IsPIC: true, AllLandings: 1, LandingsDay: 1, TakeoffsDay: 1,
 	}
 	if err := e.flights.Create(context.Background(), f); err != nil {
 		t.Fatal(err)
 	}
-	f.CreatedAt = testNow.Add(-createdAgo)
+	f.CreatedAt = testNow
 	return f
 }
 
@@ -61,7 +68,7 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 		strict         bool
 		countries      []string
 		daysAgo        int
-		createdAgo     time.Duration
+		off, on        *string
 		prepare        func(*testing.T, *correctionEnv, *models.Flight)
 		mutate         func(*models.Flight)
 		reason         string
@@ -72,79 +79,79 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 		wantWrite      bool
 	}{
 		{
-			name: "edit on the flight day is free", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "edit on the flight day is free", strict: true, daysAgo: 0,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantWrite: true,
 		},
 		{
-			name: "edit after the flight day needs a reason", strict: true, daysAgo: 1, createdAgo: 30 * time.Hour,
+			name: "edit after the flight day needs a reason", strict: true, daysAgo: 1,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "blank reason is no reason", strict: true, daysAgo: 1, createdAgo: 30 * time.Hour,
+			name: "blank reason is no reason", strict: true, daysAgo: 1,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, reason: "   ", wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "late edit with a reason is a correction", strict: true, daysAgo: 3, createdAgo: 72 * time.Hour,
+			name: "late edit with a reason is a correction", strict: true, daysAgo: 3,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, reason: " typo ",
 			wantCorrection: true, wantReason: "typo", wantWrite: true,
 		},
 		{
-			name: "non-strict user is never classified", strict: false, daysAgo: 30, createdAgo: 30 * 24 * time.Hour,
+			name: "non-strict user is never classified", strict: false, daysAgo: 30,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantWrite: true,
 		},
 		{
-			name: "system sources are never classified", strict: true, daysAgo: 30, createdAgo: 30 * 24 * time.Hour,
+			name: "system sources are never classified", strict: true, daysAgo: 30,
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, source: repository.ChangeSourceRecalc, wantWrite: true,
 		},
 		{
-			name: "no-op save after the window needs no reason", strict: true, daysAgo: 30, createdAgo: 30 * 24 * time.Hour,
+			name: "no-op save after the window needs no reason", strict: true, daysAgo: 30,
 			mutate: func(f *models.Flight) {}, wantWrite: true,
 		},
 		{
-			name: "CH entry inside 48 hours is free even after the flight day", strict: true, countries: []string{"CH"},
-			daysAgo: 1, createdAgo: 24 * time.Hour,
+			name: "CH landing inside 48 hours is free even after the flight day", strict: true, countries: []string{"CH"},
+			daysAgo: 1, off: strp("08:00"), on: strp("14:00"),
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantWrite: true,
 		},
 		{
-			name: "CH entry past 48 hours needs a reason", strict: true, countries: []string{"CH"},
-			daysAgo: 5, createdAgo: 72 * time.Hour,
+			name: "CH landing past 48 hours needs a reason", strict: true, countries: []string{"CH"},
+			daysAgo: 5, off: strp("08:00"), on: strp("14:00"),
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
 			name: "earliest deadline across licences wins", strict: true, countries: []string{"CH", "DE"},
-			daysAgo: 1, createdAgo: 24 * time.Hour,
-			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
+			daysAgo: 1,
+			mutate:  func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "flight inside a certified range is a correction", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "flight inside a certified range is a correction", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				e.lbRepo.certs = append(e.lbRepo.certs, models.LogbookCertification{UserID: e.userID, CertifiedThrough: f.Date})
 			},
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "moving a flight out of a certified range is a correction", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "moving a flight out of a certified range is a correction", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				e.lbRepo.certs = append(e.lbRepo.certs, models.LogbookCertification{UserID: e.userID, CertifiedThrough: f.Date.AddDate(0, 0, -1)})
 			},
 			mutate: func(f *models.Flight) { f.Date = f.Date.AddDate(0, 0, -2) }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "flight after the certified date is free", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "flight after the certified date is free", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				e.lbRepo.certs = append(e.lbRepo.certs, models.LogbookCertification{UserID: e.userID, CertifiedThrough: f.Date.AddDate(0, 0, -1)})
 			},
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantWrite: true,
 		},
 		{
-			name: "signature history makes an edit a correction", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "signature history makes an edit a correction", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				e.sigs.byID[uuid.New()] = &models.FlightSignature{FlightID: f.ID, Status: models.SignatureStatusCompleted}
 			},
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "void reason is the default correction reason", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "void reason is the default correction reason", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				voidedAt := testNow.Add(-time.Hour)
 				e.sigs.byID[uuid.New()] = &models.FlightSignature{
@@ -154,12 +161,12 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 			mutate: func(f *models.Flight) { f.AllLandings = 2 }, wantCorrection: true, wantReason: "wrong landing count", wantWrite: true,
 		},
 		{
-			name: "raising an override after the flight day is a correction", strict: true, daysAgo: 1, createdAgo: time.Hour,
+			name: "raising an override after the flight day is a correction", strict: true, daysAgo: 1,
 			mutate:  func(f *models.Flight) { f.NightTime = 10; f.NightTimeOverride = true },
 			wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "raising an override on the flight day is free", strict: true, daysAgo: 0, createdAgo: time.Hour,
+			name: "raising an override on the flight day is free", strict: true, daysAgo: 0,
 			mutate: func(f *models.Flight) { f.NightTime = 10; f.NightTimeOverride = true }, wantWrite: true,
 		},
 	}
@@ -167,7 +174,7 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newCorrectionEnv(t, tt.strict, tt.countries...)
-			stored := e.seed(t, tt.daysAgo, tt.createdAgo)
+			stored := e.seedBlocks(t, tt.daysAgo, tt.off, tt.on)
 			if tt.prepare != nil {
 				tt.prepare(t, e, stored)
 			}
@@ -212,7 +219,7 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 
 func TestFlightService_UpdateCrewInOneWrite(t *testing.T) {
 	e := newCorrectionEnv(t, true)
-	stored := e.seed(t, 0, time.Hour)
+	stored := e.seed(t, 0)
 	updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
 	crew := []models.FlightCrewMember{{Name: "Pat", Role: models.CrewRole("Instructor")}}
 
@@ -226,7 +233,7 @@ func TestFlightService_UpdateCrewInOneWrite(t *testing.T) {
 
 func TestFlightService_CrewOnlyChangeIsClassified(t *testing.T) {
 	e := newCorrectionEnv(t, true)
-	stored := e.seed(t, 3, 72*time.Hour)
+	stored := e.seed(t, 3)
 	e.crew.crew[stored.ID] = []models.FlightCrewMember{{Name: "Pat", Role: models.CrewRole("Instructor")}}
 
 	same := e.edited(t, stored.ID, func(*models.Flight) {})
@@ -245,7 +252,7 @@ func TestFlightService_CrewOnlyChangeIsClassified(t *testing.T) {
 
 func TestFlightService_OwnershipBeforeClassification(t *testing.T) {
 	e := newCorrectionEnv(t, true)
-	stored := e.seed(t, 30, 30*24*time.Hour)
+	stored := e.seed(t, 30)
 	updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
 
 	err := e.svc.UpdateFlightWith(context.Background(), updated, uuid.New(), FlightWriteOptions{})
@@ -271,7 +278,7 @@ func TestFlightService_DeleteRecordsReasonAndCorrection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newCorrectionEnv(t, tt.strict)
-			stored := e.seed(t, tt.daysAgo, time.Duration(tt.daysAgo)*24*time.Hour+time.Hour)
+			stored := e.seed(t, tt.daysAgo)
 
 			if err := e.svc.DeleteFlightWithReason(context.Background(), stored.ID, e.userID, tt.reason); err != nil {
 				t.Fatal(err)
@@ -318,7 +325,7 @@ func TestFlightService_DownwardOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name+" on update", func(t *testing.T) {
 			e := newCorrectionEnv(t, tt.strict, tt.countries...)
-			stored := e.seed(t, 0, time.Hour)
+			stored := e.seed(t, 0)
 			updated := e.edited(t, stored.ID, tt.mutate)
 
 			err := e.svc.UpdateFlightWith(context.Background(), updated, e.userID, FlightWriteOptions{})
@@ -339,7 +346,7 @@ func TestFlightService_DownwardOverrides(t *testing.T) {
 
 	t.Run("an unchanged stored override is not rechecked", func(t *testing.T) {
 		e := newCorrectionEnv(t, true, "CH")
-		stored := e.seed(t, 0, time.Hour)
+		stored := e.seed(t, 0)
 		stored.NightTime = 10
 		stored.NightTimeOverride = true
 		updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
@@ -369,5 +376,36 @@ func assertOverrideFields(t *testing.T, err error, want []string) {
 		if oe.Fields[i] != want[i] {
 			t.Fatalf("fields = %v, want %v", oe.Fields, want)
 		}
+	}
+}
+
+func TestFlightService_FreeEditWindowFollowsLanding(t *testing.T) {
+	tests := []struct {
+		name      string
+		countries []string
+		daysAgo   int
+		off, on   *string
+		wantErr   error
+	}{
+		{"CH inside 48 hours of landing is free", []string{"CH"}, 2, strp("08:00"), strp("14:00"), nil},
+		{"CH past 48 hours of landing needs a reason", []string{"CH"}, 2, strp("06:00"), strp("10:00"), ErrCorrectionReasonRequired},
+		{"CH without block times closes at the end of the flight day", []string{"CH"}, 1, nil, nil, ErrCorrectionReasonRequired},
+		{"CH without block times is free on the flight day", []string{"CH"}, 0, nil, nil, nil},
+		{"CH overnight landing rolls to the next day", []string{"CH"}, 2, strp("22:00"), strp("01:00"), nil},
+		{"CH overnight landing still closes 48 hours later", []string{"CH"}, 3, strp("22:00"), strp("01:00"), ErrCorrectionReasonRequired},
+		{"DE late entry is a correction", []string{"DE"}, 1, strp("08:00"), strp("14:00"), ErrCorrectionReasonRequired},
+		{"DE flight day entry is free", []string{"DE"}, 0, strp("08:00"), strp("14:00"), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newCorrectionEnv(t, true, tt.countries...)
+			stored := e.seedBlocks(t, tt.daysAgo, tt.off, tt.on)
+			updated := e.edited(t, stored.ID, func(f *models.Flight) { f.Remarks = strp("x") })
+
+			err := e.svc.UpdateFlightWith(context.Background(), updated, e.userID, FlightWriteOptions{})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
+			}
+		})
 	}
 }
