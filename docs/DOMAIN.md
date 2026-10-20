@@ -642,3 +642,367 @@ event after the backup's own events. A restored flight keeps its `createdAt`; a 
 becomes the flight date at 00:00 UTC, and no value is later than the time of the restore.
 `MaxRestoreRevisions` is 1,000,000; the 200 MiB request body limit is the constraint that
 binds first.
+
+## Currency engine
+
+**Currency** answers the regulator's question: *given recent flying, is this pilot
+allowed to exercise the privileges of a rating, and to carry passengers?* It lives in
+`internal/service/currency`.
+
+### Design: registry of evaluators
+
+```mermaid
+flowchart TD
+    SVC[currency.Service]
+    SVC --> REG[Registry: authority → Evaluator]
+    SVC --> FDP[FlightDataProvider: PostgreSQL aggregation]
+    REG --> EASA["EASAEvaluator (EASA)"]
+    REG --> FAA["FAAEvaluator (FAA)"]
+    REG --> GUL["GermanULEvaluator (multiple authorities via RegisterMulti)"]
+    REG --> OTH["OtherEvaluator (generic fallback: expiry-only)"]
+```
+
+`Service.EvaluateAll(ctx, userID)` walks the user's licenses and class ratings, looks up
+the evaluator for each license's `RegulatoryAuthority`, and returns a
+`CurrencyStatusResponse`. Each evaluator implements the `Evaluator` interface and may
+additionally implement optional interfaces:
+
+| Interface | Method | Regulatory basis |
+| --- | --- | --- |
+| `Evaluator` (required) | `Evaluate(...)` | Tier 1 — rating currency (can I fly this class at all?) |
+| `PeerAwareEvaluator` | `EvaluateWithPeers(...)` | Tier 1 with the license's other class ratings; `EvaluateAll` prefers it over `Evaluate` |
+| `PassengerCurrencyEvaluator` | `EvaluatePassengerCurrency(...)` | Tier 2 — passenger carriage (EASA FCL.060(b), FAA §61.57(a)/(b)) |
+| `FlightReviewEvaluator` | `EvaluateFlightReview(...)` | FAA §61.56 flight review (24 calendar months) |
+
+### Data provider
+
+Evaluators never write SQL. They request aggregates through the `FlightDataProvider`
+interface (`internal/service/currency/evaluator.go`), implemented for PostgreSQL in
+`internal/repository/postgres/currency_flight_data.go`:
+
+- `GetProgressByAircraftClass(userID, classTypes, includeTowed, since)` — summed
+  times/landings for flights on any of the given classes since a date, plus launches
+  (take-offs, at least one per flight), the number of flights with dual time and the
+  longest total time of such a flight.
+- `GetProgressAll(userID, since)` — same, across all classes.
+- `GetLastFlightReview(userID)` — most recent `is_flight_review` flight.
+- `GetLastProficiencyCheck(userID, classTypes, since)` — most recent proficiency check on
+  any of the given classes (`[IR]` matches every class), excluding towed launches except on
+  `GLIDER`.
+- `GetLaunchCounts(userID, classType, since)` — launches per launch method on a class
+  (SFCL.155(c)); a zero `since` returns every method ever logged.
+- `GetLandingDaysByAircraftClass(userID, classType, includeTowed, picOnly, since)` — one row per flown date with
+  its day and night landing counts, newest date first; `picOnly` keeps only flights with PIC
+  time. Used for passenger currency, which needs *when* each landing was flown, not just how
+  many there were.
+- `GetProgressByULKind`, `GetLastProficiencyCheckByULKind`, `GetLandingDaysByULKind` — the
+  same three reads on `ULTRALIGHT` aircraft selected by kind (`ULSelector`: kinds, plus
+  aircraft with no kind when `IncludeUnspecified`, and of at least `MinMTOMKg` kg when set).
+
+This separation keeps the *regulatory* logic (what to count and over which window) in the
+evaluators, and the *data* logic (how to query) in one place.
+
+Flights launched by winch, car, aerotow or bungee are towed launches: they count only toward a `GLIDER`
+rating or a rule for a sailplane licence (EASA `SPL`/`LAPL(S)`, FAA `GLIDER`), never toward
+a powered class, its proficiency check or its passenger currency — even when the glider is
+classed `SEP_LAND`. Self-launches are not towed.
+
+Aircraft between categories are classed by the licence they are flown under: UL sailplanes
+and UL motorgliders `ULTRALIGHT`, sailplanes including self-launching ones `GLIDER`, touring
+motor gliders `TMG`. See [SAILPLANES.md](./SAILPLANES.md) for telling a self-launching
+sailplane from a TMG. An ultralight is never classed `SEP_LAND` or
+`TMG`, even when it is credited toward those ratings: crediting is declared by its ultralight
+kind (see [Ultralights](#ultralights)).
+
+### Credited classes
+
+A flight belongs to an aircraft class when its aircraft's free-text `aircraft_class`,
+trimmed and upper-cased, equals that class. Each rating rule declares which classes it
+counts (the rule's `scope`, resolved by `resolveClasses` in `engine.go`); by default that is
+the rating's own `ClassType`, so an aircraft classed `GLIDER` counts only toward a `GLIDER`
+rating, never toward `OTHER`. These EASA rules count more than one class
+(`internal/service/currency/credited_classes.go`, and the sailplane rules in `easa.go`):
+
+| Rule | Classes counted | Condition |
+| --- | --- | --- |
+| LAPL(A) recency, FCL.140.A(a) (`easaLAPLRule`) | `SEP_LAND`, `SEP_SEA`, `MEP_LAND`, `MEP_SEA`, `SET_LAND`, `SET_SEA`, `TMG` | Always — the rule counts experience "as pilots of aeroplanes or TMGs". `GLIDER` is not an aeroplane; an `ULTRALIGHT` counts only through its kind (FCL.035(a)(4)). |
+| SEP/TMG revalidation, FCL.740.A(b)(1) (`easaSEPTMGRule`) | `SEP_LAND`, `TMG` | Only for a `SEP_LAND` or `TMG` rating on a license that holds both. `SEP_SEA` is never pooled. |
+| Sailplane recency, SFCL.160(a)(1) (`easaSPLRule`) | `GLIDER`, `TMG` | For a `GLIDER` rating, and only for the 5 h; launches and training flights count on `GLIDER` alone. |
+| SPL TMG recency, SFCL.160(b)(1) (`easaSPLTMGRule`) | `GLIDER`, `TMG` | Only for the 12 h; the 6 h, take-offs and landings and training flight count on `TMG` alone. |
+
+Two EASA rules also credit ultralight flights (`easaAnnexICredit`, below), and the German
+three-axis rule counts `SEP_LAND` and `TMG` (see [Ultralights](#ultralights)).
+
+For the two aeroplane rules the pool applies to the experience totals and to the
+proficiency-check lookup, and never includes towed launches. The
+evaluator needs the license's other ratings for the condition, so `EASAEvaluator`
+implements `PeerAwareEvaluator` and `Service.EvaluateAll` passes them in. A pooled result
+lists the counted classes in `ClassRatingCurrency.countedClasses`; it is absent when only the
+rating's own class counts. Ultralight kinds a rule counts are listed in
+`ClassRatingCurrency.creditedUltralightKinds`.
+
+LAPL(A) recency (FCL.140.A) is also met by a LAPL(A) proficiency check on any pooled class
+within the 24 months (`requirement.proficiency_check`), as an alternative to the experience
+requirements. A LAPL license holding both `SEP_LAND` and `SEP_SEA` ratings must, in
+addition to the pooled totals, show at least 1 h and 6 landings in each of the two classes
+(FCL.140.A(b); `requirement.sep_land_time`, `.sep_land_landings`, `.sep_sea_time`,
+`.sep_sea_landings`).
+
+Passenger currency (FCL.060(b)) is never pooled: it requires "the same type or class".
+
+### Time windows and status
+
+Evaluators compute over either a **rolling** window (e.g. last 90 days from now) or an
+**expiry-anchored** window (counting toward a rating's `ExpiryDate`). The result for each
+rating is a `Status` (`internal/service/currency/types.go`):
+
+| Status | Meaning |
+| --- | --- |
+| `current` | Requirements met / not near expiry |
+| `expiring` | Within the warning window before expiry |
+| `expired` | Requirements not met / past expiry |
+| `unknown` | Insufficient data to determine |
+
+The response also carries per-requirement progress, so the UI can show exactly what
+remains. Every user-facing string is emitted as a stable **message key** plus its params
+rather than as English prose — see [CURRENCY_MESSAGES.md](./CURRENCY_MESSAGES.md), the
+cross-repo contract with the web and iOS clients. The payload carries no English prose:
+`name` survives only on custom currency rules, where it is pilot-authored user data.
+
+### Passenger currency expiry (`dayExpiresOn` / `nightExpiresOn`)
+
+The 90-day passenger window (`internal/service/currency/passenger_expiry.go`) is anchored
+to the **date**, not the clock: it opens at midnight UTC 90 days before today, so the same
+logbook yields the same answer at 08:00 and at 23:00. A landing flown on day *D* therefore
+counts through day *D + 90* inclusive.
+
+`PassengerCurrency` reports when each requirement lapses if the pilot never flies again.
+Walking the flown dates newest-first and accumulating landings, the date that first brings
+the running total up to the requirement is the one whose departure from the window ends
+currency; the expiry is that date + 90 days, and it is the **last day the pilot is still
+current**. Landings beyond the requirement do not extend it — with five landings and a
+requirement of three, the third-most-recent one is the binding date. Day and night are
+computed separately (night landings count toward both), so night currency usually expires
+first. An expiry is omitted when the requirement is unmet (nothing to lapse), inapplicable
+(no night privilege), or waived (EASA IR holders under FCL.060(b)(2)(ii)).
+
+Licence types without night privilege (`HasNightPrivilege` in `faa.go`) report
+`nightPrivilege: false` and are not evaluated for night passenger currency: FAA Sport,
+Recreational and Glider; EASA `LAPL` / `LAPL(A)`, `SPL` / `LAPL(S)` and `GPL`; the German UL
+authorities DULV and DAeC; and an ultralight licence type (`UL`, `UL-…`, `Ultralight`,
+`Ultraleicht`) under LBA — an LBA-issued PPL keeps its night privilege. Licence types are matched case-insensitively, and the EASA
+spellings are shared with the rating dispatch in `easaSelectRule` (`isEASALAPLA`,
+`isEASASailplane`), so a LAPL or SPL gets both its FCL.140 recency rule and its night
+restriction from the same check.
+
+### Rating recency expiry (`recencyExpiresOn`)
+
+A `ClassRatingCurrency` evaluated by a rolling-window recency rule (window kind
+`windowRollingNow` in `engine.go`: EASA LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G, the
+German ultralight rules, FAA §61.57) carries `recencyExpiresOn` while its `status` is
+`current`: the last day the rule is still met if the pilot never flies again. The engine
+finds it by re-evaluating the same rule at midnight UTC of later dates
+(`recencyLapseDate`), binary-searching the span from today to one full window ahead — so
+every requirement, the proficiency-check alternative and any rule-specific status logic are
+honoured without a second implementation. With no new flights the window only loses
+flights, so currency can only switch off once, which is what makes the search valid. The
+flight whose departure breaks the first requirement is the binding one; a proficiency
+check extends the date to its own window end when that is later. Expiry-anchored
+revalidation rules (FCL.740.A, FCL.625.A) omit the field — their limit is `expiryDate`.
+
+### Expiry dates: last valid day vs first non-current day
+
+An **expiry date is the last valid day**. A class rating or credential (medical, language
+proficiency, security clearance) is valid through the end of its `expiryDate` and expired
+from the next day (`models.ClassRating.IsExpired`, `models.Credential.IsExpired`, built on
+`models.ExpiredAt`). Dates are compared as **UTC calendar dates**, never as instants: the
+expiry value's own year/month/day against the UTC date of now, so a server clock in any
+time zone gives the same answer for the whole UTC day. "Days remaining" is
+`models.DaysUntilExpiry` — whole calendar days, `0` on the expiry date itself, negative
+once it has passed — and "expiring soon within N days" means `0 <= days remaining <= N`.
+Everything derived from rating or credential validity uses these helpers: the evaluators'
+`expired` / `expiring` status and `days` message param, the FCL.060(b)(2)(ii) night
+waiver (an IR counts as valid through its expiry date, `hasValidIRRating`), and the
+notification day counts.
+
+The date fields in currency results differ in which day they name:
+
+| Field | Names |
+| --- | --- |
+| `ClassRating.expiryDate`, `Credential.expiryDate`, `ClassRatingCurrency.expiryDate` | last valid day |
+| `PassengerCurrency.dayExpiresOn` / `nightExpiresOn` | last day still current |
+| `ClassRatingCurrency.recencyExpiresOn` | last day still met (probed at midnight UTC) |
+| `FlightReviewStatus.expiresOn` | last valid day (end of the 24th calendar month) |
+| `CustomCurrencyResult.expiresOn` (custom rules) | **first day no longer current** — the day the binding flight leaves the window |
+| Lapse dates (internal, notifications only) | first day no longer current |
+
+Custom-rule `expiresOn` therefore sits one day later than a regulatory "expires on" for
+the same situation; it is kept as is.
+
+**Lapse dates** are internal (`json:"-"`, never in an API response) and computed only for
+the notification checker (`currency.WithLapseDates`): `ClassRatingCurrency.LapsedOn` for a
+lapsed rolling-window rule, `PassengerCurrency.DayLapsedOn` / `NightLapsedOn`, and
+`CustomCurrencyResult.LapsedOn`. Each is the first day the requirement was no longer met,
+or nil when it was never met. `lastCurrentDay` (`lapse.go`) finds the latest past day on
+which the requirement held, counting only flights dated on or before that day — so
+flights logged after the lapse that did not restore currency do not move it. It
+binary-searches a monotone bound (flights up to a fixed day, window start moving back) and
+narrows the bound until the day it finds is current on its own data. Passenger lapses
+read the full landing history (an IR's expiry date extends night currency); custom rules
+read their per-flight rows; rolling rating rules are re-evaluated at noon UTC of each
+probed day through a provider restricted to flights up to that day
+(`currency.AsOfProvider`, implemented by the PostgreSQL provider). A provider without
+`AsOf` yields no rating lapse date.
+
+### Regulatory differences (EASA vs FAA)
+
+The two main rule sets differ substantially, which is why each has its own evaluator:
+
+| Aspect | EASA (`easa.go`) | FAA (`faa.go`) |
+| --- | --- | --- |
+| Rating currency | Expiry-anchored (e.g. SEP class rating revalidation under FCL.740.A) | Privilege tied to flight review / proficiency, not a separate class-rating expiry |
+| Passenger carriage | FCL.060(b): 3 takeoffs/landings; night requires 1 night landing unless IR held (FCL.060(b)(2)(ii)) | §61.57(a)/(b): 3 takeoffs/landings in 90 days (day); 3 full-stop night landings for night |
+| Instrument recency | FCL.625.A revalidation | §61.57(c): rolling 6 months |
+| Flight review | Recency requirements | §61.56: every 24 calendar months |
+| Gliders | SFCL.160 recency, SFCL.155 launch methods — see [SAILPLANES.md](./SAILPLANES.md) | §61.57(d) |
+| Gyroplanes | FCL.240.G (GPL) — see [Gyroplanes (GPL)](#gyroplanes-gpl) | class-generic §61.57 |
+
+`GermanULEvaluator` handles German ultralight rules, delegates every non-`ULTRALIGHT` rating to
+`EASAEvaluator`, and registers itself for the relevant authority strings via `RegisterMulti`. `OtherEvaluator` is the safe fallback for any
+authority without a dedicated implementation — it performs an expiry-only check so the
+system degrades gracefully rather than failing.
+
+### Ultralights
+
+An ultralight ("Luftsportgerät", EU Annex I aircraft) is classed `ULTRALIGHT` and carries an
+ultralight kind, `ul_kind` (migration 72), on the aircraft and on an `ULTRALIGHT` class rating.
+The kind is the German "Luftsportgeräteart" the licence is issued for; `models/ultralight.go`
+holds the vocabulary and its mappings.
+
+| Kind | Meaning | German licence class | Credited under FCL.035(a)(4) as |
+| --- | --- | --- | --- |
+| `THREE_AXIS` | aerodynamically (three-axis) controlled UL aeroplane | Dreiachs | `SEP_LAND` |
+| `THREE_AXIS_MOTORGLIDER` | three-axis UL that meets the TMG definition (aircraft only) | Dreiachs | `TMG`; PIC hours toward SFCL.160 |
+| `WEIGHT_SHIFT` | weight-shift trike | Trike | — |
+| `GYROPLANE` | UL gyroplane | Tragschrauber | `GYROPLANE` (GPL), from 450 kg MTOM (FCL.035(a)(5)) |
+| `HELICOPTER` | UL helicopter | UL-Hubschrauber | — |
+| `POWERED_PARAGLIDER` | Motorschirm or Motorschirm-Trike | Motorschirm | — |
+| `SAILPLANE` | UL sailplane | UL-Segelflug | PIC hours toward SFCL.160 (AMC1 SFCL.160) |
+
+The kind is kept only on an `ULTRALIGHT` aircraft or rating; the service clears it when the
+class is anything else and rejects an unknown kind with `ErrInvalidULKind` (400). A rating
+cannot be `THREE_AXIS_MOTORGLIDER`: a `THREE_AXIS` rating covers both three-axis kinds
+(`models.AircraftKindsForRating`). The kind is part of the aircraft and class rating payloads, so
+it travels in the JSON export and import.
+
+**EASA crediting, FCL.035(a)(4).** Hours in aeroplanes or TMGs within Annex I count in full
+toward LAPL(A) recency (FCL.140.A(a)(1)) and SEP/TMG revalidation by experience
+(FCL.740.A(b)(1)(ii)) when the aircraft is of the same category and class. The two rules
+declare `ulCredit: easaAnnexICredit`, which adds `THREE_AXIS` flights where the rule counts
+`SEP_LAND` and `THREE_AXIS_MOTORGLIDER` flights where it counts `TMG`:
+
+- Total time, PIC time and landings are credited. German administrative practice (NfL
+  2021-1-2238) includes takeoffs and landings.
+- Dual time is not. The refresher flight with an instructor must be in an aircraft authorised
+  under ORA.ATO.135, which excludes Annex I category (e) ultralights, so a UL flight never meets
+  the refresher or the LAPL(A) training flight. Nor does a UL proficiency check count.
+- Only an aircraft with an explicit kind is credited. A trike, gyroplane, UL helicopter,
+  powered paraglider or UL sailplane is not an aeroplane or TMG of the same class
+  (Luftamt Südbayern: "nur ... in einem aerodynamisch dreiachsgesteuerten Luftsportgerät").
+- Passenger recency (FCL.060(b)) and the LAPL(A) SEP(land)/SEP(sea) split (FCL.140.A(b)) are
+  not among the credited requirements and never count ultralights. Nor does SEP(sea).
+
+**German ultralight recency, LuftPersV.** `GermanULEvaluator` (LBA, DULV, DAeC) evaluates an
+`ULTRALIGHT` rating by its kind; a rating with no kind is evaluated as `THREE_AXIS`. Every other
+class rating on such a licence (an LBA-issued PPL's `SEP_LAND`, say) is delegated to
+`EASAEvaluator`. All windows roll back from today.
+
+| Kind (rule) | Requirement | Counts | Proficiency check replaces it |
+| --- | --- | --- | --- |
+| `THREE_AXIS` (`germanULRule`, §45(2)) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight with an instructor | three-axis UL, `SEP_LAND` and `TMG` time and landings; the training flight only on a three-axis UL | yes, in a three-axis UL, TMG or SEP (§45(3)) |
+| `HELICOPTER` (`germanULHelicopterRule`, §45(2a)) | 6h in 12 months incl. 6 landings, 1h with an instructor | UL helicopters | yes |
+| `GYROPLANE` (`germanULGyroplaneRule`, DULV) | 12h in 24 months incl. 6h PIC, 12 landings, 1h training flight | gyroplanes only | yes |
+| `WEIGHT_SHIFT` DULV/LBA (`germanULTrikeDULVRule`) | 12h as PIC in 24 months | trikes | no |
+| `WEIGHT_SHIFT` DAeC (`germanULTrikeDAeCRule`) | 12h and 12 landings in 24 months; the safety/performance training is not tracked | trikes | no |
+| `POWERED_PARAGLIDER` (`germanULPoweredParagliderRule`) | 30 landings in 24 months | powered paragliders | no |
+| `SAILPLANE` (`germanULSailplaneRule`, DAeC) | 5 landings in 12 months, towed launches included | UL sailplanes | no |
+
+Only the three-axis and helicopter rules are statute (§45(2), (2a)); the others are set by
+DULV/DAeC under §45(4), and the two associations differ for trikes, so the trike rule follows
+the licence's authority. A flight on an `ULTRALIGHT` aircraft with no kind counts toward a German
+rating of any kind, never toward EASA crediting. An unmet requirement reports `expiring`: the
+licence does not lapse (§45(1)), the privileges may not be exercised until the requirement is
+met. Landings stand in for takeoffs and landings, and dual time for the training flight, as in
+the EASA rules.
+
+Passenger recency (§45a) is 3 takeoffs and landings in the preceding 90 days in an ultralight of
+the same kind, so it is evaluated per rating kind (`RatingPassengerCurrencyEvaluator`) and
+reported with `PassengerCurrency.ulKind`; SEP/TMG landings do not count. The passenger rating
+itself (§84a) is proved separately and not tracked. Ultralights have no night privilege
+(§44(2)).
+
+`GLIDER`, `ULTRALIGHT` and `GYROPLANE` class ratings select their rule from the class, not the
+license type:
+
+| Class | LBA / DULV / DAeC | EASA / unknown authority | FAA |
+| --- | --- | --- | --- |
+| `GLIDER` | SFCL.160(a) (`easaSPLRule`) | SFCL.160(a) (`easaSPLRule`) | §61.57 glider launches (`faaGliderRule`) |
+| `ULTRALIGHT` | LuftPersV §45 by kind + §45a passenger currency by kind | expiry only, no passenger currency | expiry only, no passenger currency |
+| `GYROPLANE` | FCL.240.G (`easaGPLRule`, via EASA) | FCL.240.G (`easaGPLRule`); unknown authority: expiry only | §61.57 (`faaPassengerRatingRule`) |
+
+Ultralight licences are national law, so only the German UL authorities carry a recency rule for
+them. EASA rules credit ultralight time without evaluating an `ULTRALIGHT` rating.
+
+Passenger currency for a `GLIDER` rating never reports night privilege. For `GLIDER`, and for
+`TMG` on an `SPL` or `LAPL(S)` license, it counts only flights with PIC time
+(SFCL.160(e)), under `ruleDescriptionKey` `easa_spl_pax` or `easa_spl_tmg_pax`.
+
+The sailplane rules — what counts toward SFCL.160(a) and (b), the proficiency-check
+alternative, per-method launch recency (SFCL.155(c)), the SFCL.160(c) exemption, the Annex I
+hour credit and the known gaps — are described in [SAILPLANES.md](./SAILPLANES.md).
+
+### Gyroplanes (GPL)
+
+From 18 February 2026 Part-FCL licenses gyroplanes with the GPL (Reg. (EU) 2025/134). A `GYROPLANE`
+class rating and aircraft class (migration 73) cover the single-propeller gyroplane class.
+
+- **Recency, FCL.240.G(a)** (`easaGPLRule`, any EASA-evaluated licence): in the last 2 years,
+  12h as PIC, dual or supervised solo on gyroplanes including 12 takeoffs and landings and 1h of
+  refresher training with an instructor; or a GPL proficiency check.
+- **Annex I credit, FCL.035(a)(5)** (`gplAnnexICredit`): an `ULTRALIGHT` aircraft of kind
+  `GYROPLANE` with `mtom_kg` of at least 450 counts toward the 12h and the landings, never the
+  refresher. An ultralight gyroplane with no mass recorded is not credited.
+- **Passengers**: FCL.060(b) applies to gyroplanes; the GPL carries no night privilege (FCL.810
+  has no gyroplane night rating), and FCL.205.G(a)(2) requires 10h as PIC on `GYROPLANE`
+  aircraft since the licence's issue date before the first passenger —
+  `pax.gpl_experience_not_met` reports the minutes still needed.
+- **German UL gyroplane recency** counts `GYROPLANE` time and landings too (a Part-FCL gyroplane
+  is a Tragschrauber); the training flight still has to be in a UL gyroplane.
+
+### Extending the engine
+
+To support a new regulator:
+
+1. Implement the `Evaluator` interface in a new file under
+   `internal/service/currency` (and optionally `PassengerCurrencyEvaluator` /
+   `FlightReviewEvaluator`).
+2. Encode the rule's window type, thresholds, and messaging.
+3. Register it in `cmd/api/main.go` (`currencyRegistry.Register(...)` or
+   `RegisterMulti(...)`).
+4. Add table-driven tests alongside the existing `*_test.go` files in the package.
+
+No changes to handlers, the data provider, or the database are required for a new
+authority that reuses existing aggregates.
+
+## Where this connects
+
+- Flights feed currency, statistics, reports, maps, and exports.
+- Strict logbook mode records the history of every flight and decides which late edits
+  are corrections (see [Strict logbook mode](#strict-logbook-mode-and-the-flight-audit-trail)).
+- Class-rating and credential expiry dates feed both the currency engine and the
+  notification system (see [FEATURES.md](./FEATURES.md#notifications)).
+- The HTTP surface for currency is `GET /currency` and `GET /licenses/{id}/currency`
+  (see [API.md](./API.md)).
+
+> When regulatory rules change, update the relevant evaluator **and** this document so
+> the described behaviour stays accurate.
