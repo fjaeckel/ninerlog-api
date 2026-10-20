@@ -123,6 +123,16 @@ type Flight struct {
 
 	// SPL / Glider
 	LaunchMethod *string `json:"launchMethod,omitempty"` // winch, aerotow, self-launch, car, bungee
+	// Launches counts the sailplane launches (Part-SFCL); derived from the
+	// take-offs unless LaunchesOverride is set.
+	Launches         int  `json:"launches"`
+	LaunchesOverride bool `json:"launchesOverride,omitempty"`
+	// IsOutlanding marks a landing away from the planned site (Außenlandung).
+	IsOutlanding bool `json:"isOutlanding"`
+	// IsTowFlight marks a flight as the tug pilot towing a sailplane.
+	IsTowFlight bool `json:"isTowFlight"`
+	// ReleaseHeightM is the tow or winch release height in metres.
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// Crew members on board (populated from flight_crew_members table)
 	CrewMembers []FlightCrewMember `json:"crewMembers,omitempty"`
@@ -166,7 +176,10 @@ func (f *Flight) IsValid() bool {
 // PIC — so each is bounded by TotalTime only.
 func (f *Flight) ValidateTimeDistribution() error {
 	if f.IsSimulator {
-		return f.validateSessionTimes()
+		if err := f.validateSessionTimes(); err != nil {
+			return err
+		}
+		return f.validateGliderFacts()
 	}
 
 	// isPic and isDual are mutually exclusive
@@ -224,7 +237,38 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrNegativeLandings
 	}
 
+	return f.validateGliderFacts()
+}
+
+// Release height bounds in metres.
+const (
+	MinReleaseHeightM = 0
+	MaxReleaseHeightM = 20000
+)
+
+// validateGliderFacts checks the launch count and the release height.
+func (f *Flight) validateGliderFacts() error {
+	if f.Launches < 0 {
+		return ErrNegativeLaunches
+	}
+	if f.ReleaseHeightM != nil && (*f.ReleaseHeightM < MinReleaseHeightM || *f.ReleaseHeightM > MaxReleaseHeightM) {
+		return ErrInvalidReleaseHeight
+	}
 	return nil
+}
+
+// DeriveLaunches sets Launches to the take-off count, at least one, unless
+// LaunchesOverride is set. FSTD sessions and passenger flights carry none.
+func (f *Flight) DeriveLaunches() {
+	if f.IsSimulator || f.IsPassenger {
+		f.Launches = 0
+		f.LaunchesOverride = false
+		return
+	}
+	if f.LaunchesOverride {
+		return
+	}
+	f.Launches = max(f.TakeoffsDay+f.TakeoffsNight, 1)
 }
 
 // validateSessionTimes enforces the FSTD invariants: a session carries a

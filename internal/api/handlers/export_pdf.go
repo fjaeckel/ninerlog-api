@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
@@ -602,6 +603,27 @@ func dropEmptyRows(flights []*models.Flight) []*models.Flight {
 	return out
 }
 
+// filterLogbookFlights returns the flights in lb, with credited flights
+// copied and their remarks prefixed with flightrules.CreditedLabel.
+func filterLogbookFlights(flights []*models.Flight, lb *service.Logbook) []*models.Flight {
+	out := make([]*models.Flight, 0, len(flights))
+	for _, f := range flights {
+		switch lb.Classify(f) {
+		case service.LogbookNative:
+			out = append(out, f)
+		case service.LogbookCredited:
+			marked := *f
+			remarks := flightrules.CreditedLabel
+			if f.Remarks != nil && strings.TrimSpace(*f.Remarks) != "" {
+				remarks += " " + *f.Remarks
+			}
+			marked.Remarks = &remarks
+			out = append(out, &marked)
+		}
+	}
+	return out
+}
+
 // ExportFlightsPDF implements GET /exports/pdf
 func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFlightsPDFParams) {
 	userID, err := h.getUserIDFromContext(c)
@@ -635,29 +657,10 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 
 	classFiltered := false
 	if params.LogbookLicenseId != nil {
-		licenseID := uuid.UUID(*params.LogbookLicenseId)
-		classRatings, err := h.classRatingService.ListClassRatings(c.Request.Context(), licenseID, userID)
-		if err == nil && len(classRatings) > 0 {
+		lb, err := h.logbookScope().Resolve(c.Request.Context(), userID, uuid.UUID(*params.LogbookLicenseId))
+		if err == nil && lb != nil {
 			classFiltered = true
-			allowedClasses := make(map[string]bool)
-			for _, cr := range classRatings {
-				allowedClasses[string(cr.ClassType)] = true
-			}
-			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-			regToClass := make(map[string]string)
-			for _, ac := range aircraftList {
-				if ac.AircraftClass != nil {
-					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
-				}
-			}
-			var filtered []*models.Flight
-			for _, f := range flights {
-				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
-				if acClass != "" && allowedClasses[acClass] {
-					filtered = append(filtered, f)
-				}
-			}
-			flights = filtered
+			flights = filterLogbookFlights(flights, lb)
 		}
 	}
 
@@ -674,9 +677,13 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		}
 	}
 
-	format := "easa"
+	format := service.LogbookFormatEASA
 	if params.Format != nil {
 		format = string(*params.Format)
+	} else if params.LogbookLicenseId != nil {
+		if lic, err := h.licenseService.GetLicense(c.Request.Context(), uuid.UUID(*params.LogbookLicenseId), userID); err == nil {
+			format = service.LogbookFormatForLicence(lic)
+		}
 	}
 	pageSize := "a4"
 	if params.PageSize != nil {
@@ -718,14 +725,20 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 		pdf = generateFAAPDFWith(flights, geom, userName, layout, baseline, sigs, strict)
 	case "summary":
 		pdf = generateSummaryPDF(flights, geom, userName, baseline)
+	case service.LogbookFormatSailplane:
+		pdf = renderSailplane(flights, geom, userName, baseline, sigs)
+	case service.LogbookFormatUltralight:
+		aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		pdf = renderUltralight(flights, geom, fleetByRegistration(aircraftList), userName, baseline, sigs)
 	default:
 		pdf = generateEASAPDF(flights, geom, h, c, userID, layout, baseline, sigs, strict)
 	}
 	name := fmt.Sprintf("ninerlog_%s_%s_%s_%s.pdf",
 		format, layout, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
-	if format == "summary" {
-		name = fmt.Sprintf("ninerlog_summary_%s_%s.pdf",
-			strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
+	switch format {
+	case "summary", service.LogbookFormatSailplane, service.LogbookFormatUltralight:
+		name = fmt.Sprintf("ninerlog_%s_%s_%s.pdf",
+			format, strings.ToLower(geom.sizeName), time.Now().Format("2006-01-02"))
 	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", "attachment; filename="+name)
@@ -807,22 +820,13 @@ func computeSummaryTotals(flights []*models.Flight, b *models.FlightBaseline) su
 	return t
 }
 
-func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
-	g, pdf := d.g, d.pdf
-	d.startPage("Totals Summary")
+// summaryRow is one label/value line of a totals summary page.
+type summaryRow struct{ label, value string }
 
+func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBaseline) {
 	t := computeSummaryTotals(flights, b)
 
-	rowH := 7.0
-	if g.sizeName == "A5" {
-		rowH = 5.2
-	}
-
-	summaryW := g.usableWidth() * 0.5
-	valW := g.usableWidth() * 0.22
-	x0 := g.marginLR + (g.usableWidth()-summaryW-valW)/2
-
-	rows := []struct{ label, value string }{
+	rows := []summaryRow{
 		{"Total Flights", fmt.Sprintf("%d", t.flights)},
 		{"Total Block Time", fmtDec(t.total)},
 		{"PIC Time", fmtDec(t.pic)},
@@ -842,10 +846,10 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{t.relief, "Cruise Relief Time"},
 	} {
 		if extra.minutes > 0 {
-			rows = append(rows, struct{ label, value string }{extra.label, fmtDec(extra.minutes)})
+			rows = append(rows, summaryRow{extra.label, fmtDec(extra.minutes)})
 		}
 	}
-	rows = append(rows, []struct{ label, value string }{
+	rows = append(rows, []summaryRow{
 		{"Night Time", fmtDec(t.night)},
 		{"IFR Time", fmtDec(t.ifr)},
 		{"Cross-Country Time", fmtDec(t.xc)},
@@ -854,19 +858,38 @@ func addGrandSummaryPage(d *pdfDoc, flights []*models.Flight, b *models.FlightBa
 		{"Night Landings", fmt.Sprintf("%d", t.ldgNight)},
 		{"Total Landings", fmt.Sprintf("%d", t.ldgDay+t.ldgNight)},
 	}...)
-	// Lead with the carried-forward block.
-	if baselineApplies(b) {
-		rows = append([]struct{ label, value string }{
-			{"Brought Forward (prior logbooks)", fmtDecTotal(b.TotalMinutes)},
-		}, rows...)
+	drawSummaryPage(d, withBroughtForward(rows, b), baselineSummaryNote(b))
+}
+
+// withBroughtForward prepends the carried-forward row when a baseline applies.
+func withBroughtForward(rows []summaryRow, b *models.FlightBaseline) []summaryRow {
+	if !baselineApplies(b) {
+		return rows
 	}
+	return append([]summaryRow{{"Brought Forward (prior logbooks)", fmtDecTotal(b.TotalMinutes)}}, rows...)
+}
+
+// drawSummaryPage adds the totals summary page: rows as a centred table,
+// then the disclosure note, then the signature block.
+func drawSummaryPage(d *pdfDoc, rows []summaryRow, note string) {
+	g, pdf := d.g, d.pdf
+	d.startPage("Totals Summary")
+
+	rowH := 7.0
+	if g.sizeName == "A5" {
+		rowH = 5.2
+	}
+
+	summaryW := g.usableWidth() * 0.5
+	valW := g.usableWidth() * 0.22
+	x0 := g.marginLR + (g.usableWidth()-summaryW-valW)/2
 
 	// Measure the disclosure note so the table stays vertically centred.
 	noteLineH := 3.4
 	if g.sizeName == "A5" {
 		noteLineH = 2.8
 	}
-	note := d.tr(baselineSummaryNote(b))
+	note = d.tr(note)
 	noteH := 0.0
 	if note != "" {
 		pdf.SetFont("Helvetica", "I", g.fontFoot)

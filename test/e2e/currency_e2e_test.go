@@ -734,6 +734,39 @@ func TestEASA_IR_Current(t *testing.T) {
 	assertStr(t, "status", rc["status"], "current")
 }
 
+// TestEASA_IR_GliderCloudFlyingNotCounted — IFR time on a glider is cloud flying and never counts toward the IR (FCL.625.A).
+func TestEASA_IR_GliderCloudFlyingNotCounted(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-ir-glider")
+	createAircraftCur(t, c, "D-KXYZ", "ASG29E", "GLIDER")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL")
+	irExpiry := futureDate(180)
+	createRatingCur(t, c, licID, "IR", &irExpiry)
+
+	for i := 0; i < 10; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(30 + i*10), "aircraftReg": "D-KXYZ", "aircraftType": "ASG29E",
+			"departureIcao": "EDNY", "arrivalIcao": "EDNY",
+			"departureTime": "11:00", "arrivalTime": "12:30",
+			"landings": 1, "ifrTime": 65, "launchMethod": "self-launch",
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "IR")
+	if rc == nil {
+		t.Fatal("IR rating currency not found")
+	}
+	for _, r := range rc["requirements"].([]interface{}) {
+		req := r.(map[string]interface{})
+		if req["nameKey"] == "requirement.ifr_time" {
+			if cur, _ := req["current"].(float64); cur != 0 {
+				t.Errorf("IR IFR time = %v, want 0 (glider cloud flying excluded)", cur)
+			}
+		}
+	}
+}
+
 // TestEASA_IR_NoProfCheck — IFR hours met but no proficiency check → expiring.
 func TestEASA_IR_NoProfCheck(t *testing.T) {
 	c := setupCurrencyUser(t, "easa-ir-nopc")
@@ -932,7 +965,7 @@ func TestEASA_LAPL_NoFlights(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // TestEASA_LAPL_RollingWindow — rolling 24 months from NOW (not expiry-based).
@@ -965,7 +998,7 @@ func TestEASA_LAPL_RollingWindow(t *testing.T) {
 	if rc == nil {
 		t.Fatal("LAPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 }
 
 // TestEASA_LAPL_NoNightPrivilege — LAPL requires separate night rating extension.
@@ -1090,7 +1123,22 @@ func TestEASA_SPL_InsufficientLaunches(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL SEP_LAND not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
+	if _, ok := rc["recencyExpiresOn"]; ok {
+		t.Errorf("lapsed rating carries recencyExpiresOn %v", rc["recencyExpiresOn"])
+	}
+	launches := getReq(rc, "requirement.launches")
+	assertStr(t, "launches.remedyKey", launches["remedyKey"], "remedy.fly_more")
+	params, _ := launches["remedyParams"].(map[string]interface{})
+	assertInt(t, "launches.remedyParams.missing", gi(params, "missing"), 5)
+	assertStr(t, "launches.remedyParams.unit", params["unit"], "launches")
+	if _, ok := launches["validUntil"]; ok {
+		t.Errorf("unmet launches row carries validUntil %v", launches["validUntil"])
+	}
+	flightTime := getReq(rc, "requirement.flight_time")
+	if _, ok := flightTime["validUntil"].(string); !ok {
+		t.Errorf("met flight time row has no validUntil: %v", flightTime)
+	}
 }
 
 // createSPLTMGFlightsCur logs 1h TMG flights: pic as PIC, then dual with an instructor.
@@ -1147,7 +1195,7 @@ func TestEASA_SPL_TMG_NoTrainingFlight(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL TMG not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	if r := getReq(rc, "requirement.tmg_training_flight"); r == nil || gb(r, "met") {
 		t.Errorf("tmg_training_flight = %v, want unmet", r)
 	}
@@ -1177,7 +1225,7 @@ func TestEASA_SPL_TMG_GliderHoursCount(t *testing.T) {
 	if rc == nil {
 		t.Fatal("SPL TMG not found")
 	}
-	assertStr(t, "status", rc["status"], "expiring")
+	assertStr(t, "status", rc["status"], "lapsed")
 	if r := getReq(rc, "requirement.flight_time"); r == nil || gi(r, "current") != 720 || !gb(r, "met") {
 		t.Errorf("flight_time = %v, want 720 minutes met", r)
 	}
@@ -1885,8 +1933,8 @@ func TestFAA_RecreationalPilot_NoNightNoIR(t *testing.T) {
 
 // ─── FAA Glider ──────────────────────────────────────────────────────────────
 
-// TestFAA_Glider_Current — 3 launches & landings in 90 days.
-func TestFAA_Glider_Current(t *testing.T) {
+// TestFAA_Glider_PaxCurrencyIsNotRatingStatus — §61.57(a) makes the pilot passenger current; the rating follows the §61.56 flight review.
+func TestFAA_Glider_PaxCurrencyIsNotRatingStatus(t *testing.T) {
 	c := setupCurrencyUser(t, "faa-glider-cur")
 	createAircraftCur(t, c, "NGLDR1", "ASK21", "SEP_LAND")
 
@@ -1907,7 +1955,16 @@ func TestFAA_Glider_Current(t *testing.T) {
 	if rc == nil {
 		t.Fatal("FAA Glider not found")
 	}
-	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "status", rc["status"], "expired")
+	assertStr(t, "messageKey", rc["messageKey"], "flight_review.none_on_record")
+	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "faa_flight_review")
+
+	pc := findPaxCurByAuth(result, "SEP_LAND", "FAA")
+	if pc == nil {
+		t.Fatal("FAA glider passenger currency not found")
+	}
+	assertStr(t, "pax dayStatus", pc["dayStatus"], "current")
+	assertInt(t, "pax dayLandings", gi(pc, "dayLandings"), 3)
 }
 
 // TestFAA_Glider_NoNightPrivilege — gliders have no night privilege.
@@ -2087,14 +2144,14 @@ func TestFAA_ATPSameAsPrivate(t *testing.T) {
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// TestGermanUL_DULV_Current — three-axis UL: 12h incl. 6h PIC + 12 T&L + 1h instructor in rolling 24mo.
-// The UL is classed ULTRALIGHT; a UL rated SEP_LAND is evaluated under EASA rules.
+// TestGermanUL_DULV_Current — three-axis UL: 12h incl. 6h PIC + 12 T&L + a 1h flight with an
+// instructor in rolling 24mo. The aircraft has no kind and counts because the only UL rating is three-axis.
 func TestGermanUL_DULV_Current(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-dulv-cur")
 	createAircraftCur(t, c, "D-MULV", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2126,7 +2183,7 @@ func TestGermanUL_DAeC_Current(t *testing.T) {
 	createAircraftCur(t, c, "D-MAEC", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DAeC", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	for i := 0; i < 11; i++ {
 		createFlightCur(t, c, map[string]interface{}{
@@ -2158,7 +2215,7 @@ func TestGermanUL_NoNightPrivilege(t *testing.T) {
 	createAircraftCur(t, c, "D-MULN", "C42", "ULTRALIGHT")
 
 	licID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, licID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, licID, "THREE_AXIS")
 
 	createFlightCur(t, c, map[string]interface{}{
 		"date": pastDate(5), "aircraftReg": "D-MULN", "aircraftType": "C42",

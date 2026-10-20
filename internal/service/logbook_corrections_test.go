@@ -38,7 +38,7 @@ func (e *logbookEnv) seedBlocks(t *testing.T, daysAgo int, off, on *string) *mod
 	f := &models.Flight{
 		UserID: e.userID, Date: day, AircraftReg: "D-EABC", AircraftType: "C172",
 		OffBlockTime: off, OnBlockTime: on,
-		TotalTime: 60, PICTime: 60, IsPIC: true, AllLandings: 1, LandingsDay: 1, TakeoffsDay: 1,
+		TotalTime: 60, PICTime: 60, IsPIC: true, AllLandings: 1, LandingsDay: 1, TakeoffsDay: 1, Launches: 1,
 	}
 	if err := e.flights.Create(context.Background(), f); err != nil {
 		t.Fatal(err)

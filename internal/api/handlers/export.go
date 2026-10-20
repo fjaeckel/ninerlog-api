@@ -16,6 +16,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/cloudbackup"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
+	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 )
 
@@ -191,7 +192,8 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 			csvWrite(w, webLogbookCSVTotals(flights))
 		}
 	default:
-		writeStandardCSVWith(w, flights, prefs, marks)
+		aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
+		writeStandardCSVWith(w, flights, prefs, fleetByRegistration(aircraftList), marks)
 		if totals {
 			csvWrite(w, marks.totals(standardCSVTotals(flights, prefs)))
 		}
@@ -200,11 +202,15 @@ func (h *APIHandler) ExportFlightsCSV(c *gin.Context, params generated.ExportFli
 	w.Flush()
 }
 
-func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs) {
-	writeStandardCSVWith(w, flights, prefs, nil)
+// writeStandardCSV writes the standard layout; fleet maps canonical
+// registrations to the aircraft whose class and UL kind fill the last columns.
+func writeStandardCSV(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, fleet map[string]*models.Aircraft) {
+	writeStandardCSVWith(w, flights, prefs, fleet, nil)
 }
 
-func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, marks *csvCorrections) {
+// writeStandardCSVWith is writeStandardCSV followed by the strict-mode
+// correction columns of marks.
+func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs, fleet map[string]*models.Aircraft, marks *csvCorrections) {
 	// Header row — compatible with ForeFlight import format
 	headers := []string{
 		"Date", "AircraftID", "AircraftType", "From", "To", "Route",
@@ -220,6 +226,8 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
+		"LaunchMethod", "Launches", "Outlanding", "TowFlight", "ReleaseHeightM",
+		"AircraftClass", "ULKind",
 	}
 	csvWrite(w, marks.header(headers))
 
@@ -311,7 +319,14 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 			prefs.formatDecimal(f.SPICTime),
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
+			safeStr(f.LaunchMethod),
+			fmt.Sprintf("%d", f.Launches),
+			fmt.Sprintf("%t", f.IsOutlanding),
+			fmt.Sprintf("%t", f.IsTowFlight),
+			optionalIntCSV(f.ReleaseHeightM),
 		}
+		acClass, ulKind := aircraftClassCSV(fleet[registration.Canonical(f.AircraftReg)])
+		row = append(row, acClass, ulKind)
 		csvWrite(w, marks.row(row, f))
 	}
 }
@@ -339,8 +354,9 @@ func writeEASACSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs
 	for _, f := range flights {
 		dep := exportPlace(f.DepartureICAO)
 		arr := exportPlace(f.ArrivalICAO)
-		depTime := fmtTimeCSV(f.OffBlockTime)
-		arrTime := fmtTimeCSV(f.OnBlockTime)
+		depClock, arrClock := logbookClocks(f)
+		depTime := fmtTimeCSV(depClock)
+		arrTime := fmtTimeCSV(arrClock)
 		picName := flightrules.DisplayPICName(f, userName)
 
 		// SP-SE / SP-ME / MP from the centralised rule; acClass is empty
@@ -427,6 +443,19 @@ func writeFAACSVWith(w *csv.Writer, flights []*models.Flight, prefs exportPrefs,
 	}
 }
 
+// aircraftClassCSV returns the normalized class and, for an ultralight, the
+// UL kind of ac; both blank for a nil aircraft.
+func aircraftClassCSV(ac *models.Aircraft) (class, ulKind string) {
+	if ac == nil {
+		return "", ""
+	}
+	class = string(models.NormalizeAircraftClass(ac.AircraftClass))
+	if models.IsULClass(ac.AircraftClass) && ac.ULKind != nil {
+		ulKind = string(*ac.ULKind)
+	}
+	return class, ulKind
+}
+
 // exportPlace returns a stored departure/arrival location as written in an
 // export: the airport name for an OurAirports local identifier.
 func exportPlace(s *string) string {
@@ -434,6 +463,13 @@ func exportPlace(s *string) string {
 		return ""
 	}
 	return airports.DisplayName(*s)
+}
+
+// logbookClocks returns the departure and arrival clock times a logbook row
+// prints (models.FlightClocks.LogbookClocks).
+func logbookClocks(f *models.Flight) (departure, arrival *string) {
+	d, a := models.ClocksOf(f).LogbookClocks()
+	return &d, &a
 }
 
 func fmtTimeCSV(s *string) string {
@@ -471,6 +507,16 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		CustomReports:  h.customReportService,
 		Notifications:  h.notificationService,
 		Logbook:        h.logbookService,
+		PilotProfiles:  h.pilotProfileService,
 		AttachCrew:     h.AttachCrewMembers,
+		Privileges:     h.licencePrivilegeService,
 	}
+}
+
+// optionalIntCSV formats v, or "" when nil.
+func optionalIntCSV(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *v)
 }

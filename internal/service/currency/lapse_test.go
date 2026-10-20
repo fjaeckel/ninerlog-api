@@ -139,7 +139,7 @@ func TestEASANightWaiver_IRValidThroughExpiryDate(t *testing.T) {
 
 // shiftedLAPLLog is laplLog moved back by n days.
 func shiftedLAPLLog(n int) *datedFlightData {
-	d := laplLog()
+	d := datedLaplLog()
 	for i := range d.flights {
 		d.flights[i].date = d.flights[i].date.AddDate(0, 0, -n)
 	}
@@ -148,7 +148,7 @@ func shiftedLAPLLog(n int) *datedFlightData {
 
 func TestRatingLapsedOn_LAPL(t *testing.T) {
 	ctx := WithLapseDates(context.Background())
-	rating, license := laplRating()
+	rating, license := datedLaplRating()
 
 	// the training flight, 800 days ago, is the first requirement to leave the window
 	training := daysAgo(800)
@@ -188,7 +188,7 @@ func TestRatingLapsedOn_LAPL(t *testing.T) {
 	})
 
 	t.Run("current rule has no lapse date", func(t *testing.T) {
-		result := NewEASAEvaluator().Evaluate(ctx, rating, license, asOfFlightData{laplLog()})
+		result := NewEASAEvaluator().Evaluate(ctx, rating, license, asOfFlightData{datedLaplLog()})
 		if result.Status != StatusCurrent || result.LapsedOn != nil {
 			t.Errorf("status = %s, lapsedOn = %v; want current, nil", result.Status, result.LapsedOn)
 		}

@@ -341,6 +341,35 @@ func (s *NotificationService) checkCurrencyNotifications(ctx context.Context, pr
 	if currencyStatus.FlightReview != nil {
 		s.checkFlightReviewNotification(ctx, prefs, *currencyStatus.FlightReview, user)
 	}
+
+	for _, p := range currencyStatus.Privileges {
+		s.checkPrivilegeExpiry(ctx, prefs, p, user)
+	}
+}
+
+// checkPrivilegeExpiry sends the rating expiry warning for a licence
+// privilege with an expiry date.
+func (s *NotificationService) checkPrivilegeExpiry(ctx context.Context, prefs *models.NotificationPreferences, p currency.PrivilegeCurrency, user *models.User) {
+	if p.ExpiresOn == nil || !prefs.IsCategoryEnabled(models.NotifCategoryRatingExpiry) {
+		return
+	}
+	name := string(p.Kind)
+	if p.Detail != nil {
+		name += " (" + *p.Detail + ")"
+	}
+	expiry := models.CalendarDate(*p.ExpiresOn)
+	days := models.DaysUntilExpiry(expiry, s.now())
+	subject, body := email.Templates(user.PreferredLocale).RatingExpiry(email.RatingExpiryParams{
+		UserName:      user.Name,
+		LicenseType:   p.LicenseType,
+		ClassType:     name,
+		ExpiryDate:    formatDateForUser(expiry, user.DateFormat),
+		DaysRemaining: days,
+	})
+	logNotifyError(user, s.sendWarning(ctx, prefs, user, notice{
+		category: models.NotifCategoryRatingExpiry, refID: p.PrivilegeID, refType: "licence_privilege", date: expiry,
+		subject: subject, body: body, metric: string(models.NotifCategoryRatingExpiry),
+	}, days))
 }
 
 func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *models.NotificationPreferences, rating currency.ClassRatingCurrency, user *models.User) {
@@ -371,8 +400,7 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 		}, daysUntilExpiry))
 	}
 
-	if (rating.Status == currency.StatusExpiring || rating.Status == currency.StatusExpired) &&
-		prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
+	if ratingRequirementsNotMet(rating.Status) && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyRevalidation) {
 		subject, body := tmpl.Revalidation(email.RevalidationParams{
 			UserName:      user.Name,
 			LicenseType:   rating.LicenseType,
@@ -395,6 +423,17 @@ func (s *NotificationService) checkRatingCurrency(ctx context.Context, prefs *mo
 	}
 }
 
+// ratingRequirementsNotMet reports whether a rating status calls for the
+// revalidation/recency notice: expiring, expired or lapsed.
+func ratingRequirementsNotMet(status currency.Status) bool {
+	switch status {
+	case currency.StatusExpiring, currency.StatusExpired, currency.StatusLapsed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs *models.NotificationPreferences, pax currency.PassengerCurrency, user *models.User) {
 	if pax.LapseUnknown {
 		slog.Error("Passenger currency lapse dates unavailable, skipping", "user_id", user.ID, "class", pax.ClassType)
@@ -402,7 +441,7 @@ func (s *NotificationService) checkPassengerCurrency(ctx context.Context, prefs 
 	}
 	tmpl := email.Templates(user.PreferredLocale)
 
-	if pax.DayStatus == currency.StatusExpired && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
+	if pax.DayStatus == currency.StatusExpired && pax.MessageKey != currency.MsgPaxULAuthorisationMissing && prefs.IsCategoryEnabled(models.NotifCategoryCurrencyPassenger) {
 		subject, body := tmpl.PassengerCurrency(email.PassengerCurrencyParams{
 			UserName:  user.Name,
 			ClassType: string(pax.ClassType),

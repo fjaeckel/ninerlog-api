@@ -61,6 +61,7 @@ legal when they are not:
 | C6 | The licence-filtered PDF compares the raw `aircraft_class` case-sensitively, ignores the UL kind, and drops SEP flights that were credited toward §45(2). | `internal/api/handlers/export_pdf.go:555-581` | — |
 | C7 | `SET*` classes land in the SP-ME column. | `internal/service/flightrules/display.go:197` | AMC1 FCL.050 |
 | C8 | The LAPL(A) training flight has the same cumulative pattern as C1, for every LAPL(A) holder. | `easa.go:357` (`easaLAPLRule`, `mInstructorMinutes`) | FCL.140.A(a)(1): "one refresher training flight of at least 1 hour total flight time with an instructor" |
+| C9 | FAA SEP and other powered ratings report §61.57(a)/(b) passenger currency as the rating *status*, the same pattern WP-02 fixed for gliders. It affects every FAA pilot (guard persona Mark's FAA peers). Found during WP-02; not yet scheduled. | `faa.go` (`faaPassengerRatingRule`) | §61.57 governs passengers; §61.56 governs acting as PIC |
 
 Checked and **not** a finding: §45(2) allows the 12 h to be flown on three-axis UL, TMG or SEP.
 Pooling SEP/TMG time is correct, as long as the training flight is on a three-axis UL, which
@@ -96,7 +97,9 @@ Every WP's definition of done:
 
 ### Wave 0: correctness (api)
 
-**WP-01. UL recency correctness** (`endpoint-implementer`; needs D1)
+**WP-01. UL recency correctness** (`endpoint-implementer`; needs D1) — **implemented**; the
+rules are in [DOMAIN.md](../DOMAIN.md#ultralights), the `lapsed` status in
+[CURRENCY_MESSAGES.md](../CURRENCY_MESSAGES.md).
 
 - The §45(2)/(2a) training flight becomes *one* flight of at least 60 min with instructor
   (dual) time, on the rating's kind. The same fix applies to the LAPL(A) training flight
@@ -139,10 +142,15 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-20. Take-off-to-landing time model** (api + fe; needs D3)
 
-- API: a flight needs block times **or** take-off and landing times. `totalTime` comes from
-  the block span, otherwise from take-off to landing. Spec `required` changes to a `oneOf`
-  (or the handler validates). Adjust `flight_kind.go:41-43` and `flight.go:199-217`. e2e
-  covers each combination; update `validation_e2e_test.go` per `e2e-sync`.
+- API — **implemented**: a flight needs block times **or** take-off and landing times.
+  `totalTime` comes from the block span, otherwise from take-off to landing. The handler
+  validates (no `oneOf`; `FlightCreate` already carried its conditional requirements in the
+  description), through `models.FlightClocks` (`internal/models/flight_times.go`). Night
+  time, night take-off/landing, total-time recovery, CSV import, the EASA CSV/PDF and
+  web-logbook exports and tap-to-log sessions (`takeoff` opens, `landing` completes) all
+  use the same pair. e2e: `test/e2e/time_model_e2e_test.go` and
+  `TestFlightTimePairValidation` in `validation_e2e_test.go`. See DOMAIN.md
+  "Total time and pilot function time".
 - FE: when the selected aircraft is `GLIDER`, `TMG` or `ULTRALIGHT`, take-off/landing come
   first and block times fold into "More". Quick Log (`QuickLogPage.tsx`) gets the same order.
 - Closes L3 and K3.
@@ -169,20 +177,24 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-22. Sailplane logbook PDF** (api)
 
-- An AMC1 SFCL.050 layout: launches and launch-method columns, PIC/dual/FI(S) time, time from
-  take-off to landing, and no multi-pilot/IFR/night columns.
-- Selected automatically by the licence-scoped export for SPL/LAPL(S), and selectable by hand.
-- Golden-file test.
+- API — **implemented**: `GET /exports/pdf?format=sailplane`, an AMC1 SFCL.050 layout with
+  launches and launch-method columns, PIC/dual/FI(S) time, take-off to landing, outlanding
+  and release height in the remarks, and no multi-pilot/IFR/night columns or `[Launch: …]`
+  marker. The licence-scoped export picks it for SPL/LAPL(S)/FAA glider licences when no
+  `format` is given. See [SAILPLANES.md](../SAILPLANES.md#printed-logbook).
+- FE: offer the layout in the PDF export dialog (and default to it for a sailplane logbook).
+- Text-extraction test (`export_pdf_discipline_test.go`) and e2e.
 - Closes L5.
 
 **WP-23. Batch circuits and "log another"** (api + fe; needs D2)
 
-- API: a nullable `launches` column (a `*Override` flag, per the `aviation-domain` skill),
-  which defaults to the take-off count and is read by launch counting
-  (`currency_flight_data.go:39,241`). Add `POST /flights/batch`: a shared template plus
-  `legs[{takeoffTime, landingTime, landings?}]`, applied atomically in one transaction,
-  returning the created flights. Every leg runs through the same service validation as a
-  single create.
+- API — **implemented** (migration 81): a nullable `launches` column with
+  `launchesOverride`, derived from the take-off count and read by every launch count in
+  the currency engine; the D2 "one line" series entry is a single flight with `launches`
+  set. `POST /flights/batch`: a `FlightCreate` template plus 1–50
+  `legs[{departureTime, arrivalTime, landings?, launches?, remarks?}]`, validated like a
+  single create and stored in one transaction; an invalid leg is a 400 naming its index.
+  See [SAILPLANES.md](../SAILPLANES.md#launches-and-series-entries).
 - FE:
   - A "Circuits" mode in the flight form: aircraft, launch method, crew and site entered once,
     then one line per circuit with take-off and landing.
@@ -193,10 +205,11 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-24. "Ready to fly?" and what's missing** (api + fe)
 
-- API: every requirement row gets `validUntil` (the date the count falls below the threshold
-  as flights age out) and a `remedyKey` (e.g. SFCL.155(d): "fly 2 launches dual or supervised
-  solo"). `GET /currency/readiness?date=&aircraftReg=&passengers=` answers per rating, per
-  launch method, passengers and medical.
+- API — **implemented**: every requirement row gets `validUntil` (the date the count falls
+  below the threshold as flights age out) and a `remedyKey` (e.g. SFCL.155(d): "fly 2
+  launches dual or supervised solo"). `GET /currency/readiness?date=&aircraftReg=&passengers=`
+  answers per rating, per launch method, passengers and medical. See
+  [DOMAIN.md](../DOMAIN.md#readiness-get-currencyreadiness).
 - FE: a dashboard card and a currency-page header. Lena's version reads "Saturday: solo ✓
   winch ✓ aerotow ✗ (2 launches) passengers ✓". Also a season-start planner listing the
   minimum flights needed.
@@ -204,15 +217,23 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-25. Glider flight facts** (api + fe; `migration-author` for the columns)
 
-- Flight flags `isOutlanding` and `isTowFlight`, plus `releaseHeightM`.
-- A `SUPERVISED_SOLO` crew role counted toward the SFCL.160 hour requirements (closes the known
-  gap in `SAILPLANES.md`), with FI(S)/BI signature.
-- Cross-country is no longer derived from departure ≠ arrival when `isOutlanding` is set.
-- Everything goes into export/import and CSV. Fields fold unless `SAILPLANE` or `TMG` is active
+- API — **implemented** (migration 81): flight flags `isOutlanding` and `isTowFlight`, plus
+  `releaseHeightM` (0–20000 m). Cross-country is no longer derived from departure ≠ arrival
+  when `isOutlanding` is set. All three, and `launches`, go into the JSON backup, the
+  standard CSV layout, CSV import, logbook search and custom-currency filters.
+- Supervised solo: **decided and implemented without a crew role** — it is logged as
+  `spicTime`, and SFCL.160(a)(1) and (b)(1) count PIC + dual + SPIC minutes (closes the
+  known gap in `SAILPLANES.md`). The FI(S)/BI signature uses the existing flight signatures. Fields fold unless `SAILPLANE` or `TMG` is active
   (tow flight: `AEROPLANE` + `SAILPLANE`).
 - Closes P1 and J2 (partly).
 
-**WP-26. Sailplane ratings and privileges** (api + fe)
+**WP-26. Sailplane ratings and privileges** (api + fe) — **API half implemented**
+(migration 82, `/licenses/{id}/privileges`, `privileges[]` on `GET /currency`, backup and
+restore inside the licence entry, admin count `licencePrivileges`); rules in
+[SAILPLANES.md](../SAILPLANES.md#privileges), keys in
+[CURRENCY_MESSAGES.md](../CURRENCY_MESSAGES.md#privilegecurrencymessagekey). Cloud-flying time
+is IFR time on `GLIDER` flights. The FI(S) refresher, the 9-year assessment and SFCL.155(a)
+initial training counts are reported as not tracked. Frontend half open.
 
 - Structured privilege records on a licence (new table, portable, with an admin count):
   - SFCL.205 sailplane or banner towing: 5 tows in 24 months, counted from `isTowFlight`
@@ -236,7 +257,13 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 - Fuzz-test the parser; fixture files cover each launch method.
 - Closes P2.
 
-**WP-28. Soaring statistics** (api + fe)
+**WP-28. Soaring statistics** (api + fe) — **API half implemented**
+(`GET /reports/soaring-season`; custom-report metrics `launches`, `outlandings`,
+`towFlights` and groupings `launchMethod`, `aircraftClass`, `ulKind`); scope in
+[SAILPLANES.md](../SAILPLANES.md#statistics). Launches by method is the `launchMethod`
+grouping of the `launches` metric. No distance metric: `flights.distance` is
+airport-to-airport, so a distance metric waits for WP-27's task distance. Frontend half
+open.
 
 - Custom-report metrics: launches, launches by method, outlandings, distance.
 - A season card on the dashboard (`SAILPLANE` active): launches by method, hours, longest
@@ -271,7 +298,10 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
   (`metrics-dashboards`), plus an admin count and export/import.
 - Closes M-job 3.
 
-**WP-31. UL logging fit** (api + fe)
+**WP-31. UL logging fit** (api + fe) — API half **implemented**: powered-paraglider names in
+place of a registration, save warnings `ul_night_flight`, `ul_mtom_exceeds_600` and
+`ul_120kg_class` (API.md "Save warnings"). The 472.5 kg class and the §45(1) medical rule are
+not evaluated.
 
 - Registration optional for UL `POWERED_PARAGLIDER`, keyed to a named aircraft instead.
 - A warning (not a rejection) when a German-UL flight has night time.
@@ -279,7 +309,11 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
   rule above 120 kg empty mass.
 - Closes S2 and M4.
 
-**WP-32. Passenger authorisation and Einweisung** (api + fe)
+**WP-32. Passenger authorisation and Einweisung** (api + fe) — **API half implemented**
+with WP-26: `UL_PASSENGER_AUTH`, `UL_TYPE_BRIEFING` (detail: aircraft type) and `UL_TOWING`
+(detail: kind) privileges; German UL passenger currency is current only with the
+authorisation recorded (`pax.ul_authorisation_missing` otherwise) and carries the §84a
+progress rows; see [DOMAIN.md](../DOMAIN.md#ultralights). Frontend half open.
 
 - §84a DULV passenger-authorisation progress: 5 cross-country flights, 2 with landings,
   200 km in total, flown with an FI.
@@ -289,9 +323,19 @@ WP-12 (persona fixtures in the screenshot harness) blocks every frontend WP afte
 
 **WP-33. UL in stats and exports** (api)
 
+Custom-report group-by UL kind (`ulKind`) is implemented with WP-28.
+
 - UL kind in CSV, stats-by-class breakdowns and custom-report group-by.
+  - API — **implemented** for CSV and stats-by-class: the standard CSV ends with
+    `AircraftClass` and `ULKind`; `GET /reports/stats-by-class` keeps one `ULTRALIGHT` row and
+    adds its per-kind split as `byUlKind` (additive, so current clients are unaffected).
+    Custom-report group-by is separate work.
 - A UL PDF layout: kind and passengers columns, no IFR/MP. Chosen automatically for UL
   licences.
+  - API — **implemented**: `GET /exports/pdf?format=ultralight`, picked for UL licences. No
+    passengers column: a flight does not record a passenger count. See
+    [DOMAIN.md](../DOMAIN.md#printed-logbook-layouts).
+- FE: render `byUlKind` under the ultralight bar, and offer the UL layout in the export dialog.
 - Closes M and S reporting.
 
 **WP-34. German copy pass** (fe, `i18n-sync`)

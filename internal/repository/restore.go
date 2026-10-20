@@ -85,6 +85,7 @@ type RestoreTx interface {
 	InsertAircraft(ctx context.Context, aircraft *models.Aircraft) error
 	InsertLicense(ctx context.Context, license *models.License) error
 	InsertClassRating(ctx context.Context, rating *models.ClassRating) error
+	InsertLicencePrivilege(ctx context.Context, privilege *models.LicencePrivilege) error
 	InsertCredential(ctx context.Context, credential *models.Credential) error
 	InsertCustomCurrencyRule(ctx context.Context, rule *models.CustomCurrencyRule) error
 	InsertCustomReport(ctx context.Context, report *models.CustomReport) error
@@ -97,6 +98,7 @@ type RestoreTx interface {
 
 	UpsertNotificationPreferences(ctx context.Context, prefs *models.NotificationPreferences) error
 	UpsertFlightBaseline(ctx context.Context, baseline *models.FlightBaseline) error
+	UpsertPilotProfile(ctx context.Context, profile *models.PilotProfile) error
 
 	// LogbookRestoreWriter writes strict logbook mode, its switch events,
 	// flight revisions and certifications.

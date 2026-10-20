@@ -103,6 +103,10 @@ var Fields = []Field{
 	{Name: "fstdType", Aliases: []string{"fstd"}, Type: FieldText, Column: "COALESCE(fstd_type, '')", Description: "FSTD type designation"},
 	{Name: "endorsements", Type: FieldText, Column: "COALESCE(endorsements, '')", Description: "Endorsements"},
 	{Name: "launchMethod", Aliases: []string{"launch"}, Type: FieldText, Column: "COALESCE(launch_method, '')", Description: "Glider launch method (winch, aerotow, self-launch, car, bungee)"},
+	{Name: "launches", Type: FieldInt, Column: "COALESCE(launches, CASE WHEN is_simulator OR is_passenger THEN 0 ELSE GREATEST(takeoffs_day + takeoffs_night, 1) END)", Description: "Sailplane launches"},
+	{Name: "isOutlanding", Aliases: []string{"outlanding"}, Type: FieldBool, Column: "is_outlanding", Description: "Outlanding (Außenlandung)"},
+	{Name: "isTowFlight", Aliases: []string{"towflight"}, Type: FieldBool, Column: "is_tow_flight", Description: "Flown as tug pilot towing a sailplane"},
+	{Name: "releaseHeightM", Aliases: []string{"releaseheight"}, Type: FieldInt, Column: "release_height_m", Description: "Release height (m)"},
 	{Name: "createdAt", Type: FieldDate, Column: "created_at", Description: "Entry creation date"},
 	{Name: "updatedAt", Type: FieldDate, Column: "updated_at", Description: "Entry last-modified date"},
 }

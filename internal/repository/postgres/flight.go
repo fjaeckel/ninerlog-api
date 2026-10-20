@@ -30,18 +30,31 @@ func appendRegistrationFilter(query string, args []interface{}, argNum int, opts
 	if opts == nil || !opts.FilterByRegistrations {
 		return query, args, argNum
 	}
-	if len(opts.AircraftRegistrations) == 0 {
+	if len(opts.AircraftRegistrations) == 0 && len(opts.UntowedAircraftRegistrations) == 0 {
 		// An empty registration list matches no flights.
 		return query + " AND 1=0", args, argNum
 	}
-	placeholders := make([]string, 0, len(opts.AircraftRegistrations))
-	for _, reg := range opts.AircraftRegistrations {
-		placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
-		args = append(args, reg)
-		argNum++
+	inList := func(regs []string) string {
+		placeholders := make([]string, 0, len(regs))
+		for _, reg := range regs {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
+			args = append(args, reg)
+			argNum++
+		}
+		return "UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
 	}
-	query += " AND UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
-	return query, args, argNum
+	var terms []string
+	if len(opts.AircraftRegistrations) > 0 {
+		terms = append(terms, inList(opts.AircraftRegistrations))
+	}
+	if len(opts.UntowedAircraftRegistrations) > 0 {
+		terms = append(terms, "("+inList(opts.UntowedAircraftRegistrations)+
+			" AND COALESCE(launch_method, '') NOT IN "+towedLaunches+")")
+	}
+	if len(terms) == 1 {
+		return query + " AND " + terms[0], args, argNum
+	}
+	return query + " AND (" + strings.Join(terms, " OR ") + ")", args, argNum
 }
 
 // appendFlightFilters appends every FlightQueryOptions filter to a query over
@@ -109,6 +122,9 @@ func appendFlightFilters(query string, args []interface{}, argNum int, opts *rep
 	return appendRegistrationFilter(query, args, argNum, opts)
 }
 
+// flightLaunchesSQL is launchCountExpr over the unaliased flights table.
+var flightLaunchesSQL = launchCountExpr("")
+
 // timeToString converts a *time.Time (from a PostgreSQL TIME column) to a *string in HH:MM:SS format.
 func timeToString(t *time.Time) *string {
 	if t == nil {
@@ -139,7 +155,8 @@ const flightInsertColumns = `
 	is_proficiency_check, launch_method, pic_name, multi_pilot_time, fstd_type, approaches,
 	endorsements, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 	picus_time, spic_time, examiner_time, relief_time, night_time_override,
-	cross_country_time_override
+	cross_country_time_override, launches, launches_override, is_outlanding, is_tow_flight,
+	release_height_m
 `
 
 // flightInsertArgs returns the values for flightInsertColumns.
@@ -209,7 +226,21 @@ func flightInsertArgs(flight *models.Flight) []any {
 		flight.ReliefTime,
 		flight.NightTimeOverride,
 		flight.CrossCountryTimeOverride,
+		launchesArg(flight),
+		flight.LaunchesOverride,
+		flight.IsOutlanding,
+		flight.IsTowFlight,
+		flight.ReleaseHeightM,
 	}
+}
+
+// launchesArg is the stored launch count: NULL unless the pilot set one, so
+// reads derive it from the take-offs (flightLaunchesSQL).
+func launchesArg(flight *models.Flight) any {
+	if !flight.LaunchesOverride {
+		return nil
+	}
+	return flight.Launches
 }
 
 func placeholders(first, n int) string {
@@ -246,6 +277,27 @@ func (r *flightRepository) CreateWithCrew(ctx context.Context, flight *models.Fl
 	return tx.Commit()
 }
 
+// CreateBatch inserts the flights and their crew members in one transaction.
+func (r *flightRepository) CreateBatch(ctx context.Context, flights []*models.Flight) error {
+	tx, err := beginChangeTx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := repository.RunTxHook(ctx, &txRepos{tx: tx}); err != nil {
+		return err
+	}
+	for _, f := range flights {
+		if err := insertFlightRow(ctx, tx, f); err != nil {
+			return err
+		}
+		if err := insertCrewMembers(ctx, tx, f.ID, f.CrewMembers); err != nil {
+			return &repository.CrewWriteError{Err: err}
+		}
+	}
+	return tx.Commit()
+}
+
 func insertFlightRow(ctx context.Context, db queryExecer, flight *models.Flight) error {
 	args := append(flightInsertArgs(flight), nullableTime(flight.CreatedAt))
 	query := `INSERT INTO flights (` + flightInsertColumns + `, created_at)
@@ -274,7 +326,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
 		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 		       picus_time, spic_time, examiner_time, relief_time,
-		       night_time_override, cross_country_time_override
+		       night_time_override, cross_country_time_override,
+		       ` + flightLaunchesSQL + `, launches_override, is_outlanding, is_tow_flight, release_height_m
 		FROM flights
 		WHERE id = $1
 	`
@@ -347,6 +400,11 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.ReliefTime,
 		&flight.NightTimeOverride,
 		&flight.CrossCountryTimeOverride,
+		&flight.Launches,
+		&flight.LaunchesOverride,
+		&flight.IsOutlanding,
+		&flight.IsTowFlight,
+		&flight.ReleaseHeightM,
 	)
 
 	if err == sql.ErrNoRows {
@@ -485,8 +543,9 @@ func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) erro
 		    sic_time_override = $52, multi_pilot_time_override = $53,
 		    picus_time = $54, spic_time = $55, examiner_time = $56, relief_time = $57,
 		    night_time_override = $58, cross_country_time_override = $59,
-		    updated_at = $60
-		WHERE id = $61
+		    launches = $60, launches_override = $61, is_outlanding = $62, is_tow_flight = $63, release_height_m = $64,
+		    updated_at = $65
+		WHERE id = $66
 	`
 
 	result, err := db.ExecContext(
@@ -550,6 +609,11 @@ func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) erro
 		flight.ReliefTime,
 		flight.NightTimeOverride,
 		flight.CrossCountryTimeOverride,
+		launchesArg(flight),
+		flight.LaunchesOverride,
+		flight.IsOutlanding,
+		flight.IsTowFlight,
+		flight.ReleaseHeightM,
 		time.Now(),
 		flight.ID,
 	)
@@ -829,7 +893,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
 		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 		       picus_time, spic_time, examiner_time, relief_time,
-		       night_time_override, cross_country_time_override
+		       night_time_override, cross_country_time_override,
+		       ` + flightLaunchesSQL + `, launches_override, is_outlanding, is_tow_flight, release_height_m
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -955,6 +1020,11 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.ReliefTime,
 			&flight.NightTimeOverride,
 			&flight.CrossCountryTimeOverride,
+			&flight.Launches,
+			&flight.LaunchesOverride,
+			&flight.IsOutlanding,
+			&flight.IsTowFlight,
+			&flight.ReleaseHeightM,
 		)
 		if err != nil {
 			return nil, err

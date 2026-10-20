@@ -14,18 +14,24 @@ const (
 	StatusCurrent  Status = "current"
 	StatusExpiring Status = "expiring"
 	StatusExpired  Status = "expired"
-	StatusUnknown  Status = "unknown"
+	// StatusLapsed is a rolling recency rule with unmet requirements: the
+	// licence stays valid, its privileges are not exercisable until recency
+	// is restored.
+	StatusLapsed  Status = "lapsed"
+	StatusUnknown Status = "unknown"
 )
 
 // ClassRatingCurrency holds the currency evaluation result for one class rating
 type ClassRatingCurrency struct {
-	ClassRatingID       uuid.UUID        `json:"classRatingId"`
-	ClassType           models.ClassType `json:"classType"`
-	LicenseID           uuid.UUID        `json:"licenseId"`
-	RegulatoryAuthority string           `json:"regulatoryAuthority"`
-	LicenseType         string           `json:"licenseType"`
-	Status              Status           `json:"status"`
-	ExpiryDate          *string          `json:"expiryDate,omitempty"`
+	ClassRatingID uuid.UUID        `json:"classRatingId"`
+	ClassType     models.ClassType `json:"classType"`
+	// ULKind is the rating's ultralight kind; not serialised.
+	ULKind              *models.ULKind `json:"-"`
+	LicenseID           uuid.UUID      `json:"licenseId"`
+	RegulatoryAuthority string         `json:"regulatoryAuthority"`
+	LicenseType         string         `json:"licenseType"`
+	Status              Status         `json:"status"`
+	ExpiryDate          *string        `json:"expiryDate,omitempty"`
 	// WindowOpensAt is set for expiry-anchored revalidation rules
 	// (EASA FCL.740.A SEP/TMG/MEP/SET, FCL.625.A IR). It is the date on which
 	// the 12-month experience-counting window opens (expiry − 12 months).
@@ -55,6 +61,9 @@ type ClassRatingCurrency struct {
 	// CreditedULKinds lists the ultralight kinds whose flights also count
 	// toward this rating.
 	CreditedULKinds []models.ULKind `json:"creditedUltralightKinds,omitempty"`
+	// UnclassifiedFlights counts flights in the window on ULTRALIGHT aircraft
+	// with no kind that the rule did not count.
+	UnclassifiedFlights int `json:"unclassifiedFlights,omitempty"`
 }
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)
@@ -70,8 +79,11 @@ type Progress struct {
 	Flights           int `json:"flights"`
 	Approaches        int `json:"approaches"`
 	Holds             int `json:"holds"`
-	// Launches counts takeoffs, at least one per flight.
+	// Launches counts the flights' launches; a flight stored without a launch
+	// count counts its take-offs, at least one.
 	Launches int `json:"launches"`
+	// SPICMinutes is student pilot-in-command (supervised solo) time.
+	SPICMinutes int `json:"spicMinutes"`
 	// TrainingFlights counts flights with dual time received.
 	TrainingFlights int `json:"trainingFlights"`
 	// LongestTrainingFlightMinutes is the longest total time of a flight with dual time received.
@@ -92,6 +104,12 @@ type Requirement struct {
 	Unit          string         `json:"unit"`
 	MessageKey    string         `json:"messageKey"`
 	MessageParams *MessageParams `json:"messageParams,omitempty"`
+	// ValidUntil is the last date a met rolling-window requirement stays met
+	// with no further flying.
+	ValidUntil *string `json:"validUntil,omitempty"`
+	// RemedyKey names what restores an unmet requirement; RemedyParams its params.
+	RemedyKey    string         `json:"remedyKey,omitempty"`
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
 }
 
 // CurrencyStatusResponse is the full response from the currency endpoint.
@@ -106,6 +124,26 @@ type CurrencyStatusResponse struct {
 
 	// Flight review status (FAA §61.56) — per-pilot, not per-rating
 	FlightReview *FlightReviewStatus `json:"flightReview,omitempty"`
+
+	// Privileges holds the currency of each licence privilege, absent when none are recorded.
+	Privileges []PrivilegeCurrency `json:"privileges,omitempty"`
+}
+
+// PrivilegeCurrency is the currency of one licence privilege.
+type PrivilegeCurrency struct {
+	PrivilegeID        uuid.UUID                   `json:"privilegeId"`
+	LicenseID          uuid.UUID                   `json:"licenseId"`
+	Kind               models.LicencePrivilegeKind `json:"kind"`
+	Detail             *string                     `json:"detail,omitempty"`
+	Status             Status                      `json:"status"`
+	MessageKey         string                      `json:"messageKey"`
+	MessageParams      *MessageParams              `json:"messageParams,omitempty"`
+	Requirements       []Requirement               `json:"requirements,omitempty"`
+	RuleDescriptionKey string                      `json:"ruleDescriptionKey,omitempty"`
+	// ExpiresOn is the privilege's expiry date; not serialised.
+	ExpiresOn *time.Time `json:"-"`
+	// LicenseType is the licence's type; not serialised.
+	LicenseType string `json:"-"`
 }
 
 // PassengerCurrency holds passenger-carrying currency for one class type.
@@ -141,6 +179,9 @@ type PassengerCurrency struct {
 	MessageParams      *MessageParams `json:"messageParams,omitempty"`
 	RuleDescription    string         `json:"ruleDescription"`
 	RuleDescriptionKey string         `json:"ruleDescriptionKey,omitempty"`
+	// Requirements lists informational passenger prerequisites that never
+	// change DayStatus.
+	Requirements []Requirement `json:"requirements,omitempty"`
 }
 
 // FlightReviewStatus tracks FAA §61.56 flight review currency (24 calendar months).
@@ -155,9 +196,17 @@ type FlightReviewStatus struct {
 // LaunchMethodCurrency tracks launch method recency per SFCL.155(c): 5 launches
 // per method (2 for bungee) in the rolling 24 months.
 type LaunchMethodCurrency struct {
-	Method     string `json:"method"`
-	Launches   int    `json:"launches"`
-	Required   int    `json:"required"`
-	Met        bool   `json:"met"`
+	Method   string `json:"method"`
+	Launches int    `json:"launches"`
+	Required int    `json:"required"`
+	Met      bool   `json:"met"`
+	// Trained is true when a LAUNCH_METHOD_TRAINED privilege for the method is
+	// on the rating's licence.
+	Trained    bool   `json:"trained"`
 	MessageKey string `json:"messageKey"`
+	// ValidUntil is the last date a met method stays met with no further flying.
+	ValidUntil *string `json:"validUntil,omitempty"`
+	// RemedyKey names what restores an unmet method (SFCL.155(d)); RemedyParams its params.
+	RemedyKey    string         `json:"remedyKey,omitempty"`
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
 }

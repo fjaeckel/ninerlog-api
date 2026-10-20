@@ -3,6 +3,7 @@ package currency
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
@@ -21,6 +22,7 @@ type Service struct {
 	classRatingRepo ClassRatingRepo
 	flightData      FlightDataProvider
 	fallback        Evaluator
+	privileges      PrivilegeLister
 }
 
 // NewService creates a new currency service
@@ -44,6 +46,22 @@ func NewService(
 //   - Tier 1 (Ratings): Rating/license currency — can you fly at all?
 //   - Tier 2 (PassengerCurrency): Passenger currency — can you carry passengers?
 func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyStatusResponse, error) {
+	return s.evaluateAll(ctx, userID)
+}
+
+// EvaluateAsOf is EvaluateAll on date, counting the flights on record as if
+// the pilot does not fly again before it.
+func (s *Service) EvaluateAsOf(ctx context.Context, userID uuid.UUID, date time.Time) (*CurrencyStatusResponse, error) {
+	return s.evaluateAll(withNow(ctx, dateAt(date)), userID)
+}
+
+// evaluateAll evaluates at the context's instant, through a dailyCache when
+// the provider supports per-date reads.
+func (s *Service) evaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyStatusResponse, error) {
+	dp := s.flightData
+	if daily, ok := dp.(DailyFlightDataProvider); ok {
+		dp = newDailyCache(daily)
+	}
 	// Get all user licenses
 	licenses, err := s.licenseRepo.GetByUserID(ctx, userID, nil)
 	if err != nil {
@@ -57,14 +75,17 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 	flightReviewEvaluated := false
 
 	ratingsByLicense := make(map[uuid.UUID][]*models.ClassRating, len(licenses))
+	var heldRatings []*models.ClassRating
 	for _, license := range licenses {
 		classRatings, err := s.classRatingRepo.GetByLicenseID(ctx, license.ID)
 		if err != nil {
 			continue // skip on error
 		}
 		ratingsByLicense[license.ID] = classRatings
+		heldRatings = append(heldRatings, classRatings...)
 	}
 	partFCLTMG := s.holdsPartFCLTMG(licenses, ratingsByLicense)
+	privs, privilegesLoaded := s.loadPrivileges(ctx, userID)
 
 	for _, license := range licenses {
 		classRatings, ok := ratingsByLicense[license.ID]
@@ -78,45 +99,60 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		for _, cr := range classRatings {
 			// Tier 1: Rating currency
 			var result ClassRatingCurrency
-			if pe, ok := eval.(PeerAwareEvaluator); ok {
-				result = pe.EvaluateWithPeers(ctx, cr, license, classRatings, s.flightData)
+			holderEval, holderAware := eval.(HolderAwareEvaluator)
+			if holderAware {
+				result = holderEval.EvaluateForHolder(ctx, cr, license, classRatings, heldRatings, dp)
+			} else if pe, ok := eval.(PeerAwareEvaluator); ok {
+				result = pe.EvaluateWithPeers(ctx, cr, license, classRatings, dp)
 			} else {
-				result = eval.Evaluate(ctx, cr, license, s.flightData)
+				result = eval.Evaluate(ctx, cr, license, dp)
 			}
 			if partFCLTMG && result.RuleDescriptionKey == easaSPLTMGRule.displayKey {
 				applySFCLTMGExemption(&result)
 			}
+			if privilegesLoaded && result.RuleDescriptionKey == easaSPLRule.displayKey {
+				s.applyTrainedLaunchMethods(ctx, &result, license, privs[license.ID], dp)
+			}
 			ratings = append(ratings, result)
 
 			// Tier 2: Passenger currency (if evaluator supports it).
-			// IR ratings, and ULTRALIGHT outside the German UL evaluator, are skipped.
+			// IR ratings, ULTRALIGHT outside the German UL evaluator, and
+			// ULTRALIGHT with no kind are skipped.
 			if cr.ClassType == models.ClassTypeIR {
 				continue
 			}
-			if _, germanUL := eval.(*GermanULEvaluator); cr.ClassType == models.ClassTypeUL && !germanUL {
+			if _, germanUL := eval.(*GermanULEvaluator); cr.ClassType == models.ClassTypeUL && (!germanUL || cr.ULKind == nil) {
 				continue
 			}
 			passengerKey := string(cr.ClassType) + ":" + license.RegulatoryAuthority
 			if cr.ClassType == models.ClassTypeUL {
-				passengerKey += ":" + string(ratingULKind(cr))
+				passengerKey += ":" + string(*cr.ULKind)
 			}
 			if seenPassengerClasses[passengerKey] {
 				continue
 			}
 			seenPassengerClasses[passengerKey] = true
 
-			if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
-				passengerCurrency = append(passengerCurrency, paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, s.flightData))
+			var pax PassengerCurrency
+			if holderAware {
+				pax = holderEval.EvaluateRatingPassengerCurrencyForHolder(ctx, cr, license, classRatings, heldRatings, dp)
+			} else if paxEval, ok := eval.(RatingPassengerCurrencyEvaluator); ok {
+				pax = paxEval.EvaluateRatingPassengerCurrency(ctx, cr, license, classRatings, dp)
 			} else if paxEval, ok := eval.(PassengerCurrencyEvaluator); ok {
-				pax := paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, s.flightData)
-				passengerCurrency = append(passengerCurrency, pax)
+				pax = paxEval.EvaluatePassengerCurrency(ctx, cr.ClassType, license, classRatings, dp)
+			} else {
+				continue
 			}
+			if privilegesLoaded {
+				s.applyPassengerPrivileges(ctx, &pax, license, privs[license.ID], dp)
+			}
+			passengerCurrency = append(passengerCurrency, pax)
 		}
 
 		// Flight review (FAA §61.56) — evaluate once per authority, not per rating
 		if !flightReviewEvaluated {
 			if frEval, ok := eval.(FlightReviewEvaluator); ok {
-				flightReview = frEval.EvaluateFlightReview(ctx, userID, s.flightData)
+				flightReview = frEval.EvaluateFlightReview(ctx, userID, dp)
 				flightReviewEvaluated = true
 			}
 		}
@@ -129,11 +165,15 @@ func (s *Service) EvaluateAll(ctx context.Context, userID uuid.UUID) (*CurrencyS
 		passengerCurrency = []PassengerCurrency{}
 	}
 
-	return &CurrencyStatusResponse{
+	resp := &CurrencyStatusResponse{
 		Ratings:           ratings,
 		PassengerCurrency: passengerCurrency,
 		FlightReview:      flightReview,
-	}, nil
+	}
+	if privilegesLoaded {
+		resp.Privileges = s.evaluatePrivileges(ctx, licenses, privs)
+	}
+	return resp, nil
 }
 
 // evaluatorFor returns the evaluator for a license's authority.

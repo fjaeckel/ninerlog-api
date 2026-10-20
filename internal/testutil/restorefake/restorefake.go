@@ -18,6 +18,7 @@ type State struct {
 	Licenses    []*models.License
 	Ratings     []*models.ClassRating
 	Credentials []*models.Credential
+	Privileges  []*models.LicencePrivilege
 	Contacts    []*models.Contact
 	Flights     []*models.Flight
 	Crew        []models.FlightCrewMember
@@ -25,6 +26,7 @@ type State struct {
 	Reports     []*models.CustomReport
 	Prefs       *models.NotificationPreferences
 	Baseline    *models.FlightBaseline
+	Profile     *models.PilotProfile
 
 	Strict         bool
 	StrictSince    *time.Time
@@ -39,6 +41,7 @@ func (s State) clone() State {
 		Licenses:    append([]*models.License(nil), s.Licenses...),
 		Ratings:     append([]*models.ClassRating(nil), s.Ratings...),
 		Credentials: append([]*models.Credential(nil), s.Credentials...),
+		Privileges:  append([]*models.LicencePrivilege(nil), s.Privileges...),
 		Contacts:    append([]*models.Contact(nil), s.Contacts...),
 		Flights:     append([]*models.Flight(nil), s.Flights...),
 		Crew:        append([]models.FlightCrewMember(nil), s.Crew...),
@@ -46,6 +49,7 @@ func (s State) clone() State {
 		Reports:     append([]*models.CustomReport(nil), s.Reports...),
 		Prefs:       s.Prefs,
 		Baseline:    s.Baseline,
+		Profile:     s.Profile,
 
 		Strict:         s.Strict,
 		StrictSince:    s.StrictSince,
@@ -87,6 +91,7 @@ const (
 	OpAircraft         = "insert_aircraft"
 	OpLicense          = "insert_license"
 	OpClassRating      = "insert_class_rating"
+	OpPrivilege        = "insert_licence_privilege"
 	OpCredential       = "insert_credential" // #nosec G101 -- an operation label, not a credential.
 	OpRule             = "insert_custom_currency_rule"
 	OpReport           = "insert_custom_report"
@@ -95,6 +100,7 @@ const (
 	OpCrew             = "insert_crew_members"
 	OpPrefs            = "upsert_notification_preferences"
 	OpBaseline         = "upsert_flight_baseline"
+	OpPilotProfile     = "upsert_pilot_profile"
 	OpSetStrict        = "set_strict"
 	OpModeEvent        = "import_mode_event"
 	OpRevisions        = "import_revisions"
@@ -164,7 +170,7 @@ func (t *tx) WipeContent(ctx context.Context, userID uuid.UUID, correctionFlight
 	t.store.WipeCorrections = correctionFlightIDs
 	st := &t.store.State
 	*st = State{
-		Prefs: st.Prefs, Baseline: st.Baseline,
+		Prefs: st.Prefs, Baseline: st.Baseline, Profile: st.Profile,
 		Strict: st.Strict, StrictSince: st.StrictSince,
 		ModeEvents: st.ModeEvents, Revisions: st.Revisions, Certifications: st.Certifications,
 	}
@@ -223,6 +229,15 @@ func (t *tx) InsertClassRating(ctx context.Context, cr *models.ClassRating) erro
 	}
 	ensureID(&cr.ID)
 	t.store.State.Ratings = append(t.store.State.Ratings, cr)
+	return nil
+}
+
+func (t *tx) InsertLicencePrivilege(ctx context.Context, p *models.LicencePrivilege) error {
+	if err := t.hit(OpPrivilege); err != nil {
+		return err
+	}
+	ensureID(&p.ID)
+	t.store.State.Privileges = append(t.store.State.Privileges, p)
 	return nil
 }
 
@@ -292,6 +307,14 @@ func (t *tx) UpsertFlightBaseline(ctx context.Context, b *models.FlightBaseline)
 		return err
 	}
 	t.store.State.Baseline = b
+	return nil
+}
+
+func (t *tx) UpsertPilotProfile(ctx context.Context, p *models.PilotProfile) error {
+	if err := t.hit(OpPilotProfile); err != nil {
+		return err
+	}
+	t.store.State.Profile = p
 	return nil
 }
 

@@ -1,11 +1,17 @@
 package flightrules
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 )
+
+// CreditedLabel marks a flight in a licence logbook that is credited toward
+// the licence's ratings from another class.
+const CreditedLabel = "[Credited]"
 
 // RemarkFlag is an optional inline marker appended to a flight's remarks
 // when present (FAA logbook convention). Order matches FAA convention:
@@ -22,7 +28,8 @@ const (
 // string, suffixed with the declared-function-time annotations the paper
 // layouts require ([PICUS h:mm] / [SPIC h:mm] / [Examiner h:mm] /
 // [Relief h:mm] — the PIC and co-pilot columns fold these times in, per
-// PICColumnTime and CoPilotColumnTime), and optionally with FAA-style inline
+// PICColumnTime and CoPilotColumnTime), then the launch method
+// ([Launch: winch], see LaunchRemark), and optionally with FAA-style inline
 // flags ([IPC] / [FR] / [PC]). Empty endorsements/remarks are skipped; the
 // separator between a non-empty remark and a non-empty endorsement is " | ".
 //
@@ -30,6 +37,36 @@ const (
 // is true AND the flag was requested by the caller. Most callers pass all
 // three flags and let the model state decide.
 func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
+	return combinedRemarks(f, true, flags...)
+}
+
+// SailplaneRemarks returns CombinedRemarks without the launch marker, followed
+// by "[Outlanding]" when the flight ended in an outlanding and "[Release <n> m]"
+// when a release height is set.
+func SailplaneRemarks(f *models.Flight) string {
+	if f == nil {
+		return ""
+	}
+	out := combinedRemarks(f, false)
+	add := func(s string) {
+		if out != "" {
+			out += " "
+		}
+		out += s
+	}
+	if f.IsOutlanding {
+		add(OutlandingLabel)
+	}
+	if f.ReleaseHeightM != nil {
+		add(fmt.Sprintf("[Release %d m]", *f.ReleaseHeightM))
+	}
+	return out
+}
+
+// OutlandingLabel marks a flight that ended in an outlanding (Außenlandung).
+const OutlandingLabel = "[Outlanding]"
+
+func combinedRemarks(f *models.Flight, withLaunch bool, flags ...RemarkFlag) string {
 	if f == nil {
 		return ""
 	}
@@ -56,6 +93,12 @@ func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
 	addTime(f.SPICTime, "SPIC")
 	addTime(f.ExaminerTime, "Examiner")
 	addTime(f.ReliefTime, "Relief")
+	if marker := LaunchRemark(f.LaunchMethod); withLaunch && marker != "" {
+		if out != "" {
+			out += " "
+		}
+		out += marker
+	}
 	addFlag := func(active bool, label string) {
 		if !active {
 			return
@@ -76,4 +119,30 @@ func CombinedRemarks(f *models.Flight, flags ...RemarkFlag) string {
 		}
 	}
 	return strings.TrimSpace(out)
+}
+
+// launchRemarkPattern matches a LaunchRemark marker anywhere in a remarks string.
+var launchRemarkPattern = regexp.MustCompile(`\s*\[Launch: ([a-z-]+)\]`)
+
+// LaunchRemark returns the remarks marker for a launch method, "[Launch: winch]",
+// or "" when method is nil or empty.
+func LaunchRemark(method *string) string {
+	if method == nil || strings.TrimSpace(*method) == "" {
+		return ""
+	}
+	return "[Launch: " + strings.TrimSpace(*method) + "]"
+}
+
+// ExtractLaunchRemark removes the first LaunchRemark marker naming a valid
+// launch method from remarks, returning the method and the remaining remarks.
+// Without such a marker it returns "" and remarks unchanged.
+func ExtractLaunchRemark(remarks string) (method, rest string) {
+	for _, loc := range launchRemarkPattern.FindAllStringSubmatchIndex(remarks, -1) {
+		m := remarks[loc[2]:loc[3]]
+		if !models.IsValidLaunchMethod(m) {
+			continue
+		}
+		return m, strings.TrimSpace(remarks[:loc[0]] + remarks[loc[1]:])
+	}
+	return "", remarks
 }

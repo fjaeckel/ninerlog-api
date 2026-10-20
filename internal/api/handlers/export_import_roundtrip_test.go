@@ -84,7 +84,7 @@ func exportCSV(t *testing.T, layout string, flights []*models.Flight, prefs expo
 	w := csv.NewWriter(&buf)
 	switch layout {
 	case "standard":
-		writeStandardCSV(w, flights, prefs)
+		writeStandardCSV(w, flights, prefs, nil)
 	case "easa":
 		writeEASACSV(w, flights, prefs, "Alex Rivera")
 	case "faa":
@@ -276,19 +276,10 @@ func toMappingLookup(mappings []generated.ImportColumnMapping) map[string]genera
 	return out
 }
 
-// effectiveTotalMinutes mirrors what ConfirmImport does when deciding a
-// flight's total: block times win over the explicit total cell.
+// effectiveTotalMinutes returns the total ConfirmImport assigns a row.
 func effectiveTotalMinutes(t *testing.T, f generated.FlightCreate) int {
 	t.Helper()
-	if safeStr(f.OffBlockTime) != "" && safeStr(f.OnBlockTime) != "" {
-		if mins, err := calculateBlockTime(safeStr(f.OffBlockTime), safeStr(f.OnBlockTime)); err == nil {
-			return mins
-		}
-	}
-	if f.TotalTime != nil {
-		return *f.TotalTime
-	}
-	return 0
+	return importTotalMinutes(f)
 }
 
 func abs(n int) int {

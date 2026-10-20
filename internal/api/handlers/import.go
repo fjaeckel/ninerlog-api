@@ -335,9 +335,12 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 	auxColumns := sessionAuxColumns(session)
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session,
+		collectTowedLaunchRegs(session.rows, mappingLookup, nil))
 
 	for i, row := range session.rows {
 		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
+		filterLaunch(&flight)
 		rowIdx := i + 1
 
 		if len(errs) > 0 {
@@ -458,6 +461,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 	multiPilotRegs := collectMultiPilotRegistrations(session.rows, mappingLookup, auxColumns, isSelected)
 
 	aircraftCreated := 0
+	towedRegs := collectTowedLaunchRegs(session.rows, mappingLookup, isSelected)
 
 	// Auto-create aircraft from ForeFlight Aircraft Table if present
 	if len(session.aircraft) > 0 {
@@ -484,23 +488,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				model_ = typeCode
 			}
 
-			// Map ForeFlight class to aircraft class
-			var aircraftClass *string
-			ffClass := strings.ToLower(strings.TrimSpace(acRow["Class"]))
-			switch ffClass {
-			case "airplane_single_engine_land":
-				c := "SEP_LAND"
-				aircraftClass = &c
-			case "airplane_single_engine_sea":
-				c := "SEP_SEA"
-				aircraftClass = &c
-			case "airplane_multi_engine_land":
-				c := "MEP_LAND"
-				aircraftClass = &c
-			case "airplane_multi_engine_sea":
-				c := "MEP_SEA"
-				aircraftClass = &c
-			}
+			aircraftClass := models.InferImportedAircraftClass(
+				models.ClassType(importtemplate.ForeFlightAircraftClass(acRow["Class"])), reg, towedRegs[reg])
 
 			newAircraft := &models.Aircraft{
 				UserID:        userID,
@@ -554,13 +543,14 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		// Make/Model are required by Aircraft.Validate but a flight row carries
 		// neither; seed them from the type code, as the ForeFlight path does.
 		newAircraft := &models.Aircraft{
-			UserID:       userID,
-			Registration: reg,
-			Type:         typeCode,
-			Make:         typeCode,
-			Model:        typeCode,
-			IsActive:     true,
-			IsMultiPilot: multiPilotRegs[reg],
+			UserID:        userID,
+			Registration:  reg,
+			Type:          typeCode,
+			Make:          typeCode,
+			Model:         typeCode,
+			IsActive:      true,
+			IsMultiPilot:  multiPilotRegs[reg],
+			AircraftClass: models.InferImportedAircraftClass("", reg, towedRegs[reg]),
 		}
 		if err := h.aircraftService.CreateAircraft(c.Request.Context(), newAircraft); err != nil {
 			// Fleet-entry failures are non-fatal; the flights still import.
@@ -584,6 +574,8 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		strictState = state
 	}
 
+	filterLaunch := h.importLaunchFilter(c.Request.Context(), userID, session, towedRegs)
+
 	for i, row := range session.rows {
 		rowIdx := i + 1
 		if !isSelected(rowIdx) {
@@ -592,6 +584,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		flight, extras, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
+		filterLaunch(&flight)
 		if len(errs) > 0 {
 			for _, e := range errs {
 				importErrors = append(importErrors, struct {
@@ -1026,6 +1019,29 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			} else {
 				errs = append(errs, fieldError{"dualGivenTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
+		case "launchMethod":
+			if m := importtemplate.ParseLaunchMethod(val); m != "" {
+				lm := generated.FlightCreateLaunchMethod(m)
+				flight.LaunchMethod = &lm
+			}
+		case "launches":
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				flight.Launches = &n
+			} else {
+				errs = append(errs, fieldError{"launches", fmt.Sprintf("Invalid number '%s'", val)})
+			}
+		case "isOutlanding":
+			b := parseBoolish(val, nil)
+			flight.IsOutlanding = &b
+		case "isTowFlight":
+			b := parseBoolish(val, nil)
+			flight.IsTowFlight = &b
+		case "releaseHeightM":
+			if n, err := strconv.Atoi(val); err == nil && n >= models.MinReleaseHeightM && n <= models.MaxReleaseHeightM {
+				flight.ReleaseHeightM = &n
+			} else {
+				errs = append(errs, fieldError{"releaseHeightM", fmt.Sprintf("Invalid release height '%s'", val)})
+			}
 		case "person1", "person2", "person3", "person4", "person5", "person6":
 			slot := string(mapping.TargetField)
 			name, role := foreFlightPersonNameRole(val)
@@ -1072,6 +1088,21 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.TakeoffsDay = &n
 			} else {
 				flight.TakeoffsNight = &n
+			}
+		}
+	}
+
+	// Launch method from a "[Launch: …]" remarks marker (flightrules.LaunchRemark).
+	if flight.Remarks != nil {
+		if m, rest := flightrules.ExtractLaunchRemark(*flight.Remarks); m != "" {
+			if flight.LaunchMethod == nil {
+				lm := generated.FlightCreateLaunchMethod(m)
+				flight.LaunchMethod = &lm
+			}
+			if rest == "" {
+				flight.Remarks = nil
+			} else {
+				flight.Remarks = &rest
 			}
 		}
 	}
@@ -1238,15 +1269,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		if flight.SimulatedInstrumentTime != nil {
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
-		totalCap := 0
-		if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
-			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
-				totalCap = m
-			}
-		}
-		if totalCap == 0 && flight.TotalTime != nil {
-			totalCap = *flight.TotalTime
-		}
+		totalCap := importTotalMinutes(flight)
 		if totalCap > 0 && ifrTotal > totalCap {
 			ifrTotal = totalCap
 		}
@@ -1283,12 +1306,7 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	offBlock := safeStr(flight.OffBlockTime)
 	onBlock := safeStr(flight.OnBlockTime)
 
-	totalTime := 0
-	if offBlock != "" && onBlock != "" {
-		totalTime, _ = calculateBlockTime(offBlock, onBlock)
-	} else if flight.TotalTime != nil {
-		totalTime = *flight.TotalTime
-	}
+	totalTime := importTotalMinutes(flight)
 
 	flightDate, _ := time.Parse("2006-01-02", flight.Date.String())
 
@@ -1361,6 +1379,21 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	if flight.InstructorComments != nil {
 		newFlight.InstructorComments = flight.InstructorComments
 	}
+	if flight.LaunchMethod != nil {
+		lm := string(*flight.LaunchMethod)
+		newFlight.LaunchMethod = &lm
+	}
+	if flight.Launches != nil {
+		newFlight.Launches = *flight.Launches
+		newFlight.LaunchesOverride = true
+	}
+	if flight.IsOutlanding != nil {
+		newFlight.IsOutlanding = *flight.IsOutlanding
+	}
+	if flight.IsTowFlight != nil {
+		newFlight.IsTowFlight = *flight.IsTowFlight
+	}
+	newFlight.ReleaseHeightM = flight.ReleaseHeightM
 	newFlight.DualGivenTime = getIntOrDefault(flight.DualGivenTime, 0)
 	// An imported night or cross-country value is stored as an override,
 	// capped at block time.
@@ -1453,6 +1486,26 @@ func sessionAuxColumns(session *uploadSession) map[string]importtemplate.AuxFiel
 		return nil
 	}
 	return tpl.AuxColumns(session.columns)
+}
+
+// importTotalMinutes returns an imported row's total time: the block span
+// when both block times parse, otherwise the row's total-time cell, otherwise
+// the take-off to landing span. Returns 0 when none is usable.
+func importTotalMinutes(f generated.FlightCreate) int {
+	if off, on := safeStr(f.OffBlockTime), safeStr(f.OnBlockTime); off != "" && on != "" {
+		if m, err := models.ClockSpanMinutes(off, on); err == nil {
+			return m
+		}
+	}
+	if f.TotalTime != nil {
+		return *f.TotalTime
+	}
+	if to, ldg := safeStr(f.DepartureTime), safeStr(f.ArrivalTime); to != "" && ldg != "" {
+		if m, err := models.ClockSpanMinutes(to, ldg); err == nil {
+			return m
+		}
+	}
+	return 0
 }
 
 // captureDateFromTimestamp records the date half of a time cell that carries a
@@ -1554,6 +1607,60 @@ func collectAircraftFromRows(rows []map[string]string, mappings map[string]gener
 		}
 	}
 	return found
+}
+
+// importLaunchFilter returns a function that clears a flight's launch method
+// unless models.LaunchMethodApplies to its aircraft: the fleet entry when the
+// user has one, otherwise the class the import infers for it from towed, the
+// collectTowedLaunchRegs result.
+func (h *APIHandler) importLaunchFilter(ctx context.Context, userID uuid.UUID, session *uploadSession, towed map[string]bool) func(*generated.FlightCreate) {
+	fleet := make(map[string]*models.Aircraft)
+	if list, err := h.aircraftService.ListAircraft(ctx, userID); err == nil {
+		for _, a := range list {
+			fleet[registration.Canonical(a.Registration)] = a
+		}
+	}
+	sourceClass := make(map[string]string)
+	for _, acRow := range session.aircraft {
+		if reg := registration.Canonical(acRow["AircraftID"]); reg != "" {
+			sourceClass[reg] = importtemplate.ForeFlightAircraftClass(acRow["Class"])
+		}
+	}
+	return func(f *generated.FlightCreate) {
+		if f.LaunchMethod == nil || f.AircraftReg == nil {
+			return
+		}
+		reg := registration.Canonical(*f.AircraftReg)
+		var class *string
+		var kind *models.ULKind
+		if a, ok := fleet[reg]; ok {
+			class, kind = a.AircraftClass, a.ULKind
+		} else {
+			class = models.InferImportedAircraftClass(models.ClassType(sourceClass[reg]), reg, towed[reg])
+		}
+		if !models.LaunchMethodApplies(class, kind) {
+			f.LaunchMethod = nil
+		}
+	}
+}
+
+// collectTowedLaunchRegs returns the registrations of the selected rows whose
+// launch method is towed (models.IsTowedLaunch).
+func collectTowedLaunchRegs(rows []map[string]string, mappings map[string]generated.ImportColumnMapping, isSelected func(rowIdx int) bool) map[string]bool {
+	towed := make(map[string]bool)
+	for i, row := range rows {
+		if isSelected != nil && !isSelected(i+1) {
+			continue
+		}
+		f, _ := mapRowToFlight(row, mappings, nil)
+		if f.LaunchMethod == nil || f.AircraftReg == nil || *f.AircraftReg == "" {
+			continue
+		}
+		if models.IsTowedLaunch(string(*f.LaunchMethod)) {
+			towed[*f.AircraftReg] = true
+		}
+	}
+	return towed
 }
 
 // parseForeFlightApproach parses a single ForeFlight Approach cell into an
@@ -2120,7 +2227,7 @@ func parseBoolish(val string, trueValue *string) bool {
 		return strings.EqualFold(val, *trueValue)
 	}
 	lower := strings.ToLower(val)
-	if lower == "true" || lower == "yes" || lower == "1" || lower == "x" || lower == "y" {
+	if lower == "true" || lower == "yes" || lower == "1" || lower == "x" || lower == "y" || lower == "ja" || lower == "j" {
 		return true
 	}
 	// If it's a float > 0, treat as true (ForeFlight PIC column)

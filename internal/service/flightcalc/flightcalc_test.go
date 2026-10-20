@@ -824,7 +824,7 @@ func TestCalculateNightTime_NilTimes(t *testing.T) {
 	}
 }
 
-// Night time is computed from block times alone: a flight from EDBO
+// Night time is computed from block times: a flight from EDBO
 // 18:56→19:19 UTC on 19 Mar 2019 is entirely after evening civil twilight,
 // and all 23 minutes are night even when DepartureTime / ArrivalTime are nil.
 func TestCalculateNightTime_OffBlockFallback_Regression(t *testing.T) {

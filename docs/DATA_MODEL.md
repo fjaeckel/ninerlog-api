@@ -19,7 +19,9 @@ flowchart TD
     User --> Contact
     User --> Flight
     User --> FlightBaseline
+    User --> PilotProfile
     License --> ClassRating
+    License --> LicencePrivilege
     Flight --> FlightCrewMember
 
     subgraph auth["Auth / session side tables (owned by User)"]
@@ -124,8 +126,26 @@ A class/type rating attached to a license. `ClassType` is an enum:
 
 `ul_kind` (migration 72, nullable, CHECK-constrained) is the ultralight kind an `ULTRALIGHT`
 rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWERED_PARAGLIDER`
-or `SAILPLANE` — and is cleared on any other class. NULL is evaluated as `THREE_AXIS`. See
+or `SAILPLANE` — and is cleared on any other class. A German UL rating with NULL is not
+evaluated (`rating.ul_kind_required`). See
 [DOMAIN.md](./DOMAIN.md#ultralights).
+
+### LicencePrivilege (`internal/models/licence_privilege.go`, migration 82)
+
+A rating, endorsement or authorisation on a licence beside its class ratings. `user_id` and
+`license_id` both cascade, so deleting the licence or the account removes its privileges.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `kind` | `TEXT` | CHECK: `SAILPLANE_TOWING`, `BANNER_TOWING`, `CLOUD_FLYING`, `AEROBATIC_BASIC`, `AEROBATIC_ADVANCED`, `TMG_NIGHT`, `FI_S`, `BI_S`, `FE_S`, `UL_PASSENGER_AUTH`, `UL_TOWING`, `UL_TYPE_BRIEFING`, `LAUNCH_METHOD_TRAINED` |
+| `detail` | `TEXT NULL` | ≤ 100 chars; the launch method (`LAUNCH_METHOD_TRAINED`), ultralight kind (`UL_TOWING`) or aircraft type (`UL_TYPE_BRIEFING`), each required for its kind (enforced in `Validate`) |
+| `issued_on` | `DATE NULL` | |
+| `expires_on` | `DATE NULL` | not before `issued_on` (constraint `licence_privileges_dates`) |
+| `notes` | `TEXT NULL` | ≤ 1000 chars |
+
+Indexed on `user_id` (the currency read) and `license_id`. Exported inside the licence entry of
+the JSON backup (`licenses[].privileges`). Evaluated by the currency engine; see
+[SAILPLANES.md](./SAILPLANES.md#privileges).
 
 ### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73)
 
@@ -213,7 +233,7 @@ flight update, spreadsheet import, backup restore) runs the crew names through
 than of which entry point the pilot used. `POST /contacts` is for filling in email and
 phone, and returns 409 on a name that already exists rather than creating a second row.
 
-### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66, 79)
+### Flight (`internal/models/flight.go`, migrations 5–8, 14, 16, 23, 25, 30–32, 63, 66, 79, 81)
 
 The central record. It holds **two kinds of row**, told apart by `IsSimulator`: a flight,
 and an FSTD (simulator) session. See
@@ -223,8 +243,11 @@ are **integer minutes**):
 - **Identity / context**: `Date`, `AircraftReg` (canonicalised the same way as
   `Aircraft.Registration` — see above), `AircraftType`, `DepartureICAO`,
   `ArrivalICAO`, `Route` (comma-separated ICAO waypoints).
-- **Block / event times** (`HH:MM:SS`, UTC): `OffBlockTime`, `OnBlockTime`,
-  `DepartureTime`, `ArrivalTime`.
+- **Block / event times** (`HH:MM:SS`, UTC, all nullable): `OffBlockTime`, `OnBlockTime`,
+  `DepartureTime` (take-off), `ArrivalTime` (landing). A flight carries at least one
+  complete pair — block times, or take-off and landing — and `TotalTime` spans the block
+  pair when present, otherwise take-off to landing (`models.FlightClocks`,
+  `internal/models/flight_times.go`). Rows imported before this rule may carry neither.
 - **Function times** (minutes): `TotalTime`, `PICTime`, `DualTime`, `NightTime`,
   `IFRTime`, `SoloTime`, `CrossCountryTime`, `SICTime`, `DualGivenTime`,
   `SimulatedFlightTime`, `GroundTrainingTime`, `MultiPilotTime` (EASA AMC1 FCL.050 col 10),
@@ -265,7 +288,13 @@ are **integer minutes**):
 - **Excluded from aggregates**: every aggregate query carries
   `NOT is_simulator AND NOT is_passenger` — the SQL counterpart of
   `flightrules.CountsAsFlightTime`.
-- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`); see
+- **Gliders**: `LaunchMethod` (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+  Migration 76 adds `Launches` (`launches INT NULL`, `>= 0`) with `LaunchesOverride`
+  (`launches_override`): the launch count, derived from the take-offs (at least one) unless
+  the pilot set it; a `NULL` on rows stored before the column reads as the take-off count.
+  It also adds `IsOutlanding` (`is_outlanding`, a landing away from the planned site; no
+  cross-country time is derived), `IsTowFlight` (`is_tow_flight`, the pilot flew the tug)
+  and `ReleaseHeightM` (`release_height_m INT NULL`, 0–20000 m). See
   [SAILPLANES.md](./SAILPLANES.md).
 - **Free text**: `Remarks`.
 - **History** (migration 79): in strict logbook mode every committed change and every delete
@@ -341,6 +370,18 @@ order set by `PUT /reports/custom/order`; new reports are appended after the hig
 `position`. Aggregation runs as a single `GROUP BY` CTE over `flights`
 (`internal/repository/postgres/custom_report.go`) reusing `appendFlightFilters`, the same
 filter builder `GET /flights` uses.
+
+### PilotProfile (`internal/models/pilot_profile.go`, migration 80)
+
+One row per user in `pilot_profiles` (`user_id` primary key, `ON DELETE CASCADE`), holding only
+what the pilot chose for the adaptive disciplines: `mode` (`adaptive` or `everything`, CHECK
+constraint) and `disciplines` JSONB, a map of discipline to
+`{"intent": "on"|"off"|"goal", "acknowledgedAt": timestamp}`. Entries with intent `auto` and no
+acknowledgement are not stored; keys this version does not know are skipped on read and dropped
+on the next write. No row means mode `adaptive` and intent `auto` everywhere, and a read never
+creates one. Evidence and status are derived on every read and never stored — see
+[DOMAIN.md](./DOMAIN.md#pilot-profile-and-disciplines). Exported and restored as the
+`pilotProfile` section of the JSON backup (a restore replaces the row).
 
 ## Auth, session, and notification tables
 

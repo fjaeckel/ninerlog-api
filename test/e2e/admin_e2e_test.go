@@ -60,6 +60,12 @@ func TestAdminEndpoints(t *testing.T) {
 				t.Errorf("Expected numeric %s, got %v", key, s[key])
 			}
 		}
+		lp, ok := s["licencePrivileges"].(map[string]interface{})
+		if !ok || lp["total"] == nil {
+			t.Errorf("Expected licencePrivileges.total, got %v", s["licencePrivileges"])
+		} else if _, ok := lp["byKind"].(map[string]interface{}); !ok {
+			t.Errorf("Expected licencePrivileges.byKind map, got %T", lp["byKind"])
+		}
 		cbd, ok := s["cloudBackupDestinations"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Expected cloudBackupDestinations object, got %T", s["cloudBackupDestinations"])
@@ -69,6 +75,40 @@ func TestAdminEndpoints(t *testing.T) {
 		}
 		if _, ok := cbd["byProvider"].(map[string]interface{}); !ok {
 			t.Errorf("Expected cloudBackupDestinations.byProvider map, got %T", cbd["byProvider"])
+		}
+	})
+
+	t.Run("admin stats pilot profiles", func(t *testing.T) {
+		requireStatus(t, uc.PATCH("/users/me/pilot-profile", map[string]interface{}{
+			"mode": "everything", "intents": map[string]string{"SAILPLANE": "goal", "IFR": "off"},
+		}), http.StatusOK)
+
+		resp := ac.GET("/admin/stats")
+		requireStatus(t, resp, http.StatusOK)
+		var s struct {
+			PilotProfiles *struct {
+				EverythingMode *int                      `json:"everythingMode"`
+				Overrides      map[string]map[string]int `json:"overrides"`
+			} `json:"pilotProfiles"`
+		}
+		if err := resp.JSON(&s); err != nil {
+			t.Fatalf("invalid stats: %v", err)
+		}
+		if s.PilotProfiles == nil || s.PilotProfiles.EverythingMode == nil || s.PilotProfiles.Overrides == nil {
+			t.Fatalf("Expected pilotProfiles with everythingMode and an overrides map, got %s", string(resp.Body))
+		}
+		if *s.PilotProfiles.EverythingMode < 1 {
+			t.Errorf("everythingMode = %d, want >= 1", *s.PilotProfiles.EverythingMode)
+		}
+		if s.PilotProfiles.Overrides["SAILPLANE"]["goal"] < 1 || s.PilotProfiles.Overrides["IFR"]["off"] < 1 {
+			t.Errorf("overrides = %v", s.PilotProfiles.Overrides)
+		}
+		for d, counts := range s.PilotProfiles.Overrides {
+			for _, k := range []string{"on", "off", "goal"} {
+				if _, ok := counts[k]; !ok {
+					t.Errorf("overrides[%s] lacks %q: %v", d, k, counts)
+				}
+			}
 		}
 	})
 

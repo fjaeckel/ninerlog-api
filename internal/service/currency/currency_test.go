@@ -82,6 +82,7 @@ func (m *mockFlightDataProvider) GetProgressByAircraftClass(_ context.Context, _
 		sum.Approaches += p.Approaches
 		sum.Holds += p.Holds
 		sum.Launches += p.Launches
+		sum.SPICMinutes += p.SPICMinutes
 		sum.TrainingFlights += p.TrainingFlights
 		sum.LongestTrainingFlightMinutes = max(sum.LongestTrainingFlightMinutes, p.LongestTrainingFlightMinutes)
 	}
@@ -195,6 +196,9 @@ func (m *mockFlightDataProvider) GetLandingDaysByULKind(ctx context.Context, use
 			d, err := m.GetLandingDaysByAircraftClass(ctx, userID, models.ClassTypeUL, includeTowed, false, since)
 			if err != nil {
 				return nil, err
+			}
+			for i := range d {
+				d[i].Takeoffs = d[i].DayLandings + d[i].NightLandings
 			}
 			out = append(out, d...)
 			continue

@@ -2,7 +2,10 @@
 
 package e2e_test
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // ─── GLIDER / ULTRALIGHT class ratings ──────────────────────────────────────
 
@@ -77,6 +80,20 @@ func TestEASA_GliderClass_Current(t *testing.T) {
 	assertInt(t, "progress.launches", gi(progress, "launches"), 15)
 	assertInt(t, "progress.trainingFlights", gi(progress, "trainingFlights"), 2)
 
+	// 15 launches: the oldest, 210 days ago, holds the row until it leaves the window.
+	launchesUntil := time.Now().AddDate(0, 0, -210).AddDate(2, 0, -1).Format("2006-01-02")
+	launches := getReq(rc, "requirement.launches")
+	assertStr(t, "launches.validUntil", launches["validUntil"], launchesUntil)
+	if _, ok := launches["remedyKey"]; ok {
+		t.Errorf("met launches row carries remedyKey %v", launches["remedyKey"])
+	}
+	assertStr(t, "rating recencyExpiresOn", rc["recencyExpiresOn"], launchesUntil)
+	check := getReq(rc, "requirement.proficiency_check")
+	assertStr(t, "proficiency_check.remedyKey", check["remedyKey"], "remedy.proficiency_check")
+	if _, ok := check["validUntil"]; ok {
+		t.Errorf("unmet proficiency check carries validUntil %v", check["validUntil"])
+	}
+
 	pc := findPaxCur(result, "GLIDER")
 	if pc == nil {
 		t.Fatal("GLIDER passenger currency not found")
@@ -124,7 +141,7 @@ func TestGliderClass_CaseInsensitiveAircraftClass(t *testing.T) {
 // TestUltralightClass_GermanAuthorityOnly — LuftPersV §45 applies to ULTRALIGHT only under LBA/DULV/DAeC.
 func TestUltralightClass_GermanAuthorityOnly(t *testing.T) {
 	c := setupCurrencyUser(t, "ul-cls-auth")
-	createAircraftCur(t, c, "D-MULC", "C42", "ULTRALIGHT")
+	createULAircraftCur(t, c, "D-MULC", "THREE_AXIS")
 
 	easaID := createLicenseCur(t, c, "EASA", "UL")
 	createRatingCur(t, c, easaID, "ULTRALIGHT", strPtr(plusDays(pastDate(0), 365)))
@@ -143,7 +160,7 @@ func TestUltralightClass_GermanAuthorityOnly(t *testing.T) {
 	}
 
 	dulvID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, dulvID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, dulvID, "THREE_AXIS")
 
 	result = getCurrencyStatus(t, c)
 	rc = findRatingCurByAuth(result, "ULTRALIGHT", "DULV")
@@ -234,7 +251,7 @@ func TestGliderAndUltralight_SeparateRatings(t *testing.T) {
 	splID := createLicenseCur(t, c, "EASA", "SPL")
 	createRatingCur(t, c, splID, "GLIDER", nil)
 	ulID := createLicenseCur(t, c, "DULV", "UL")
-	createRatingCur(t, c, ulID, "ULTRALIGHT", nil)
+	createULRatingCur(t, c, ulID, "THREE_AXIS")
 
 	createGliderFlightsCur(t, c, "D-5815")
 	createULFlightsCur(t, c, "D-MSPL")
@@ -389,4 +406,121 @@ func TestTowedFlights_CarAndBungeeExcludedFromPoweredClass(t *testing.T) {
 	}
 	progress, _ := rc["progress"].(map[string]interface{})
 	assertInt(t, "progress.flights", gi(progress, "flights"), 0)
+}
+
+// ─── FAA glider rating — §61.56 / §61.57(a) ─────────────────────────────────
+
+// TestFAA_GliderRating_PaxRuleDoesNotExpireRating — a glider rating is current on its flight review with no landings in 90 days.
+func TestFAA_GliderRating_PaxRuleDoesNotExpireRating(t *testing.T) {
+	c := setupCurrencyUser(t, "faa-glider-fr")
+	createAircraftCur(t, c, "N5821G", "ASK21", "GLIDER")
+	licID := createLicenseCur(t, c, "FAA", "Private")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(200), "aircraftReg": "N5821G", "aircraftType": "ASK21",
+		"departureIcao": "KFFZ", "arrivalIcao": "KFFZ",
+		"offBlockTime": "10:00", "onBlockTime": "10:30",
+		"landings": 1, "launchMethod": "aerotow", "isFlightReview": true,
+	})
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCurByAuth(result, "GLIDER", "FAA")
+	if rc == nil {
+		t.Fatal("FAA GLIDER rating currency not found")
+	}
+	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "messageKey", rc["messageKey"], "flight_review.current")
+	assertStr(t, "ruleDescriptionKey", rc["ruleDescriptionKey"], "faa_flight_review")
+	if r := getReq(rc, "requirement.flight_review"); r == nil || !gb(r, "met") {
+		t.Errorf("flight_review requirement = %v, want met", r)
+	}
+	if r := getReq(rc, "requirement.launches_and_landings"); r != nil {
+		t.Errorf("rating carries the passenger requirement %v", r)
+	}
+
+	pc := findPaxCurByAuth(result, "GLIDER", "FAA")
+	if pc == nil {
+		t.Fatal("FAA GLIDER passenger currency not found")
+	}
+	assertStr(t, "pax dayStatus", pc["dayStatus"], "expired")
+	assertStr(t, "pax ruleDescriptionKey", pc["ruleDescriptionKey"], "faa_glider")
+}
+
+// TestFAA_Glider_FlightReviewGliderAlternative — §61.56(b): three instructional glider flights stand in for the review; dual launches are not passenger landings.
+func TestFAA_Glider_FlightReviewGliderAlternative(t *testing.T) {
+	c := setupCurrencyUser(t, "faa-glider-alt")
+	createAircraftCur(t, c, "N5822G", "ASK21", "GLIDER")
+	createAircraftCur(t, c, "N5822C", "C172", "SEP_LAND")
+	licID := createLicenseCur(t, c, "FAA", "Private")
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	for i := 0; i < 2; i++ {
+		createGliderFlightCur(t, c, "N5822G", "aerotow", 10+i, true)
+	}
+	createFlightCur(t, c, map[string]interface{}{
+		"date": pastDate(15), "aircraftReg": "N5822C", "aircraftType": "C172",
+		"departureIcao": "KFFZ", "arrivalIcao": "KFFZ",
+		"offBlockTime": "08:00", "onBlockTime": "09:00",
+		"landings":    1,
+		"crewMembers": []map[string]interface{}{{"name": "CFI", "role": "Instructor"}},
+	})
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCurByAuth(result, "GLIDER", "FAA")
+	if rc == nil {
+		t.Fatal("FAA GLIDER rating currency not found")
+	}
+	assertStr(t, "status with two glider + one aeroplane lesson", rc["status"], "expired")
+
+	createGliderFlightCur(t, c, "N5822G", "winch", 20, true)
+
+	result = getCurrencyStatus(t, c)
+	rc = findRatingCurByAuth(result, "GLIDER", "FAA")
+	assertStr(t, "status", rc["status"], "current")
+	assertStr(t, "messageKey", rc["messageKey"], "rating.flight_review_glider_alternative")
+	if r := getReq(rc, "requirement.training_flights"); r == nil || !gb(r, "met") || gi(r, "current") != 3 {
+		t.Errorf("training_flights = %v, want 3 met", r)
+	}
+	if r := getReq(rc, "requirement.flight_review"); r == nil || gb(r, "met") {
+		t.Errorf("flight_review = %v, want not met", r)
+	}
+
+	pc := findPaxCurByAuth(result, "GLIDER", "FAA")
+	if pc == nil {
+		t.Fatal("FAA GLIDER passenger currency not found")
+	}
+	assertInt(t, "pax dayLandings", gi(pc, "dayLandings"), 0)
+	assertStr(t, "pax dayStatus", pc["dayStatus"], "expired")
+}
+
+// TestFAA_PrivateGliderRating_NoNightRequirement — a glider rating on an FAA Private licence has no night passenger requirement; its SEP rating keeps one.
+func TestFAA_PrivateGliderRating_NoNightRequirement(t *testing.T) {
+	c := setupCurrencyUser(t, "faa-glider-night")
+	createAircraftCur(t, c, "N5823G", "ASK21", "GLIDER")
+	licID := createLicenseCur(t, c, "FAA", "Private")
+	createRatingCur(t, c, licID, "SEP_LAND", nil)
+	createRatingCur(t, c, licID, "GLIDER", nil)
+
+	for i := 0; i < 3; i++ {
+		createGliderFlightCur(t, c, "N5823G", "aerotow", 5+i, false)
+	}
+
+	result := getCurrencyStatus(t, c)
+	pc := findPaxCurByAuth(result, "GLIDER", "FAA")
+	if pc == nil {
+		t.Fatal("FAA GLIDER passenger currency not found")
+	}
+	assertBool(t, "glider nightPrivilege", gb(pc, "nightPrivilege"), false)
+	assertInt(t, "glider nightRequired", gi(pc, "nightRequired"), 0)
+	assertStr(t, "glider nightStatus", pc["nightStatus"], "unknown")
+	assertStr(t, "glider dayStatus", pc["dayStatus"], "current")
+	assertStr(t, "glider messageKey", pc["messageKey"], "pax.current_day_no_night_privilege")
+
+	sep := findPaxCurByAuth(result, "SEP_LAND", "FAA")
+	if sep == nil {
+		t.Fatal("FAA SEP_LAND passenger currency not found")
+	}
+	assertBool(t, "SEP nightPrivilege", gb(sep, "nightPrivilege"), true)
+	assertInt(t, "SEP nightRequired", gi(sep, "nightRequired"), 3)
 }

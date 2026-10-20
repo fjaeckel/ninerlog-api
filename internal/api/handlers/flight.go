@@ -3,8 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -67,8 +65,7 @@ func (h *APIHandler) applyFlightFilters(ctx context.Context, userID uuid.UUID, p
 	}
 	// Logbook filtering; an unknown or foreign licence leaves the list unfiltered.
 	if p.LogbookLicenseId != nil {
-		_ = service.NewLogbookScope(h.classRatingService, h.aircraftService).
-			Apply(ctx, userID, uuid.UUID(*p.LogbookLicenseId), opts)
+		_ = h.logbookScope().Apply(ctx, userID, uuid.UUID(*p.LogbookLicenseId), opts)
 	}
 	return nil
 }
@@ -255,45 +252,71 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
-	// Parse date
-	flightDate, err := time.Parse("2006-01-02", req.Date.String())
-	if err != nil {
-		h.sendError(c, http.StatusBadRequest, "Invalid date format")
+	facts := h.aircraftService.AircraftFactsLookup(c.Request.Context(), userID)
+	flight, errMsg := h.flightFromCreate(c, userID, &req, facts)
+	if errMsg != "" {
+		h.sendError(c, http.StatusBadRequest, errMsg)
 		return
 	}
 
-	if err := validateCreateShape(&req); err != nil {
-		h.sendError(c, http.StatusBadRequest, err.Error())
+	createOpts := service.FlightWriteOptions{
+		UserName: h.getUserNameFromContext(c),
+		Facts:    facts(flight.AircraftReg),
+	}
+	if len(flight.CrewMembers) > 0 {
+		createOpts.Crew = &flight.CrewMembers
+		createOpts.BeforeWrite = h.linkCrewHook(userID, flight)
+	}
+	if err := h.flightService.CreateFlightChecked(c.Request.Context(), flight, createOpts); err != nil {
+		if h.sendOverrideError(c, err) {
+			return
+		}
+		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
 		return
+	}
+	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusCreated, out)
+}
+
+// flightFromCreate builds the flight a create body describes and applies the
+// auto-calculations with facts. Returns a 400 message when the body is
+// malformed.
+func (h *APIHandler) flightFromCreate(c *gin.Context, userID uuid.UUID, req *generated.FlightCreate, facts func(reg string) *flightrules.AircraftFacts) (*models.Flight, string) {
+	// Parse date
+	flightDate, err := time.Parse("2006-01-02", req.Date.String())
+	if err != nil {
+		return nil, "Invalid date format"
+	}
+
+	if err := validateCreateShape(req); err != nil {
+		return nil, err.Error()
 	}
 
 	flight := models.Flight{
 		UserID:       userID,
 		Date:         flightDate,
 		AircraftType: req.AircraftType,
-		IsSimulator:  isSimulatorCreate(&req),
+		IsSimulator:  isSimulatorCreate(req),
 	}
 
 	if !flight.IsSimulator {
-		// Compute totalTime from off-block and on-block times
-		totalTime, err := calculateBlockTime(*req.OffBlockTime, *req.OnBlockTime)
+		// Total time spans the block pair, else take-off to landing.
+		totalTime, source, err := createClocks(req).TotalMinutes()
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid block times format")
-			return
+			return nil, invalidClockMessage(source)
 		}
 
 		departureIcao := *req.DepartureIcao
 		arrivalIcao := *req.ArrivalIcao
-		offBlockTime := *req.OffBlockTime
-		onBlockTime := *req.OnBlockTime
 
 		flight.AircraftReg = *req.AircraftReg
 		flight.DepartureICAO = &departureIcao
 		flight.ArrivalICAO = &arrivalIcao
-		flight.OffBlockTime = &offBlockTime
-		flight.OnBlockTime = &onBlockTime
-		flight.DepartureTime = req.DepartureTime
-		flight.ArrivalTime = req.ArrivalTime
+		flight.OffBlockTime = nonBlankClock(req.OffBlockTime)
+		flight.OnBlockTime = nonBlankClock(req.OnBlockTime)
+		flight.DepartureTime = nonBlankClock(req.DepartureTime)
+		flight.ArrivalTime = nonBlankClock(req.ArrivalTime)
 		flight.TotalTime = totalTime
 		flight.AllLandings = *req.Landings
 		flight.IFRTime = getIntOrDefault(req.IfrTime, 0)
@@ -369,6 +392,17 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 			flight.LaunchMethod = &lm
 		}
 	}
+	if req.Launches != nil {
+		flight.Launches = *req.Launches
+		flight.LaunchesOverride = true
+	}
+	if req.IsOutlanding != nil {
+		flight.IsOutlanding = *req.IsOutlanding
+	}
+	if req.IsTowFlight != nil {
+		flight.IsTowFlight = *req.IsTowFlight
+	}
+	flight.ReleaseHeightM = req.ReleaseHeightM
 
 	// Phase 6c: PIC Name, Multi-Pilot Time, FSTD Type, Approaches, Endorsements
 	flight.PICName = req.PicName
@@ -410,10 +444,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
-
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
-	flightcalc.ApplyAutoCalculations(&flight, userName, facts)
+	flightcalc.ApplyAutoCalculations(&flight, userName, facts(flight.AircraftReg))
 
 	// Auto-set PIC name via centralised rule. Runs AFTER crew parsing and
 	// auto-calc so IsPIC/IsDual + CrewMembers are populated.
@@ -421,22 +453,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		flight.PICName = flightrules.ResolvePICNameForSave(&flight, userName)
 	}
 
-	createOpts := service.FlightWriteOptions{
-		UserName: userName,
-		Facts:    facts,
-	}
-	if len(flight.CrewMembers) > 0 {
-		createOpts.Crew = &flight.CrewMembers
-		createOpts.BeforeWrite = h.linkCrewHook(userID, &flight)
-	}
-	if err := h.flightService.CreateFlightChecked(c.Request.Context(), &flight, createOpts); err != nil {
-		if h.sendOverrideError(c, err) {
-			return
-		}
-		h.sendError(c, http.StatusBadRequest, "Failed to create flight")
-		return
-	}
-	c.JSON(http.StatusCreated, withDisplayPICName(convertToGeneratedFlight(&flight), &flight, h.getUserNameFromContext(c)))
+	return &flight, ""
 }
 
 // GetFlight implements GET /flights/{flightId}
@@ -510,6 +527,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	if req.AircraftType != nil {
 		flight.AircraftType = *req.AircraftType
 	}
+	wasSimulator := flight.IsSimulator
 	if req.IsSimulator != nil {
 		flight.IsSimulator = *req.IsSimulator
 	}
@@ -579,6 +597,14 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		flight.IsProficiencyCheck = *req.IsProficiencyCheck
 	}
 	applyNullable(&flight.LaunchMethod, req.LaunchMethod)
+	applyOverride(&flight.Launches, &flight.LaunchesOverride, req.Launches)
+	if req.IsOutlanding != nil {
+		flight.IsOutlanding = *req.IsOutlanding
+	}
+	if req.IsTowFlight != nil {
+		flight.IsTowFlight = *req.IsTowFlight
+	}
+	applyNullable(&flight.ReleaseHeightM, req.ReleaseHeightM)
 	// Phase 6c fields
 	applyNullable(&flight.PICName, req.PicName)
 	applyOverride(&flight.MultiPilotTime, &flight.MultiPilotTimeOverride, req.MultiPilotTime)
@@ -613,32 +639,33 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	}
 
-	// Recalculate totalTime from block times if either was updated
-	if req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified() {
-		offBlock := ""
-		onBlock := ""
-		if flight.OffBlockTime != nil {
-			offBlock = *flight.OffBlockTime
+	// Recalculate totalTime when a time that bounds it was updated.
+	clocks := models.ClocksOf(flight)
+	_, _, source, hasPair := clocks.Pair()
+	blockUpdated := req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified()
+	airborneUpdated := req.DepartureTime.IsSpecified() || req.ArrivalTime.IsSpecified()
+	leftSimulator := wasSimulator && !flight.IsSimulator
+	if !flight.IsSimulator && (blockUpdated || airborneUpdated || leftSimulator) {
+		if err := clocks.Validate(); err != nil {
+			h.sendError(c, http.StatusBadRequest, err.Error())
+			return
 		}
-		if flight.OnBlockTime != nil {
-			onBlock = *flight.OnBlockTime
+	}
+	if hasPair && (blockUpdated || (airborneUpdated && source == models.FlightTimeSourceAirborne)) {
+		totalTime, _, err := clocks.TotalMinutes()
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, invalidClockMessage(source))
+			return
 		}
-		if offBlock != "" && onBlock != "" {
-			totalTime, err := calculateBlockTime(offBlock, onBlock)
-			if err != nil {
-				h.sendError(c, http.StatusBadRequest, "Invalid block times format")
-				return
-			}
-			flight.TotalTime = totalTime
-		}
-	} else if req.TotalTime != nil {
-		// Allow direct totalTime override only if block times are not being updated
+		flight.TotalTime = totalTime
+	} else if !blockUpdated && req.TotalTime != nil {
+		// Direct totalTime override when block times are not being updated.
 		flight.TotalTime = *req.TotalTime
 	}
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsLookup(c.Request.Context(), userID)(flight.AircraftReg)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
 	flightcalc.ApplyAutoCalculations(flight, userName, facts)
@@ -694,7 +721,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
 
-	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
+	out := withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c))
+	out.Warnings = convertToGeneratedWarnings(h.flightService.CheckFlights(c.Request.Context(), userID, []*models.Flight{flight})[0])
+	c.JSON(http.StatusOK, out)
 }
 
 // DeleteFlight implements DELETE /flights/{flightId}
@@ -814,6 +843,12 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		LandingsNightOverride:    f.LandingsNightOverride,
 		SicTimeOverride:          f.SICTimeOverride,
 		MultiPilotTimeOverride:   f.MultiPilotTimeOverride,
+
+		Launches:         f.Launches,
+		LaunchesOverride: f.LaunchesOverride,
+		IsOutlanding:     f.IsOutlanding,
+		IsTowFlight:      f.IsTowFlight,
+		ReleaseHeightM:   f.ReleaseHeightM,
 	}
 
 	if f.DepartureICAO != nil {
@@ -925,34 +960,19 @@ func ptrBool(v bool) *bool {
 	return &v
 }
 
-// calculateBlockTime computes total block time in minutes from off-block and on-block time strings (HH:MM:SS).
-// Handles overnight flights (on-block before off-block crosses midnight).
-func calculateBlockTime(offBlock, onBlock string) (int, error) {
-	offT, err := time.Parse("15:04:05", offBlock)
-	if err != nil {
-		// Try HH:MM format as well
-		offT, err = time.Parse("15:04", offBlock)
-		if err != nil {
-			return 0, fmt.Errorf("invalid off-block time format: %s", offBlock)
-		}
+// invalidClockMessage returns the 400 message for an unparseable time pair.
+func invalidClockMessage(source models.FlightTimeSource) string {
+	if source == models.FlightTimeSourceAirborne {
+		return "Invalid take-off/landing times format"
 	}
-	onT, err := time.Parse("15:04:05", onBlock)
-	if err != nil {
-		onT, err = time.Parse("15:04", onBlock)
-		if err != nil {
-			return 0, fmt.Errorf("invalid on-block time format: %s", onBlock)
-		}
-	}
+	return "Invalid block times format"
+}
 
-	duration := onT.Sub(offT)
-	if duration < 0 {
-		// Overnight: add 24 hours
-		duration += 24 * time.Hour
+// nonBlankClock returns s, or nil when s is nil or blank.
+func nonBlankClock(s *string) *string {
+	if s == nil || strings.TrimSpace(*s) == "" {
+		return nil
 	}
-	if duration == 0 {
-		return 0, fmt.Errorf("off-block and on-block times cannot be identical")
-	}
-
-	minutes := int(math.Round(duration.Minutes()))
-	return minutes, nil
+	v := *s
+	return &v
 }

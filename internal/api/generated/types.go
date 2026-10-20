@@ -210,6 +210,39 @@ func (e AuthProvidersMode) Valid() bool {
 	}
 }
 
+// Defines values for BackupAircraftUlKind.
+const (
+	BackupAircraftUlKindGYROPLANE            BackupAircraftUlKind = "GYROPLANE"
+	BackupAircraftUlKindHELICOPTER           BackupAircraftUlKind = "HELICOPTER"
+	BackupAircraftUlKindPOWEREDPARAGLIDER    BackupAircraftUlKind = "POWERED_PARAGLIDER"
+	BackupAircraftUlKindSAILPLANE            BackupAircraftUlKind = "SAILPLANE"
+	BackupAircraftUlKindTHREEAXIS            BackupAircraftUlKind = "THREE_AXIS"
+	BackupAircraftUlKindTHREEAXISMOTORGLIDER BackupAircraftUlKind = "THREE_AXIS_MOTORGLIDER"
+	BackupAircraftUlKindWEIGHTSHIFT          BackupAircraftUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the BackupAircraftUlKind enum.
+func (e BackupAircraftUlKind) Valid() bool {
+	switch e {
+	case BackupAircraftUlKindGYROPLANE:
+		return true
+	case BackupAircraftUlKindHELICOPTER:
+		return true
+	case BackupAircraftUlKindPOWEREDPARAGLIDER:
+		return true
+	case BackupAircraftUlKindSAILPLANE:
+		return true
+	case BackupAircraftUlKindTHREEAXIS:
+		return true
+	case BackupAircraftUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case BackupAircraftUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupClassRatingUlKind.
 const (
 	BackupClassRatingUlKindGYROPLANE         BackupClassRatingUlKind = "GYROPLANE"
@@ -372,6 +405,24 @@ const (
 func (e BackupPayloadFormat) Valid() bool {
 	switch e {
 	case NinerLogJSONBackup:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupPayloadPilotProfileMode.
+const (
+	BackupPayloadPilotProfileModeAdaptive   BackupPayloadPilotProfileMode = "adaptive"
+	BackupPayloadPilotProfileModeEverything BackupPayloadPilotProfileMode = "everything"
+)
+
+// Valid indicates whether the value is a known member of the BackupPayloadPilotProfileMode enum.
+func (e BackupPayloadPilotProfileMode) Valid() bool {
+	switch e {
+	case BackupPayloadPilotProfileModeAdaptive:
+		return true
+	case BackupPayloadPilotProfileModeEverything:
 		return true
 	default:
 		return false
@@ -557,6 +608,7 @@ const (
 	ClassRatingCurrencyStatusCurrent  ClassRatingCurrencyStatus = "current"
 	ClassRatingCurrencyStatusExpired  ClassRatingCurrencyStatus = "expired"
 	ClassRatingCurrencyStatusExpiring ClassRatingCurrencyStatus = "expiring"
+	ClassRatingCurrencyStatusLapsed   ClassRatingCurrencyStatus = "lapsed"
 	ClassRatingCurrencyStatusUnknown  ClassRatingCurrencyStatus = "unknown"
 )
 
@@ -569,7 +621,42 @@ func (e ClassRatingCurrencyStatus) Valid() bool {
 		return true
 	case ClassRatingCurrencyStatusExpiring:
 		return true
+	case ClassRatingCurrencyStatusLapsed:
+		return true
 	case ClassRatingCurrencyStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ClassStatULKindUlKind.
+const (
+	ClassStatULKindUlKindGYROPLANE            ClassStatULKindUlKind = "GYROPLANE"
+	ClassStatULKindUlKindHELICOPTER           ClassStatULKindUlKind = "HELICOPTER"
+	ClassStatULKindUlKindPOWEREDPARAGLIDER    ClassStatULKindUlKind = "POWERED_PARAGLIDER"
+	ClassStatULKindUlKindSAILPLANE            ClassStatULKindUlKind = "SAILPLANE"
+	ClassStatULKindUlKindTHREEAXIS            ClassStatULKindUlKind = "THREE_AXIS"
+	ClassStatULKindUlKindTHREEAXISMOTORGLIDER ClassStatULKindUlKind = "THREE_AXIS_MOTORGLIDER"
+	ClassStatULKindUlKindWEIGHTSHIFT          ClassStatULKindUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ClassStatULKindUlKind enum.
+func (e ClassStatULKindUlKind) Valid() bool {
+	switch e {
+	case ClassStatULKindUlKindGYROPLANE:
+		return true
+	case ClassStatULKindUlKindHELICOPTER:
+		return true
+	case ClassStatULKindUlKindPOWEREDPARAGLIDER:
+		return true
+	case ClassStatULKindUlKindSAILPLANE:
+		return true
+	case ClassStatULKindUlKindTHREEAXIS:
+		return true
+	case ClassStatULKindUlKindTHREEAXISMOTORGLIDER:
+		return true
+	case ClassStatULKindUlKindWEIGHTSHIFT:
 		return true
 	default:
 		return false
@@ -750,7 +837,9 @@ const (
 	CustomCurrencyFilterFieldHasNight                CustomCurrencyFilterField = "has_night"
 	CustomCurrencyFilterFieldIsCrossCountry          CustomCurrencyFilterField = "is_cross_country"
 	CustomCurrencyFilterFieldIsDual                  CustomCurrencyFilterField = "is_dual"
+	CustomCurrencyFilterFieldIsOutlanding            CustomCurrencyFilterField = "is_outlanding"
 	CustomCurrencyFilterFieldIsPic                   CustomCurrencyFilterField = "is_pic"
+	CustomCurrencyFilterFieldIsTowFlight             CustomCurrencyFilterField = "is_tow_flight"
 	CustomCurrencyFilterFieldLaunchMethod            CustomCurrencyFilterField = "launch_method"
 )
 
@@ -777,7 +866,11 @@ func (e CustomCurrencyFilterField) Valid() bool {
 		return true
 	case CustomCurrencyFilterFieldIsDual:
 		return true
+	case CustomCurrencyFilterFieldIsOutlanding:
+		return true
 	case CustomCurrencyFilterFieldIsPic:
+		return true
+	case CustomCurrencyFilterFieldIsTowFlight:
 		return true
 	case CustomCurrencyFilterFieldLaunchMethod:
 		return true
@@ -819,6 +912,7 @@ const (
 	CustomCurrencyThresholdMetricHolds            CustomCurrencyThresholdMetric = "holds"
 	CustomCurrencyThresholdMetricIfrTime          CustomCurrencyThresholdMetric = "ifr_time"
 	CustomCurrencyThresholdMetricLandings         CustomCurrencyThresholdMetric = "landings"
+	CustomCurrencyThresholdMetricLaunches         CustomCurrencyThresholdMetric = "launches"
 	CustomCurrencyThresholdMetricNightLandings    CustomCurrencyThresholdMetric = "night_landings"
 	CustomCurrencyThresholdMetricNightTakeoffs    CustomCurrencyThresholdMetric = "night_takeoffs"
 	CustomCurrencyThresholdMetricNightTime        CustomCurrencyThresholdMetric = "night_time"
@@ -852,6 +946,8 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 	case CustomCurrencyThresholdMetricIfrTime:
 		return true
 	case CustomCurrencyThresholdMetricLandings:
+		return true
+	case CustomCurrencyThresholdMetricLaunches:
 		return true
 	case CustomCurrencyThresholdMetricNightLandings:
 		return true
@@ -938,19 +1034,24 @@ func (e CustomReportFilterRole) Valid() bool {
 
 // Defines values for CustomReportGroupBy.
 const (
-	CustomReportGroupByAircraftType CustomReportGroupBy = "aircraftType"
-	CustomReportGroupByArrival      CustomReportGroupBy = "arrival"
-	CustomReportGroupByDayOfWeek    CustomReportGroupBy = "dayOfWeek"
-	CustomReportGroupByDeparture    CustomReportGroupBy = "departure"
-	CustomReportGroupByMonth        CustomReportGroupBy = "month"
-	CustomReportGroupByRegistration CustomReportGroupBy = "registration"
-	CustomReportGroupByRoute        CustomReportGroupBy = "route"
-	CustomReportGroupByYear         CustomReportGroupBy = "year"
+	CustomReportGroupByAircraftClass CustomReportGroupBy = "aircraftClass"
+	CustomReportGroupByAircraftType  CustomReportGroupBy = "aircraftType"
+	CustomReportGroupByArrival       CustomReportGroupBy = "arrival"
+	CustomReportGroupByDayOfWeek     CustomReportGroupBy = "dayOfWeek"
+	CustomReportGroupByDeparture     CustomReportGroupBy = "departure"
+	CustomReportGroupByLaunchMethod  CustomReportGroupBy = "launchMethod"
+	CustomReportGroupByMonth         CustomReportGroupBy = "month"
+	CustomReportGroupByRegistration  CustomReportGroupBy = "registration"
+	CustomReportGroupByRoute         CustomReportGroupBy = "route"
+	CustomReportGroupByUlKind        CustomReportGroupBy = "ulKind"
+	CustomReportGroupByYear          CustomReportGroupBy = "year"
 )
 
 // Valid indicates whether the value is a known member of the CustomReportGroupBy enum.
 func (e CustomReportGroupBy) Valid() bool {
 	switch e {
+	case CustomReportGroupByAircraftClass:
+		return true
 	case CustomReportGroupByAircraftType:
 		return true
 	case CustomReportGroupByArrival:
@@ -959,11 +1060,15 @@ func (e CustomReportGroupBy) Valid() bool {
 		return true
 	case CustomReportGroupByDeparture:
 		return true
+	case CustomReportGroupByLaunchMethod:
+		return true
 	case CustomReportGroupByMonth:
 		return true
 	case CustomReportGroupByRegistration:
 		return true
 	case CustomReportGroupByRoute:
+		return true
+	case CustomReportGroupByUlKind:
 		return true
 	case CustomReportGroupByYear:
 		return true
@@ -981,9 +1086,12 @@ const (
 	CustomReportMetricFstdTime         CustomReportMetric = "fstdTime"
 	CustomReportMetricIfrTime          CustomReportMetric = "ifrTime"
 	CustomReportMetricLandings         CustomReportMetric = "landings"
+	CustomReportMetricLaunches         CustomReportMetric = "launches"
 	CustomReportMetricNightTime        CustomReportMetric = "nightTime"
+	CustomReportMetricOutlandings      CustomReportMetric = "outlandings"
 	CustomReportMetricPicTime          CustomReportMetric = "picTime"
 	CustomReportMetricTotalTime        CustomReportMetric = "totalTime"
+	CustomReportMetricTowFlights       CustomReportMetric = "towFlights"
 )
 
 // Valid indicates whether the value is a known member of the CustomReportMetric enum.
@@ -1003,11 +1111,17 @@ func (e CustomReportMetric) Valid() bool {
 		return true
 	case CustomReportMetricLandings:
 		return true
+	case CustomReportMetricLaunches:
+		return true
 	case CustomReportMetricNightTime:
+		return true
+	case CustomReportMetricOutlandings:
 		return true
 	case CustomReportMetricPicTime:
 		return true
 	case CustomReportMetricTotalTime:
+		return true
+	case CustomReportMetricTowFlights:
 		return true
 	default:
 		return false
@@ -1059,6 +1173,147 @@ func (e DeletionEntity) Valid() bool {
 	case DeletionEntityFlight:
 		return true
 	case DeletionEntityLicense:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Discipline.
+const (
+	DisciplineAEROPLANE  Discipline = "AEROPLANE"
+	DisciplineGYROPLANE  Discipline = "GYROPLANE"
+	DisciplineHELICOPTER Discipline = "HELICOPTER"
+	DisciplineIFR        Discipline = "IFR"
+	DisciplineINSTRUCTOR Discipline = "INSTRUCTOR"
+	DisciplineMULTICREW  Discipline = "MULTI_CREW"
+	DisciplineSAILPLANE  Discipline = "SAILPLANE"
+	DisciplineSIMULATOR  Discipline = "SIMULATOR"
+	DisciplineTMG        Discipline = "TMG"
+	DisciplineULTRALIGHT Discipline = "ULTRALIGHT"
+)
+
+// Valid indicates whether the value is a known member of the Discipline enum.
+func (e Discipline) Valid() bool {
+	switch e {
+	case DisciplineAEROPLANE:
+		return true
+	case DisciplineGYROPLANE:
+		return true
+	case DisciplineHELICOPTER:
+		return true
+	case DisciplineIFR:
+		return true
+	case DisciplineINSTRUCTOR:
+		return true
+	case DisciplineMULTICREW:
+		return true
+	case DisciplineSAILPLANE:
+		return true
+	case DisciplineSIMULATOR:
+		return true
+	case DisciplineTMG:
+		return true
+	case DisciplineULTRALIGHT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineEvidenceSource.
+const (
+	AIRCRAFT           DisciplineEvidenceSource = "AIRCRAFT"
+	FLIGHTS            DisciplineEvidenceSource = "FLIGHTS"
+	FLIGHTSDUAL        DisciplineEvidenceSource = "FLIGHTS_DUAL"
+	FLIGHTSINSTRUCTING DisciplineEvidenceSource = "FLIGHTS_INSTRUCTING"
+	LICENCE            DisciplineEvidenceSource = "LICENCE"
+	RATING             DisciplineEvidenceSource = "RATING"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineEvidenceSource enum.
+func (e DisciplineEvidenceSource) Valid() bool {
+	switch e {
+	case AIRCRAFT:
+		return true
+	case FLIGHTS:
+		return true
+	case FLIGHTSDUAL:
+		return true
+	case FLIGHTSINSTRUCTING:
+		return true
+	case LICENCE:
+		return true
+	case RATING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineEvidenceStrength.
+const (
+	DisciplineEvidenceStrengthDormant DisciplineEvidenceStrength = "dormant"
+	DisciplineEvidenceStrengthRecent  DisciplineEvidenceStrength = "recent"
+	DisciplineEvidenceStrengthStrong  DisciplineEvidenceStrength = "strong"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineEvidenceStrength enum.
+func (e DisciplineEvidenceStrength) Valid() bool {
+	switch e {
+	case DisciplineEvidenceStrengthDormant:
+		return true
+	case DisciplineEvidenceStrengthRecent:
+		return true
+	case DisciplineEvidenceStrengthStrong:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineIntent.
+const (
+	DisciplineIntentAuto DisciplineIntent = "auto"
+	DisciplineIntentGoal DisciplineIntent = "goal"
+	DisciplineIntentOff  DisciplineIntent = "off"
+	DisciplineIntentOn   DisciplineIntent = "on"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineIntent enum.
+func (e DisciplineIntent) Valid() bool {
+	switch e {
+	case DisciplineIntentAuto:
+		return true
+	case DisciplineIntentGoal:
+		return true
+	case DisciplineIntentOff:
+		return true
+	case DisciplineIntentOn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DisciplineStatus.
+const (
+	DisciplineStatusActive   DisciplineStatus = "active"
+	DisciplineStatusDormant  DisciplineStatus = "dormant"
+	DisciplineStatusOff      DisciplineStatus = "off"
+	DisciplineStatusTraining DisciplineStatus = "training"
+)
+
+// Valid indicates whether the value is a known member of the DisciplineStatus enum.
+func (e DisciplineStatus) Valid() bool {
+	switch e {
+	case DisciplineStatusActive:
+		return true
+	case DisciplineStatusDormant:
+		return true
+	case DisciplineStatusOff:
+		return true
+	case DisciplineStatusTraining:
 		return true
 	default:
 		return false
@@ -1482,10 +1737,14 @@ const (
 	ImportFieldIsDual                  ImportField = "isDual"
 	ImportFieldIsFlightReview          ImportField = "isFlightReview"
 	ImportFieldIsIpc                   ImportField = "isIpc"
+	ImportFieldIsOutlanding            ImportField = "isOutlanding"
 	ImportFieldIsPic                   ImportField = "isPic"
+	ImportFieldIsTowFlight             ImportField = "isTowFlight"
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
 	ImportFieldLandingsTotal           ImportField = "landingsTotal"
+	ImportFieldLaunchMethod            ImportField = "launchMethod"
+	ImportFieldLaunches                ImportField = "launches"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -1495,6 +1754,7 @@ const (
 	ImportFieldPerson4                 ImportField = "person4"
 	ImportFieldPerson5                 ImportField = "person5"
 	ImportFieldPerson6                 ImportField = "person6"
+	ImportFieldReleaseHeightM          ImportField = "releaseHeightM"
 	ImportFieldRemarks                 ImportField = "remarks"
 	ImportFieldRoute                   ImportField = "route"
 	ImportFieldSimulatedInstrumentTime ImportField = "simulatedInstrumentTime"
@@ -1542,13 +1802,21 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldIsIpc:
 		return true
+	case ImportFieldIsOutlanding:
+		return true
 	case ImportFieldIsPic:
+		return true
+	case ImportFieldIsTowFlight:
 		return true
 	case ImportFieldLandingsDay:
 		return true
 	case ImportFieldLandingsNight:
 		return true
 	case ImportFieldLandingsTotal:
+		return true
+	case ImportFieldLaunchMethod:
+		return true
+	case ImportFieldLaunches:
 		return true
 	case ImportFieldNightTime:
 		return true
@@ -1567,6 +1835,8 @@ func (e ImportField) Valid() bool {
 	case ImportFieldPerson5:
 		return true
 	case ImportFieldPerson6:
+		return true
+	case ImportFieldReleaseHeightM:
 		return true
 	case ImportFieldRemarks:
 		return true
@@ -1731,6 +2001,57 @@ func (e ImportTemplateRegions) Valid() bool {
 	case EASA:
 		return true
 	case FAA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LicencePrivilegeKind.
+const (
+	AEROBATICADVANCED   LicencePrivilegeKind = "AEROBATIC_ADVANCED"
+	AEROBATICBASIC      LicencePrivilegeKind = "AEROBATIC_BASIC"
+	BANNERTOWING        LicencePrivilegeKind = "BANNER_TOWING"
+	BIS                 LicencePrivilegeKind = "BI_S"
+	CLOUDFLYING         LicencePrivilegeKind = "CLOUD_FLYING"
+	FES                 LicencePrivilegeKind = "FE_S"
+	FIS                 LicencePrivilegeKind = "FI_S"
+	LAUNCHMETHODTRAINED LicencePrivilegeKind = "LAUNCH_METHOD_TRAINED"
+	SAILPLANETOWING     LicencePrivilegeKind = "SAILPLANE_TOWING"
+	TMGNIGHT            LicencePrivilegeKind = "TMG_NIGHT"
+	ULPASSENGERAUTH     LicencePrivilegeKind = "UL_PASSENGER_AUTH"
+	ULTOWING            LicencePrivilegeKind = "UL_TOWING"
+	ULTYPEBRIEFING      LicencePrivilegeKind = "UL_TYPE_BRIEFING"
+)
+
+// Valid indicates whether the value is a known member of the LicencePrivilegeKind enum.
+func (e LicencePrivilegeKind) Valid() bool {
+	switch e {
+	case AEROBATICADVANCED:
+		return true
+	case AEROBATICBASIC:
+		return true
+	case BANNERTOWING:
+		return true
+	case BIS:
+		return true
+	case CLOUDFLYING:
+		return true
+	case FES:
+		return true
+	case FIS:
+		return true
+	case LAUNCHMETHODTRAINED:
+		return true
+	case SAILPLANETOWING:
+		return true
+	case TMGNIGHT:
+		return true
+	case ULPASSENGERAUTH:
+		return true
+	case ULTOWING:
+		return true
+	case ULTYPEBRIEFING:
 		return true
 	default:
 		return false
@@ -1914,6 +2235,66 @@ func (e PassengerCurrencyUlKind) Valid() bool {
 	}
 }
 
+// Defines values for PilotProfileMode.
+const (
+	PilotProfileModeAdaptive   PilotProfileMode = "adaptive"
+	PilotProfileModeEverything PilotProfileMode = "everything"
+)
+
+// Valid indicates whether the value is a known member of the PilotProfileMode enum.
+func (e PilotProfileMode) Valid() bool {
+	switch e {
+	case PilotProfileModeAdaptive:
+		return true
+	case PilotProfileModeEverything:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PilotProfileUpdateMode.
+const (
+	PilotProfileUpdateModeAdaptive   PilotProfileUpdateMode = "adaptive"
+	PilotProfileUpdateModeEverything PilotProfileUpdateMode = "everything"
+)
+
+// Valid indicates whether the value is a known member of the PilotProfileUpdateMode enum.
+func (e PilotProfileUpdateMode) Valid() bool {
+	switch e {
+	case PilotProfileUpdateModeAdaptive:
+		return true
+	case PilotProfileUpdateModeEverything:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrivilegeCurrencyStatus.
+const (
+	PrivilegeCurrencyStatusCurrent PrivilegeCurrencyStatus = "current"
+	PrivilegeCurrencyStatusExpired PrivilegeCurrencyStatus = "expired"
+	PrivilegeCurrencyStatusLapsed  PrivilegeCurrencyStatus = "lapsed"
+	PrivilegeCurrencyStatusUnknown PrivilegeCurrencyStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the PrivilegeCurrencyStatus enum.
+func (e PrivilegeCurrencyStatus) Valid() bool {
+	switch e {
+	case PrivilegeCurrencyStatusCurrent:
+		return true
+	case PrivilegeCurrencyStatusExpired:
+		return true
+	case PrivilegeCurrencyStatusLapsed:
+		return true
+	case PrivilegeCurrencyStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicSignatureInfoStatus.
 const (
 	PublicSignatureInfoStatusPending PublicSignatureInfoStatus = "pending"
@@ -1923,6 +2304,129 @@ const (
 func (e PublicSignatureInfoStatus) Valid() bool {
 	switch e {
 	case PublicSignatureInfoStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReadinessItemKind.
+const (
+	ReadinessItemKindCredential   ReadinessItemKind = "credential"
+	ReadinessItemKindLaunchMethod ReadinessItemKind = "launch_method"
+	ReadinessItemKindPassengers   ReadinessItemKind = "passengers"
+	ReadinessItemKindRating       ReadinessItemKind = "rating"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemKind enum.
+func (e ReadinessItemKind) Valid() bool {
+	switch e {
+	case ReadinessItemKindCredential:
+		return true
+	case ReadinessItemKindLaunchMethod:
+		return true
+	case ReadinessItemKindPassengers:
+		return true
+	case ReadinessItemKindRating:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReadinessItemStatus.
+const (
+	ReadinessItemStatusCurrent  ReadinessItemStatus = "current"
+	ReadinessItemStatusExpired  ReadinessItemStatus = "expired"
+	ReadinessItemStatusExpiring ReadinessItemStatus = "expiring"
+	ReadinessItemStatusLapsed   ReadinessItemStatus = "lapsed"
+	ReadinessItemStatusUnknown  ReadinessItemStatus = "unknown"
+	ReadinessItemStatusValid    ReadinessItemStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemStatus enum.
+func (e ReadinessItemStatus) Valid() bool {
+	switch e {
+	case ReadinessItemStatusCurrent:
+		return true
+	case ReadinessItemStatusExpired:
+		return true
+	case ReadinessItemStatusExpiring:
+		return true
+	case ReadinessItemStatusLapsed:
+		return true
+	case ReadinessItemStatusUnknown:
+		return true
+	case ReadinessItemStatusValid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReadinessItemUlKind.
+const (
+	ReadinessItemUlKindGYROPLANE         ReadinessItemUlKind = "GYROPLANE"
+	ReadinessItemUlKindHELICOPTER        ReadinessItemUlKind = "HELICOPTER"
+	ReadinessItemUlKindPOWEREDPARAGLIDER ReadinessItemUlKind = "POWERED_PARAGLIDER"
+	ReadinessItemUlKindSAILPLANE         ReadinessItemUlKind = "SAILPLANE"
+	ReadinessItemUlKindTHREEAXIS         ReadinessItemUlKind = "THREE_AXIS"
+	ReadinessItemUlKindWEIGHTSHIFT       ReadinessItemUlKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ReadinessItemUlKind enum.
+func (e ReadinessItemUlKind) Valid() bool {
+	switch e {
+	case ReadinessItemUlKindGYROPLANE:
+		return true
+	case ReadinessItemUlKindHELICOPTER:
+		return true
+	case ReadinessItemUlKindPOWEREDPARAGLIDER:
+		return true
+	case ReadinessItemUlKindSAILPLANE:
+		return true
+	case ReadinessItemUlKindTHREEAXIS:
+		return true
+	case ReadinessItemUlKindWEIGHTSHIFT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SaveWarningCode.
+const (
+	Ul120kgClass     SaveWarningCode = "ul_120kg_class"
+	UlMtomExceeds600 SaveWarningCode = "ul_mtom_exceeds_600"
+	UlNightFlight    SaveWarningCode = "ul_night_flight"
+)
+
+// Valid indicates whether the value is a known member of the SaveWarningCode enum.
+func (e SaveWarningCode) Valid() bool {
+	switch e {
+	case Ul120kgClass:
+		return true
+	case UlMtomExceeds600:
+		return true
+	case UlNightFlight:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SaveWarningSeverity.
+const (
+	SaveWarningSeverityInfo    SaveWarningSeverity = "info"
+	SaveWarningSeverityWarning SaveWarningSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the SaveWarningSeverity enum.
+func (e SaveWarningSeverity) Valid() bool {
+	switch e {
+	case SaveWarningSeverityInfo:
+		return true
+	case SaveWarningSeverityWarning:
 		return true
 	default:
 		return false
@@ -1968,6 +2472,39 @@ func (e SignatureRequestCreatedStatus) Valid() bool {
 	case SignatureRequestCreatedStatusRevoked:
 		return true
 	case SignatureRequestCreatedStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ULKind.
+const (
+	ULKindGYROPLANE            ULKind = "GYROPLANE"
+	ULKindHELICOPTER           ULKind = "HELICOPTER"
+	ULKindPOWEREDPARAGLIDER    ULKind = "POWERED_PARAGLIDER"
+	ULKindSAILPLANE            ULKind = "SAILPLANE"
+	ULKindTHREEAXIS            ULKind = "THREE_AXIS"
+	ULKindTHREEAXISMOTORGLIDER ULKind = "THREE_AXIS_MOTORGLIDER"
+	ULKindWEIGHTSHIFT          ULKind = "WEIGHT_SHIFT"
+)
+
+// Valid indicates whether the value is a known member of the ULKind enum.
+func (e ULKind) Valid() bool {
+	switch e {
+	case ULKindGYROPLANE:
+		return true
+	case ULKindHELICOPTER:
+		return true
+	case ULKindPOWEREDPARAGLIDER:
+		return true
+	case ULKindSAILPLANE:
+		return true
+	case ULKindTHREEAXIS:
+		return true
+	case ULKindTHREEAXISMOTORGLIDER:
+		return true
+	case ULKindWEIGHTSHIFT:
 		return true
 	default:
 		return false
@@ -2342,9 +2879,11 @@ func (e ExportFlightsCSVParamsSortOrder) Valid() bool {
 
 // Defines values for ExportFlightsPDFParamsFormat.
 const (
-	ExportFlightsPDFParamsFormatEasa    ExportFlightsPDFParamsFormat = "easa"
-	ExportFlightsPDFParamsFormatFaa     ExportFlightsPDFParamsFormat = "faa"
-	ExportFlightsPDFParamsFormatSummary ExportFlightsPDFParamsFormat = "summary"
+	ExportFlightsPDFParamsFormatEasa       ExportFlightsPDFParamsFormat = "easa"
+	ExportFlightsPDFParamsFormatFaa        ExportFlightsPDFParamsFormat = "faa"
+	ExportFlightsPDFParamsFormatSailplane  ExportFlightsPDFParamsFormat = "sailplane"
+	ExportFlightsPDFParamsFormatSummary    ExportFlightsPDFParamsFormat = "summary"
+	ExportFlightsPDFParamsFormatUltralight ExportFlightsPDFParamsFormat = "ultralight"
 )
 
 // Valid indicates whether the value is a known member of the ExportFlightsPDFParamsFormat enum.
@@ -2354,7 +2893,11 @@ func (e ExportFlightsPDFParamsFormat) Valid() bool {
 		return true
 	case ExportFlightsPDFParamsFormatFaa:
 		return true
+	case ExportFlightsPDFParamsFormatSailplane:
+		return true
 	case ExportFlightsPDFParamsFormatSummary:
+		return true
+	case ExportFlightsPDFParamsFormatUltralight:
 		return true
 	default:
 		return false
@@ -2833,6 +3376,13 @@ type AdminConfigAuthMode string
 // an abandoned signup — so reaping is refused outright.
 type AdminConfigUnverifiedCleanupDisabledReason string
 
+// AdminPilotProfileOverrideCounts defines model for AdminPilotProfileOverrideCounts.
+type AdminPilotProfileOverrideCounts struct {
+	Goal int `json:"goal"`
+	Off  int `json:"off"`
+	On   int `json:"on"`
+}
+
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
 	// ActiveSessions Live sessions across all users. A session is live while it holds an unrevoked, unexpired refresh token, so this counts signed-in devices rather than users.
@@ -2861,11 +3411,31 @@ type AdminStats struct {
 	//
 	// Example: {"CSV":2,"FOREFLIGHT_CSV":12,"MYFLIGHTBOOK_CSV":4}
 	ImportsByFormat map[string]int `json:"importsByFormat"`
-	LockedAccounts  int            `json:"lockedAccounts"`
+
+	// LicencePrivileges Licence privileges across all users.
+	LicencePrivileges struct {
+		// ByKind Privileges grouped by kind. Kinds nobody has recorded are omitted.
+		//
+		// Example: {"SAILPLANE_TOWING":2,"UL_PASSENGER_AUTH":5}
+		ByKind map[string]int `json:"byKind"`
+		Total  int            `json:"total"`
+	} `json:"licencePrivileges"`
+	LockedAccounts int `json:"lockedAccounts"`
 
 	// LogbookCertifications Logbook "certified through" statements
 	LogbookCertifications int `json:"logbookCertifications"`
 	NewUsersThisWeek      int `json:"newUsersThisWeek"`
+
+	// PilotProfiles How pilots override the adaptive pilot profile.
+	PilotProfiles struct {
+		// EverythingMode Users who switched the profile to show everything.
+		EverythingMode int `json:"everythingMode"`
+
+		// Overrides Explicit intents per discipline. Disciplines nobody has overridden are omitted.
+		//
+		// Example: {"SAILPLANE":{"goal":5,"off":0,"on":2}}
+		Overrides map[string]AdminPilotProfileOverrideCounts `json:"overrides"`
+	} `json:"pilotProfiles"`
 
 	// StrictLogbookUsers Users with strict logbook mode on
 	StrictLogbookUsers int `json:"strictLogbookUsers"`
@@ -3018,7 +3588,7 @@ type Aircraft struct {
 	// Example: Club aircraft, requires checkout
 	Notes *string `json:"notes,omitempty"`
 
-	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged.
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged. An ULTRALIGHT of kind `POWERED_PARAGLIDER` may carry a name in place of a registration (`PPG-Viper`); it is stored uppercased and trimmed and never rewritten into a nationality notation.
 	//
 	// Example: D-EFGH
 	Registration string `json:"registration"`
@@ -3029,7 +3599,10 @@ type Aircraft struct {
 	Type string `json:"type"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3051,10 +3624,16 @@ type Aircraft struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// Warnings Checks the saved aircraft triggered. Present only on create and update responses, and only when a check fired; the aircraft is saved either way.
+	Warnings *[]SaveWarning `json:"warnings,omitempty"`
 }
 
 // AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-// ULTRALIGHT and cleared otherwise; null means unspecified.
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
 // - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 // - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 // - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3130,7 +3709,10 @@ type AircraftCreate struct {
 	Type string `json:"type"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3149,7 +3731,10 @@ type AircraftCreate struct {
 }
 
 // AircraftCreateUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-// ULTRALIGHT and cleared otherwise; null means unspecified.
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
 // - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 // - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 // - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3321,7 +3906,10 @@ type AircraftUpdate struct {
 	Type *string `json:"type,omitempty"`
 
 	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
-	// ULTRALIGHT and cleared otherwise; null means unspecified.
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
 	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
 	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
 	// - WEIGHT_SHIFT: weight-shift controlled trike
@@ -3887,6 +4475,132 @@ type AuthResponse struct {
 	User         User   `json:"user"`
 }
 
+// BackupAircraft An aircraft as written to a backup; the same fields as `Aircraft` without the save-time `warnings`.
+type BackupAircraft struct {
+	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+	//
+	// Example: SEP_LAND
+	AircraftClass *string `json:"aircraftClass,omitempty"`
+
+	// CreatedAt Example: 2026-01-15T10:00:00Z
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DefaultArrivalIcao Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+	//
+	// Example: LSZH
+	DefaultArrivalIcao *string `json:"defaultArrivalIcao,omitempty"`
+
+	// DefaultDepartureIcao Default departure location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+	//
+	// Example: LSZH
+	DefaultDepartureIcao *string `json:"defaultDepartureIcao,omitempty"`
+
+	// Id Example: 770e8400-e29b-41d4-a716-446655440002
+	Id openapi_types.UUID `json:"id"`
+
+	// IsActive Whether aircraft is still active in the user's fleet
+	//
+	// Example: true
+	IsActive bool `json:"isActive"`
+
+	// IsComplex Whether aircraft has retractable gear, flaps, and constant speed propeller
+	//
+	// Example: false
+	IsComplex bool `json:"isComplex"`
+
+	// IsHighPerformance Whether aircraft has more than 200 HP
+	//
+	// Example: false
+	IsHighPerformance bool `json:"isHighPerformance"`
+
+	// IsMultiPilot Whether the type is certificated for a minimum crew of two pilots. Co-pilot time is loggable only on such an aircraft.
+	//
+	// Example: false
+	IsMultiPilot bool `json:"isMultiPilot"`
+
+	// IsTailwheel Whether aircraft has tailwheel (conventional gear)
+	//
+	// Example: false
+	IsTailwheel bool `json:"isTailwheel"`
+
+	// Make Aircraft manufacturer
+	//
+	// Example: Cessna
+	Make string `json:"make"`
+
+	// MaxTakeoffMassKg Maximum certificated take-off mass in kilograms. FCL.035(a)(5) credits an ULTRALIGHT GYROPLANE of at least 450 kg toward GPL recency.
+	//
+	// Example: 472
+	MaxTakeoffMassKg *int `json:"maxTakeoffMassKg,omitempty"`
+
+	// Model Aircraft model name
+	//
+	// Example: 172 Skyhawk
+	Model string `json:"model"`
+
+	// Notes Additional notes about the aircraft
+	//
+	// Example: Club aircraft, requires checkout
+	Notes *string `json:"notes,omitempty"`
+
+	// Registration Aircraft registration/tail number. Normalised on write into the canonical notation of its state of registry: the nationality mark is matched against the ICAO table and the hyphen inserted, moved or removed to suit (`deabc` and `DE-ABC` both become `D-EABC`; `N-12345` becomes `N12345`). A registration whose nationality mark is not recognised is stored uppercased and trimmed, but otherwise unchanged. An ULTRALIGHT of kind `POWERED_PARAGLIDER` may carry a name in place of a registration (`PPG-Viper`); it is stored uppercased and trimmed and never rewritten into a nationality notation.
+	//
+	// Example: D-EFGH
+	Registration string `json:"registration"`
+
+	// Type Aircraft type designation (e.g., C172, PA28, ASK21)
+	//
+	// Example: C172
+	Type string `json:"type"`
+
+	// UlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+	// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+	// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+	// rating the pilot holds is of one kind; otherwise they are reported in
+	// ClassRatingCurrency.unclassifiedFlights.
+	// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+	// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+	// - WEIGHT_SHIFT: weight-shift controlled trike
+	// - GYROPLANE: ultralight gyroplane
+	// - HELICOPTER: ultralight helicopter
+	// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+	// - SAILPLANE: ultralight sailplane
+	// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+	// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+	// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+	// 450 kg toward GPL recency (FCL.035(a)(5)).
+	//
+	//
+	// Example: THREE_AXIS
+	UlKind *BackupAircraftUlKind `json:"ulKind,omitempty"`
+
+	// UpdatedAt Example: 2026-02-01T14:30:00Z
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
+	UserId openapi_types.UUID `json:"userId"`
+}
+
+// BackupAircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
+// ULTRALIGHT and cleared otherwise; null means unspecified. Flights on an ULTRALIGHT
+// aircraft with null count toward German ultralight recency only when every ULTRALIGHT
+// rating the pilot holds is of one kind; otherwise they are reported in
+// ClassRatingCurrency.unclassifiedFlights.
+// - THREE_AXIS: aerodynamically (three-axis) controlled ultralight aeroplane
+// - THREE_AXIS_MOTORGLIDER: three-axis ultralight that meets the TMG definition
+// - WEIGHT_SHIFT: weight-shift controlled trike
+// - GYROPLANE: ultralight gyroplane
+// - HELICOPTER: ultralight helicopter
+// - POWERED_PARAGLIDER: powered paraglider (Motorschirm) or paraglider trike
+// - SAILPLANE: ultralight sailplane
+// Only THREE_AXIS (as SEP_LAND) and THREE_AXIS_MOTORGLIDER (as TMG) are credited toward
+// EASA LAPL(A) recency and SEP/TMG revalidation under FCL.035(a)(4); SAILPLANE and
+// THREE_AXIS_MOTORGLIDER hours toward SPL recency (AMC1 SFCL.160); GYROPLANE of at least
+// 450 kg toward GPL recency (FCL.035(a)(5)).
+//
+// Example: THREE_AXIS
+type BackupAircraftUlKind string
+
 // BackupClassRating defines model for BackupClassRating.
 type BackupClassRating struct {
 	// ClassType Aircraft class rating type:
@@ -4208,6 +4922,9 @@ type BackupFlight struct {
 	// Example: false
 	IsIpc bool `json:"isIpc"`
 
+	// IsOutlanding The flight ended in an outlanding
+	IsOutlanding bool `json:"isOutlanding"`
+
 	// IsPassenger True when the user was carried on this flight rather than crewing it.
 	// Derived on save: another person is pilot-in-command and the operation
 	// carries no co-pilot seat the user may occupy — the aircraft is not
@@ -4243,6 +4960,9 @@ type BackupFlight struct {
 	// Example: false
 	IsSimulator bool `json:"isSimulator"`
 
+	// IsTowFlight The flight towed a glider or banner
+	IsTowFlight bool `json:"isTowFlight"`
+
 	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
 	//
 	// Example: 3
@@ -4267,6 +4987,12 @@ type BackupFlight struct {
 	//
 	// Example: winch
 	LaunchMethod *BackupFlightLaunchMethod `json:"launchMethod,omitempty"`
+
+	// Launches Launch count; derived from the take-offs unless launchesOverride
+	Launches int `json:"launches"`
+
+	// LaunchesOverride True when the pilot set launches
+	LaunchesOverride *bool `json:"launchesOverride,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
 	//
@@ -4312,6 +5038,9 @@ type BackupFlight struct {
 	//
 	// Example: 0
 	PicusTime int `json:"picusTime"`
+
+	// ReleaseHeightM Tow release height in metres
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
 	//
@@ -4445,6 +5174,35 @@ type BackupFlightRevisionKind string
 // BackupFlightRevisionSource defines model for BackupFlightRevision.Source.
 type BackupFlightRevisionSource string
 
+// BackupLicencePrivilege defines model for BackupLicencePrivilege.
+type BackupLicencePrivilege struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Detail    *string   `json:"detail,omitempty"`
+
+	// ExpiresOn Example: 2026-03-15T00:00:00Z
+	ExpiresOn *time.Time         `json:"expiresOn,omitempty"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// IssuedOn Example: 2024-03-15T00:00:00Z
+	IssuedOn *time.Time `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind      LicencePrivilegeKind `json:"kind"`
+	LicenseId openapi_types.UUID   `json:"licenseId"`
+	Notes     *string              `json:"notes,omitempty"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+	UserId    openapi_types.UUID   `json:"userId"`
+}
+
 // BackupLicense defines model for BackupLicense.
 type BackupLicense struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -4472,10 +5230,13 @@ type BackupLicense struct {
 	UserId                  openapi_types.UUID `json:"userId"`
 }
 
-// BackupLicenseWithRatings A licence together with its class ratings
+// BackupLicenseWithRatings A licence together with its class ratings and privileges
 type BackupLicenseWithRatings struct {
 	ClassRatings []BackupClassRating `json:"classRatings"`
 	License      BackupLicense       `json:"license"`
+
+	// Privileges Omitted when the licence has none
+	Privileges *[]BackupLicencePrivilege `json:"privileges,omitempty"`
 }
 
 // BackupLogbookCertification defines model for BackupLogbookCertification.
@@ -4510,7 +5271,7 @@ type BackupLogbookModeEventTrigger string
 
 // BackupPayload A NinerLog JSON backup, as written by `GET /users/me/data` and by every cloud backup run, and as read by `POST /users/me/data`. A restore also accepts older backups that lack `version` or the later sections.
 type BackupPayload struct {
-	Aircraft            []Aircraft                 `json:"aircraft"`
+	Aircraft            []BackupAircraft           `json:"aircraft"`
 	Contacts            []Contact                  `json:"contacts"`
 	Credentials         []BackupCredential         `json:"credentials"`
 	CustomCurrencyRules []BackupCustomCurrencyRule `json:"customCurrencyRules"`
@@ -4539,6 +5300,12 @@ type BackupPayload struct {
 	LogbookMode             *BackupLogbookMode       `json:"logbookMode,omitempty"`
 	NotificationPreferences *NotificationPreferences `json:"notificationPreferences,omitempty"`
 
+	// PilotProfile The pilot profile's mode and per-discipline intents and acknowledgements; the derived evidence is not exported. Omitted when the user has never changed the profile.
+	PilotProfile *struct {
+		Disciplines *map[string]map[string]interface{} `json:"disciplines,omitempty"`
+		Mode        *BackupPayloadPilotProfileMode     `json:"mode,omitempty"`
+	} `json:"pilotProfile,omitempty"`
+
 	// Version Payload version, `<major>.<minor>`. A restore refuses a major version newer than the server's.
 	//
 	// Example: 1.0
@@ -4547,6 +5314,9 @@ type BackupPayload struct {
 
 // BackupPayloadFormat Always `NinerLog JSON Backup`
 type BackupPayloadFormat string
+
+// BackupPayloadPilotProfileMode defines model for BackupPayload.PilotProfile.Mode.
+type BackupPayloadPilotProfileMode string
 
 // BackupProvider defines model for BackupProvider.
 type BackupProvider struct {
@@ -4629,8 +5399,9 @@ type ClassRating struct {
 	Notes *string `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	//
 	//
@@ -4640,8 +5411,9 @@ type ClassRating struct {
 }
 
 // ClassRatingUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// otherwise. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 // THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 //
 // Example: THREE_AXIS
@@ -4665,15 +5437,17 @@ type ClassRatingCreate struct {
 	Notes      *string             `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	UlKind *ClassRatingCreateUlKind `json:"ulKind,omitempty"`
 }
 
 // ClassRatingCreateUlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+// otherwise. Selects the German recency rule
+// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 // THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 type ClassRatingCreateUlKind string
 
@@ -4718,7 +5492,8 @@ type ClassRatingCurrency struct {
 	ExpiryDate *openapi_types.Date `json:"expiryDate,omitempty"`
 
 	// LaunchMethodCurrency Launch method recency per SFCL.155(c) — 5 launches per method in 24 months, 2 for bungee.
-	// Lists every method the pilot has ever logged on the rating's class; TMG take-offs count
+	// Lists every method the pilot has ever logged on the rating's class, and every method
+	// with a LAUNCH_METHOD_TRAINED privilege on the rating's licence; TMG take-offs count
 	// toward self-launch.
 	LaunchMethodCurrency *[]LaunchMethodCurrency `json:"launchMethodCurrency,omitempty"`
 	LicenseId            openapi_types.UUID      `json:"licenseId"`
@@ -4755,7 +5530,7 @@ type ClassRatingCurrency struct {
 		// Landings Total landings in class in the evaluation period
 		Landings *int `json:"landings,omitempty"`
 
-		// Launches Launches (take-offs) in class in the evaluation period, at least one per flight
+		// Launches Launches in class in the evaluation period (each flight's launches; a flight stored without a launch count counts its take-offs, at least one)
 		Launches *int `json:"launches,omitempty"`
 
 		// LongestTrainingFlightMinutes Longest total time in minutes of a flight with dual time received in class in the evaluation period
@@ -4773,6 +5548,9 @@ type ClassRatingCurrency struct {
 
 		// RequiredMinutes Required time in minutes for currency (authority-specific)
 		RequiredMinutes *int `json:"requiredMinutes,omitempty"`
+
+		// SpicMinutes Student pilot-in-command (supervised solo) time in class in minutes in the evaluation period
+		SpicMinutes *int `json:"spicMinutes,omitempty"`
 
 		// TotalMinutes Total time in class in minutes in the evaluation period
 		TotalMinutes *int `json:"totalMinutes,omitempty"`
@@ -4809,10 +5587,24 @@ type ClassRatingCurrency struct {
 
 	// Status Currency status:
 	// - current: All requirements met
-	// - expiring: Rating expiry approaching (within 90 days)
-	// - expired: Rating has expired or currency requirements not met
-	// - unknown: Authority not supported for auto-calculation
+	// - expiring: Expiry date approaching (within 90 days), or revalidation experience
+	//   not yet met before the expiry date (EASA FCL.740.A, FCL.625.A)
+	// - expired: Past the rating's expiry date, or an FAA 14 CFR 61.57 requirement not met
+	// - lapsed: A rolling recency rule (LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G,
+	//   German UL LuftPersV §45) is not met. The licence stays valid; its privileges
+	//   may not be exercised until recency is restored.
+	// - unknown: Not determinable — no expiry date, no rule for the authority, flight
+	//   data unreadable, or data missing (see messageKey)
 	Status ClassRatingCurrencyStatus `json:"status"`
+
+	// UnclassifiedFlights Flights in the rule's window on ULTRALIGHT aircraft with no ultralight kind that did
+	// not count toward this German ultralight rating. They count only when every
+	// ULTRALIGHT rating the pilot holds, across all licences, is of one and the same kind.
+	// Omitted when zero. Setting the aircraft's kind makes them count.
+	//
+	//
+	// Example: 3
+	UnclassifiedFlights *int `json:"unclassifiedFlights,omitempty"`
 
 	// WindowOpen Only meaningful when `windowOpensAt` is set. True if the
 	// revalidation experience window is currently open
@@ -4834,10 +5626,15 @@ type ClassRatingCurrency struct {
 type ClassRatingCurrencyCreditedUltralightKinds string
 
 // ClassRatingCurrencyStatus Currency status:
-// - current: All requirements met
-// - expiring: Rating expiry approaching (within 90 days)
-// - expired: Rating has expired or currency requirements not met
-// - unknown: Authority not supported for auto-calculation
+//   - current: All requirements met
+//   - expiring: Expiry date approaching (within 90 days), or revalidation experience
+//     not yet met before the expiry date (EASA FCL.740.A, FCL.625.A)
+//   - expired: Past the rating's expiry date, or an FAA 14 CFR 61.57 requirement not met
+//   - lapsed: A rolling recency rule (LAPL FCL.140.A, SPL SFCL.160, GPL FCL.240.G,
+//     German UL LuftPersV §45) is not met. The licence stays valid; its privileges
+//     may not be exercised until recency is restored.
+//   - unknown: Not determinable — no expiry date, no rule for the authority, flight
+//     data unreadable, or data missing (see messageKey)
 type ClassRatingCurrencyStatus string
 
 // ClassRatingUpdate defines model for ClassRatingUpdate.
@@ -4847,11 +5644,25 @@ type ClassRatingUpdate struct {
 	Notes      nullable.Nullable[string]             `json:"notes,omitempty"`
 
 	// UlKind Ultralight kind the rating covers, kept only when classType is ULTRALIGHT and cleared
-	// otherwise; null is evaluated as THREE_AXIS. Selects the German recency rule
-	// (LuftPersV §45) and passenger recency (§45a). A THREE_AXIS rating covers
+	// otherwise. Selects the German recency rule
+	// (LuftPersV §45) and passenger recency (§45a); with null, a German ULTRALIGHT rating
+	// reports status unknown with rating.ul_kind_required. A THREE_AXIS rating covers
 	// THREE_AXIS and THREE_AXIS_MOTORGLIDER aircraft.
 	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
 }
+
+// ClassStatULKind defines model for ClassStatULKind.
+type ClassStatULKind struct {
+	DualMinutes int                    `json:"dualMinutes"`
+	Flights     int                    `json:"flights"`
+	Landings    int                    `json:"landings"`
+	Minutes     int                    `json:"minutes"`
+	PicMinutes  int                    `json:"picMinutes"`
+	UlKind      *ClassStatULKindUlKind `json:"ulKind"`
+}
+
+// ClassStatULKindUlKind defines model for ClassStatULKind.UlKind.
+type ClassStatULKindUlKind string
 
 // ClassType Aircraft class rating type:
 // - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
@@ -5130,11 +5941,31 @@ type CurrencyRequirement struct {
 	// Example: requirement.refresher_training
 	NameKey *string `json:"nameKey,omitempty"`
 
+	// RemedyKey When unmet, what restores it: `remedy.fly_more`, `remedy.training_flight` or
+	// `remedy.proficiency_check`. Omitted when met, on custom rules and on the FAA flight
+	// review row. See docs/CURRENCY_MESSAGES.md.
+	//
+	//
+	// Example: remedy.fly_more
+	RemedyKey *string `json:"remedyKey,omitempty"`
+
+	// RemedyParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
+
 	// Required Required value to meet this requirement
 	Required float32 `json:"required"`
 
 	// Unit Unit of measurement (e.g., "landings", "hours", "flights")
 	Unit string `json:"unit"`
+
+	// ValidUntil For a met requirement of a rolling-window rule, the last date it stays met if the
+	// pilot does not fly again: the day before enough of the counted flights leave the
+	// window for the total to drop below `required`. Omitted when unmet, on custom rules
+	// and on expiry-anchored rules (FCL.740.A, FCL.625.A).
+	//
+	//
+	// Example: 2027-05-31
+	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
 }
 
 // CurrencyStatusResponse defines model for CurrencyStatusResponse.
@@ -5143,6 +5974,11 @@ type CurrencyStatusResponse struct {
 
 	// PassengerCurrency Tier 2: Passenger currency — determines whether the pilot can carry passengers (rolling from now, separate from rating validity)
 	PassengerCurrency []PassengerCurrency `json:"passengerCurrency"`
+
+	// Privileges Currency of each privilege recorded on the pilot's licences
+	// (`/licenses/{licenseId}/privileges`), in licence order, then kind. Absent when
+	// the pilot has recorded none. See docs/SAILPLANES.md "Privileges".
+	Privileges *[]PrivilegeCurrency `json:"privileges,omitempty"`
 
 	// Ratings Tier 1: Rating/license currency — determines whether the pilot can fly at all in each class
 	Ratings []ClassRatingCurrency `json:"ratings"`
@@ -5280,7 +6116,7 @@ type CustomCurrencyThreshold struct {
 	// `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 	// Count metrics (`unit` ignored): `flights`, `landings`,
 	// `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
-	// `night_takeoffs`, `approaches`, `holds`.
+	// `night_takeoffs`, `approaches`, `holds`, `launches`.
 	//
 	//
 	// Example: landings
@@ -5300,7 +6136,7 @@ type CustomCurrencyThreshold struct {
 // `dual_time`, `night_time`, `ifr_time`, `cross_country_time`.
 // Count metrics (`unit` ignored): `flights`, `landings`,
 // `day_landings`, `night_landings`, `takeoffs`, `day_takeoffs`,
-// `night_takeoffs`, `approaches`, `holds`.
+// `night_takeoffs`, `approaches`, `holds`, `launches`.
 //
 // Example: landings
 type CustomCurrencyThresholdMetric string
@@ -5340,8 +6176,14 @@ type CustomReportDefinition struct {
 
 	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-	// gap-filled across the report window; the others are ranked by `value`.
+	// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+	// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+	// `aircraftClass` and `ulKind` read the aircraft of the flight's
+	// registration in the caller's fleet: `aircraftClass` keys are the
+	// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+	// aircraft. Flights without a value group under the empty key. Time
+	// groupings are chronological and gap-filled across the report window;
+	// the others are ranked by `value`.
 	GroupBy CustomReportGroupBy `json:"groupBy"`
 
 	// Limit Maximum number of groups returned for ranked groupings (default
@@ -5349,6 +6191,9 @@ type CustomReportDefinition struct {
 	Limit *int `json:"limit,omitempty"`
 
 	// Metric Metric charted by a report. Durations are integer minutes.
+	// `launches` sums the launch count of soaring flights only (the scope of
+	// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+	// flights marked as an outlanding or a tow flight.
 	Metric CustomReportMetric `json:"metric"`
 
 	// Window Date window. `all` has no bound; `lastMonths` covers the current
@@ -5379,8 +6224,14 @@ type CustomReportFilterRole string
 
 // CustomReportGroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 // `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-// gap-filled across the report window; the others are ranked by `value`.
+// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+// `aircraftClass` and `ulKind` read the aircraft of the flight's
+// registration in the caller's fleet: `aircraftClass` keys are the
+// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+// aircraft. Flights without a value group under the empty key. Time
+// groupings are chronological and gap-filled across the report window;
+// the others are ranked by `value`.
 type CustomReportGroupBy string
 
 // CustomReportInput defines model for CustomReportInput.
@@ -5392,6 +6243,9 @@ type CustomReportInput struct {
 }
 
 // CustomReportMetric Metric charted by a report. Durations are integer minutes.
+// `launches` sums the launch count of soaring flights only (the scope of
+// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+// flights marked as an outlanding or a tow flight.
 type CustomReportMetric string
 
 // CustomReportOrderRequest defines model for CustomReportOrderRequest.
@@ -5412,11 +6266,20 @@ type CustomReportResult struct {
 
 	// GroupBy Dimension the report groups flights by. `month` keys are `YYYY-MM`,
 	// `year` keys `YYYY`, `dayOfWeek` keys ISO weekday numbers `1` (Monday)
-	// to `7`, `route` keys `DEP-ARR`. Time groupings are chronological and
-	// gap-filled across the report window; the others are ranked by `value`.
+	// to `7`, `route` keys `DEP-ARR`. `launchMethod` keys are the stored
+	// launch method (`winch`, `aerotow`, `self-launch`, `car`, `bungee`).
+	// `aircraftClass` and `ulKind` read the aircraft of the flight's
+	// registration in the caller's fleet: `aircraftClass` keys are the
+	// upper-cased class, `ulKind` keys the ultralight kind of `ULTRALIGHT`
+	// aircraft. Flights without a value group under the empty key. Time
+	// groupings are chronological and gap-filled across the report window;
+	// the others are ranked by `value`.
 	GroupBy CustomReportGroupBy `json:"groupBy"`
 
 	// Metric Metric charted by a report. Durations are integer minutes.
+	// `launches` sums the launch count of soaring flights only (the scope of
+	// `GET /reports/soaring-season`); `outlandings` and `towFlights` count
+	// flights marked as an outlanding or a tow flight.
 	Metric CustomReportMetric `json:"metric"`
 
 	// OtherGroups Groups left out by `limit`; they still count toward `totals`
@@ -5443,11 +6306,14 @@ type CustomReportRow struct {
 	Key string `json:"key"`
 
 	// Label English display label for the key
-	Label     string `json:"label"`
-	Landings  int    `json:"landings"`
-	NightTime int    `json:"nightTime"`
-	PicTime   int    `json:"picTime"`
-	TotalTime int    `json:"totalTime"`
+	Label       string `json:"label"`
+	Landings    int    `json:"landings"`
+	Launches    int    `json:"launches"`
+	NightTime   int    `json:"nightTime"`
+	Outlandings int    `json:"outlandings"`
+	PicTime     int    `json:"picTime"`
+	TotalTime   int    `json:"totalTime"`
+	TowFlights  int    `json:"towFlights"`
 
 	// Value The report's `metric` for this group
 	Value int `json:"value"`
@@ -5463,12 +6329,17 @@ type CustomReportTotals struct {
 	Flights int `json:"flights"`
 
 	// FstdTime FSTD session time of matching simulator entries
-	FstdTime  int `json:"fstdTime"`
-	IfrTime   int `json:"ifrTime"`
-	Landings  int `json:"landings"`
-	NightTime int `json:"nightTime"`
-	PicTime   int `json:"picTime"`
-	TotalTime int `json:"totalTime"`
+	FstdTime int `json:"fstdTime"`
+	IfrTime  int `json:"ifrTime"`
+	Landings int `json:"landings"`
+
+	// Launches Launches of matching soaring flights
+	Launches    int `json:"launches"`
+	NightTime   int `json:"nightTime"`
+	Outlandings int `json:"outlandings"`
+	PicTime     int `json:"picTime"`
+	TotalTime   int `json:"totalTime"`
+	TowFlights  int `json:"towFlights"`
 }
 
 // CustomReportWindow Date window. `all` has no bound; `lastMonths` covers the current
@@ -5547,6 +6418,80 @@ type DeletionFeed struct {
 	// Example: false
 	WatermarkExpired bool `json:"watermarkExpired"`
 }
+
+// Discipline A flying discipline ("toolkit"). The enum may grow: clients must treat a
+// value they do not know as `active` (fail open).
+type Discipline string
+
+// DisciplineEvidence defines model for DisciplineEvidence.
+type DisciplineEvidence struct {
+	// LastSeen Date of the latest matching flight, for flight evidence.
+	LastSeen *openapi_types.Date `json:"lastSeen,omitempty"`
+
+	// Ref Human-readable reference, e.g. "SPL 12345", "D-1234", "14 flights, last 2026-08-02".
+	//
+	// Example: SPL 12345
+	Ref string `json:"ref"`
+
+	// RefId Id of the licence, class rating or aircraft the evidence names.
+	RefId  *openapi_types.UUID      `json:"refId,omitempty"`
+	Source DisciplineEvidenceSource `json:"source"`
+
+	// Strength strong: a licence or rating. recent: a matching flight in the last 24
+	// months, or an active aircraft in the fleet. dormant: matching flights,
+	// all older than 24 months.
+	Strength DisciplineEvidenceStrength `json:"strength"`
+}
+
+// DisciplineEvidenceSource defines model for DisciplineEvidence.Source.
+type DisciplineEvidenceSource string
+
+// DisciplineEvidenceStrength strong: a licence or rating. recent: a matching flight in the last 24
+// months, or an active aircraft in the fleet. dormant: matching flights,
+// all older than 24 months.
+type DisciplineEvidenceStrength string
+
+// DisciplineIntent The pilot's intent for a discipline:
+// - auto: status follows the evidence
+// - on: always active
+// - off: always off, whatever the evidence
+// - goal: training toward it (training unless evidence makes it active)
+type DisciplineIntent string
+
+// DisciplineState defines model for DisciplineState.
+type DisciplineState struct {
+	// AcknowledgedAt When the pilot acknowledged this discipline's automatic activation.
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+
+	// Discipline A flying discipline ("toolkit"). The enum may grow: clients must treat a
+	// value they do not know as `active` (fail open).
+	Discipline Discipline           `json:"discipline"`
+	Evidence   []DisciplineEvidence `json:"evidence"`
+
+	// Intent The pilot's intent for a discipline:
+	// - auto: status follows the evidence
+	// - on: always active
+	// - off: always off, whatever the evidence
+	// - goal: training toward it (training unless evidence makes it active)
+	Intent DisciplineIntent `json:"intent"`
+
+	// Status Resolved status, first match wins: intent off → off; intent on, recent
+	// evidence, or a licence or rating with no flights before the 24-month window →
+	// active; intent goal, or recent dual-only flights with no matching licence or
+	// rating → training; only old flights (with or without a licence) → dormant;
+	// otherwise off. Dormant disciplines are never pending acknowledgement.
+	Status DisciplineStatus `json:"status"`
+
+	// UlKinds Ultralight kinds found in ratings, aircraft and flights. Empty for every discipline but ULTRALIGHT.
+	UlKinds []ULKind `json:"ulKinds"`
+}
+
+// DisciplineStatus Resolved status, first match wins: intent off → off; intent on, recent
+// evidence, or a licence or rating with no flights before the 24-month window →
+// active; intent goal, or recent dual-only flights with no matching licence or
+// rating → training; only old flights (with or without a licence) → dormant;
+// otherwise off. Dormant disciplines are never pending acknowledgement.
+type DisciplineStatus string
 
 // DocumentFile Metadata for one reference photo attached to a licence or credential.
 // The bytes themselves are never inlined — fetch them from the image's
@@ -5729,7 +6674,7 @@ type Flight struct {
 	// Example: 30
 	ActualInstrumentTime *int `json:"actualInstrumentTime,omitempty"`
 
-	// AircraftReg Aircraft registration
+	// AircraftReg Aircraft registration, or the name of a powered paraglider in the pilot's fleet (kept as the aircraft stores it).
 	//
 	// Example: D-EFGH
 	AircraftReg string `json:"aircraftReg"`
@@ -5796,7 +6741,7 @@ type Flight struct {
 	// Example: EDDF
 	DepartureIcao *string `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC. Marks the beginning of airborne/flight time.
+	// DepartureTime Take-off time in UTC. Marks the beginning of airborne/flight time.
 	//
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
@@ -5875,6 +6820,11 @@ type Flight struct {
 	// Example: false
 	IsIpc *bool `json:"isIpc,omitempty"`
 
+	// IsOutlanding Landing away from the planned site (Außenlandung). Cross-country time is not derived from departure and arrival for an outlanding.
+	//
+	// Example: false
+	IsOutlanding bool `json:"isOutlanding"`
+
 	// IsPassenger True when the user was carried on this flight rather than crewing it.
 	// Derived on save: another person is pilot-in-command and the operation
 	// carries no co-pilot seat the user may occupy — the aircraft is not
@@ -5910,6 +6860,11 @@ type Flight struct {
 	// Example: false
 	IsSimulator bool `json:"isSimulator"`
 
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	//
+	// Example: false
+	IsTowFlight bool `json:"isTowFlight"`
+
 	// LandingsDay Number of day landings. Auto-calculated from sunset/sunrise at arrival airport.
 	//
 	// Example: 3
@@ -5935,6 +6890,21 @@ type Flight struct {
 	// Example: winch
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod,omitempty"`
 
+	// Launches Sailplane launches on this flight (Part-SFCL SFCL.155 and SFCL.160). Derived from
+	// the take-offs (day + night, at least one) unless launchesOverride is set; 0 for an
+	// FSTD session or a passenger flight. A series of launches logged as one row
+	// (AMC1 FCL.050 style) carries the number of launches with launchesOverride true.
+	// Launch recency counts this value.
+	//
+	//
+	// Example: 1
+	Launches int `json:"launches"`
+
+	// LaunchesOverride True when launches was entered by the pilot rather than derived from the take-offs.
+	//
+	// Example: false
+	LaunchesOverride bool `json:"launchesOverride"`
+
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
 	//
 	// Example: 0
@@ -5955,12 +6925,12 @@ type Flight struct {
 	// Example: false
 	NightTimeOverride bool `json:"nightTimeOverride"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Marks the beginning of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
 	//
 	// Example: 14:15:00
 	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1.
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Marks the end of block time per EASA FCL.010 / FAA 14 CFR 1.1. Null on a flight logged with take-off and landing times only.
 	//
 	// Example: 16:55:00
 	OnBlockTime *string `json:"onBlockTime,omitempty"`
@@ -5979,6 +6949,11 @@ type Flight struct {
 	//
 	// Example: 0
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres.
+	//
+	// Example: 400
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes (augmented crew). Declared by the pilot, never auto-calculated; carved out of the derived function time.
 	//
@@ -6051,7 +7026,11 @@ type Flight struct {
 	// Example: false
 	TakeoffsNightOverride bool `json:"takeoffsNightOverride"`
 
-	// TotalTime Total block time in minutes (off-block to on-block)
+	// TotalTime Total time in minutes (EASA AMC1 FCL.050 Col 9). The off-block to on-block span
+	// when both block times are set, otherwise the take-off to landing span
+	// (`departureTime` to `arrivalTime`). A span whose end is earlier than its start
+	// crosses midnight UTC. 0 for an FSTD session and for a passenger flight.
+	//
 	//
 	// Example: 150
 	TotalTime int `json:"totalTime"`
@@ -6061,6 +7040,9 @@ type Flight struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// Warnings Checks the saved flight triggered. Present only on create, update and batch responses, and only when a check fired; the flight is saved either way.
+	Warnings *[]SaveWarning `json:"warnings,omitempty"`
 }
 
 // FlightLaunchMethod Launch method for glider/SPL flights (winch, aerotow, self-launch, car or bungee)
@@ -6207,11 +7189,78 @@ type FlightBaselineInput struct {
 	TotalMinutes *int `json:"totalMinutes,omitempty"`
 }
 
+// FlightBatchCreate A template flight and the legs that differ from it.
+type FlightBatchCreate struct {
+	Legs []FlightBatchLeg `json:"legs"`
+
+	// Template Creates either a flight or an FSTD (simulator) session.
+	//
+	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
+	// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+	// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+	// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+	// field, sending no complete pair, or sending one half of a pair without a complete
+	// pair beside it returns 400.
+	//
+	// `totalTime` is the block span when both block times are present, otherwise the
+	// take-off to landing span. Night time, night take-offs and landings, and
+	// cross-country time are derived from the same pair (block times first), so a
+	// glider or ultralight flight logged with take-off and landing times only is
+	// treated exactly like a block-timed one.
+	//
+	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
+	// device is not flown between places and has no block times. The session
+	// requires `fstdType` and `simulatedFlightTime` instead. Session time is never
+	// summed into flight time (EASA AMC1 FCL.050 Cols 20-22).
+	Template FlightCreate `json:"template"`
+}
+
+// FlightBatchLeg One leg of a batch; the fields sent replace the template's.
+type FlightBatchLeg struct {
+	// ArrivalTime Landing time in UTC.
+	//
+	// Example: 10:10:00
+	ArrivalTime *string `json:"arrivalTime,omitempty"`
+
+	// DepartureTime Take-off time in UTC.
+	//
+	// Example: 10:02:00
+	DepartureTime *string `json:"departureTime,omitempty"`
+
+	// Landings Landings on this leg; defaults to the template's value, else 1.
+	//
+	// Example: 1
+	Landings *int `json:"landings,omitempty"`
+
+	// Launches Launches on this leg; overrides derivation from the take-offs.
+	//
+	// Example: 1
+	Launches *int `json:"launches,omitempty"`
+
+	// Remarks Remarks for this leg; replaces the template's remarks.
+	Remarks *string `json:"remarks,omitempty"`
+}
+
+// FlightBatchResult defines model for FlightBatchResult.
+type FlightBatchResult struct {
+	// Flights The created flights, in leg order.
+	Flights []Flight `json:"flights"`
+}
+
 // FlightCreate Creates either a flight or an FSTD (simulator) session.
 //
 // For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-// omitting any of them returns 400.
+// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+// field, sending no complete pair, or sending one half of a pair without a complete
+// pair beside it returns 400.
+//
+// `totalTime` is the block span when both block times are present, otherwise the
+// take-off to landing span. Night time, night take-offs and landings, and
+// cross-country time are derived from the same pair (block times first), so a
+// glider or ultralight flight logged with take-off and landing times only is
+// treated exactly like a block-timed one.
 //
 // For an FSTD session (`isSimulator: true`) they must be omitted — a training
 // device is not flown between places and has no block times. The session
@@ -6243,7 +7292,7 @@ type FlightCreate struct {
 	// Example: EDDH
 	ArrivalIcao *string `json:"arrivalIcao,omitempty"`
 
-	// ArrivalTime Landing time in UTC
+	// ArrivalTime Landing time in UTC. Sent together with departureTime; a flight needs this pair or offBlockTime + onBlockTime.
 	//
 	// Example: 16:45:00
 	ArrivalTime *string `json:"arrivalTime,omitempty"`
@@ -6262,7 +7311,7 @@ type FlightCreate struct {
 	// Example: EDDF
 	DepartureIcao *string `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC
+	// DepartureTime Take-off time in UTC. Sent together with arrivalTime; a flight needs this pair or offBlockTime + onBlockTime.
 	//
 	// Example: 14:30:00
 	DepartureTime *string `json:"departureTime,omitempty"`
@@ -6293,10 +7342,16 @@ type FlightCreate struct {
 	InstructorName     *string `json:"instructorName,omitempty"`
 	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
 	IsIpc              *bool   `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
+
+	// IsOutlanding Landing away from the planned site (Außenlandung). Cross-country time is then not derived from departure and arrival.
+	IsOutlanding       *bool `json:"isOutlanding,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Marks this entry as an FSTD (simulator) session rather than a flight.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
+
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	IsTowFlight *bool `json:"isTowFlight,omitempty"`
 
 	// Landings Total number of landings. Day/night split is auto-calculated from sunset/sunrise at arrival airport. Required for a flight, rejected for an FSTD session.
 	//
@@ -6304,18 +7359,21 @@ type FlightCreate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod,omitempty"`
 
+	// Launches Number of sailplane launches. Provide to override derivation from the take-offs (launchesOverride is then true), e.g. to log a series of winch launches as one row; omit to derive.
+	Launches *int `json:"launches,omitempty"`
+
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
 
 	// NightTime Night time in minutes. Provide to override auto-calculation from civil twilight; omit to auto-calculate. Cannot exceed total time.
 	NightTime *int `json:"nightTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Sent together with onBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
 	//
 	// Example: 14:15:00
 	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Sent together with offBlockTime; a flight needs this pair or departureTime + arrivalTime. Rejected for an FSTD session.
 	//
 	// Example: 16:55:00
 	OnBlockTime *string `json:"onBlockTime,omitempty"`
@@ -6330,6 +7388,9 @@ type FlightCreate struct {
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time; the declared function times together with the derived ones must not exceed totalTime.
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres. Outside 0-20000 returns 400.
+	ReleaseHeightM *int `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
 	ReliefTime *int `json:"reliefTime,omitempty"`
@@ -6363,7 +7424,7 @@ type FlightCreate struct {
 	// Example: 0
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
-	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
+	// TotalTime Total time in minutes, computed by the server from offBlockTime to onBlockTime when both are sent, otherwise from departureTime to arrivalTime. Always 0 for an FSTD session. Not accepted from the client.
 	//
 	// Example: 150
 	TotalTime *int `json:"totalTime,omitempty"`
@@ -6543,7 +7604,7 @@ type FlightSession struct {
 	// OnBlockAt On-block instant (chocks on / engine shutdown) in UTC
 	OnBlockAt *time.Time `json:"onBlockAt,omitempty"`
 
-	// Status Session lifecycle state. `onblock` events complete the session.
+	// Status Session lifecycle state. `onblock` events complete the session; `landing` completes a session opened at `takeoff`.
 	Status FlightSessionStatus `json:"status"`
 
 	// TakeoffAt Takeoff instant in UTC
@@ -6552,7 +7613,7 @@ type FlightSession struct {
 	UserId    openapi_types.UUID `json:"userId"`
 }
 
-// FlightSessionStatus Session lifecycle state. `onblock` events complete the session.
+// FlightSessionStatus Session lifecycle state. `onblock` events complete the session; `landing` completes a session opened at `takeoff`.
 type FlightSessionStatus string
 
 // FlightSessionEvent defines model for FlightSessionEvent.
@@ -6708,7 +7769,7 @@ type FlightUpdate struct {
 	ApproachesCount      *int                      `json:"approachesCount,omitempty"`
 	ArrivalIcao          nullable.Nullable[string] `json:"arrivalIcao,omitempty"`
 
-	// ArrivalTime Landing time in UTC
+	// ArrivalTime Landing time in UTC. See departureTime for the effect on totalTime.
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
 	// CorrectionReason Why the entry is corrected. Required when a strict-mode edit is a correction; ignored otherwise.
@@ -6722,7 +7783,7 @@ type FlightUpdate struct {
 	Date             *openapi_types.Date       `json:"date,omitempty"`
 	DepartureIcao    nullable.Nullable[string] `json:"departureIcao,omitempty"`
 
-	// DepartureTime Takeoff time in UTC
+	// DepartureTime Take-off time in UTC. On a flight without both block times, changing take-off or landing recomputes totalTime from the take-off to landing span.
 	DepartureTime nullable.Nullable[string] `json:"departureTime,omitempty"`
 	DualGivenTime *int                      `json:"dualGivenTime,omitempty"`
 
@@ -6741,14 +7802,23 @@ type FlightUpdate struct {
 	InstructorName     nullable.Nullable[string] `json:"instructorName,omitempty"`
 	IsFlightReview     *bool                     `json:"isFlightReview,omitempty"`
 	IsIpc              *bool                     `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
+
+	// IsOutlanding Landing away from the planned site (Außenlandung).
+	IsOutlanding       *bool `json:"isOutlanding,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
 
+	// IsTowFlight The pilot flew the tug, towing a sailplane.
+	IsTowFlight *bool `json:"isTowFlight,omitempty"`
+
 	// Landings Total number of landings
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
+
+	// Launches Number of sailplane launches. A number overrides derivation from the take-offs; null returns the field to derivation.
+	Launches nullable.Nullable[int] `json:"launches,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
 	MultiPilotTime nullable.Nullable[int] `json:"multiPilotTime,omitempty"`
@@ -6756,10 +7826,10 @@ type FlightUpdate struct {
 	// NightTime Night time in minutes. A number overrides auto-calculation; null returns the field to auto-calculation. Cannot exceed total time.
 	NightTime nullable.Nullable[int] `json:"nightTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Changing either block time recomputes totalTime from the block span, or from take-off to landing when the stored flight no longer has both block times.
 	OffBlockTime nullable.Nullable[string] `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. See offBlockTime for the effect on totalTime.
 	OnBlockTime nullable.Nullable[string] `json:"onBlockTime,omitempty"`
 
 	// PicName Name of the PIC
@@ -6767,6 +7837,9 @@ type FlightUpdate struct {
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time.
 	PicusTime *int `json:"picusTime,omitempty"`
+
+	// ReleaseHeightM Tow or winch release height in metres; null clears it. Outside 0-20000 returns 400.
+	ReleaseHeightM nullable.Nullable[int] `json:"releaseHeightM,omitempty"`
 
 	// ReliefTime Cruise relief co-pilot time in minutes. Carved out of the derived function time.
 	ReliefTime *int                      `json:"reliefTime,omitempty"`
@@ -6788,7 +7861,9 @@ type FlightUpdate struct {
 
 	// TakeoffsNight Number of night takeoffs. A number overrides auto-calculation; null returns the field to auto-calculation.
 	TakeoffsNight nullable.Nullable[int] `json:"takeoffsNight,omitempty"`
-	TotalTime     *int                   `json:"totalTime,omitempty"`
+
+	// TotalTime Total time in minutes. Applied only when the request does not change a time that totalTime is computed from.
+	TotalTime *int `json:"totalTime,omitempty"`
 }
 
 // ImportColumnMapping defines model for ImportColumnMapping.
@@ -6804,6 +7879,25 @@ type ImportColumnMapping struct {
 	SourceColumn string `json:"sourceColumn"`
 
 	// TargetField Target flight log field for column mapping.
+	//
+	// `launchMethod` accepts the flight enum values (winch, aerotow,
+	// self-launch, car, bungee), the Vereinsflieger codes W, F, E, A and G,
+	// and the German words (Winde, F-Schlepp, Eigenstart, Autoschlepp,
+	// Gummiseil); an unrecognised value leaves the launch method empty and
+	// does not fail the row. A `[Launch: <method>]` marker in a remarks
+	// column is read as the launch method and removed from the remarks.
+	//
+	// `launches` is a whole number of launches, stored with the override flag set
+	// (German `Starts`, English `Launches`). `isOutlanding` (`Außenlandung`,
+	// `Outlanding`) and `isTowFlight` (`Tow Flight`) read true for `true`, `yes`,
+	// `ja`, `x`, `1` or a positive number. `releaseHeightM` is whole metres; a
+	// value outside 0-20000 is reported as a row error.
+	//
+	// Aircraft created by the import get a class from the source's aircraft
+	// table when it has one, otherwise from a German registration
+	// (`D-` + four digits is GLIDER, `D-M…` is ULTRALIGHT with no kind),
+	// otherwise GLIDER when one of its flights has a towed launch (winch,
+	// aerotow, car, bungee). Existing aircraft are never changed.
 	//
 	// A `nightTime` or `crossCountryTime` column is stored as the pilot's
 	// own value with the matching override flag set (capped at block time)
@@ -6855,6 +7949,25 @@ type ImportConfirmRequest struct {
 }
 
 // ImportField Target flight log field for column mapping.
+//
+// `launchMethod` accepts the flight enum values (winch, aerotow,
+// self-launch, car, bungee), the Vereinsflieger codes W, F, E, A and G,
+// and the German words (Winde, F-Schlepp, Eigenstart, Autoschlepp,
+// Gummiseil); an unrecognised value leaves the launch method empty and
+// does not fail the row. A `[Launch: <method>]` marker in a remarks
+// column is read as the launch method and removed from the remarks.
+//
+// `launches` is a whole number of launches, stored with the override flag set
+// (German `Starts`, English `Launches`). `isOutlanding` (`Außenlandung`,
+// `Outlanding`) and `isTowFlight` (`Tow Flight`) read true for `true`, `yes`,
+// `ja`, `x`, `1` or a positive number. `releaseHeightM` is whole metres; a
+// value outside 0-20000 is reported as a row error.
+//
+// Aircraft created by the import get a class from the source's aircraft
+// table when it has one, otherwise from a German registration
+// (`D-` + four digits is GLIDER, `D-M…` is ULTRALIGHT with no kind),
+// otherwise GLIDER when one of its flights has a towed launch (winch,
+// aerotow, car, bungee). Existing aircraft are never changed.
 //
 // A `nightTime` or `crossCountryTime` column is stored as the pilot's
 // own value with the matching override flag set (capped at block time)
@@ -6955,6 +8068,11 @@ type ImportJSONResult struct {
 	// FlightsImported Example: 27
 	FlightsImported int `json:"flightsImported"`
 
+	// LicencePrivilegesImported Licence privileges restored onto their restored licences
+	//
+	// Example: 2
+	LicencePrivilegesImported int `json:"licencePrivilegesImported"`
+
 	// LicensesImported Example: 2
 	LicensesImported              int `json:"licensesImported"`
 	LogbookCertificationsImported int `json:"logbookCertificationsImported"`
@@ -6964,6 +8082,9 @@ type ImportJSONResult struct {
 
 	// NotificationPreferencesImported Whether the backup carried notification preferences that were applied
 	NotificationPreferencesImported bool `json:"notificationPreferencesImported"`
+
+	// PilotProfileImported Whether the backup carried a pilot profile (mode and discipline intents) that was applied
+	PilotProfileImported bool `json:"pilotProfileImported"`
 
 	// Warnings Rows that were restored although they no longer pass validation (custom currency rules are restored with `enabled` and `notify` false), or that carry values worth a second look. Empty when the backup restored cleanly.
 	Warnings []RestoreWarning `json:"warnings"`
@@ -6989,8 +8110,17 @@ type ImportPreviewFlight struct {
 	// Flight Creates either a flight or an FSTD (simulator) session.
 	//
 	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-	// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-	// omitting any of them returns 400.
+	// `arrivalIcao` and `landings` are required, plus at least one complete time pair:
+	// block times (`offBlockTime` and `onBlockTime`) or take-off and landing times
+	// (`departureTime` and `arrivalTime`). Both pairs may be sent. Omitting a required
+	// field, sending no complete pair, or sending one half of a pair without a complete
+	// pair beside it returns 400.
+	//
+	// `totalTime` is the block span when both block times are present, otherwise the
+	// take-off to landing span. Night time, night take-offs and landings, and
+	// cross-country time are derived from the same pair (block times first), so a
+	// glider or ultralight flight logged with take-off and landing times only is
+	// treated exactly like a block-timed one.
 	//
 	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
 	// device is not flown between places and has no block times. The session
@@ -7323,10 +8453,111 @@ type LaunchMethodCurrency struct {
 	// Example: winch
 	Method string `json:"method"`
 
+	// RemedyKey When unmet, `remedy.launch_method_dual` (SFCL.155(d)); see docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: remedy.launch_method_dual
+	RemedyKey *string `json:"remedyKey,omitempty"`
+
+	// RemedyParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	RemedyParams *MessageParams `json:"remedyParams,omitempty"`
+
 	// Required Required number of launches (5, or 2 for bungee)
 	//
 	// Example: 5
 	Required int `json:"required"`
+
+	// Trained Whether the pilot has recorded a LAUNCH_METHOD_TRAINED privilege for this method on
+	// the rating's licence (SFCL.155(a)). A method with such a privilege is listed even
+	// when never logged.
+	Trained *bool `json:"trained,omitempty"`
+
+	// ValidUntil When met, the last date the method stays met if the pilot does not fly again. Omitted when unmet.
+	//
+	// Example: 2027-04-12
+	ValidUntil *openapi_types.Date `json:"validUntil,omitempty"`
+}
+
+// LicencePrivilege defines model for LicencePrivilege.
+type LicencePrivilege struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Detail Launch method (LAUNCH_METHOD_TRAINED), ultralight kind (UL_TOWING) or aircraft type (UL_TYPE_BRIEFING); free text for other kinds
+	//
+	// Example: aerotow
+	Detail *string `json:"detail,omitempty"`
+
+	// ExpiresOn Last day the privilege is valid; absent when it does not expire
+	ExpiresOn *openapi_types.Date `json:"expiresOn,omitempty"`
+	Id        openapi_types.UUID  `json:"id"`
+	IssuedOn  *openapi_types.Date `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind      LicencePrivilegeKind `json:"kind"`
+	LicenseId openapi_types.UUID   `json:"licenseId"`
+	Notes     *string              `json:"notes,omitempty"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+}
+
+// LicencePrivilegeCreate defines model for LicencePrivilegeCreate.
+type LicencePrivilegeCreate struct {
+	// Detail Required for LAUNCH_METHOD_TRAINED (a launch method), UL_TOWING (an ultralight kind) and UL_TYPE_BRIEFING (the aircraft type)
+	Detail    *string             `json:"detail,omitempty"`
+	ExpiresOn *openapi_types.Date `json:"expiresOn,omitempty"`
+	IssuedOn  *openapi_types.Date `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind  LicencePrivilegeKind `json:"kind"`
+	Notes *string              `json:"notes,omitempty"`
+}
+
+// LicencePrivilegeKind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+// - BANNER_TOWING: banner towing (SFCL.205)
+// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+type LicencePrivilegeKind string
+
+// LicencePrivilegeUpdate defines model for LicencePrivilegeUpdate.
+type LicencePrivilegeUpdate struct {
+	Detail    nullable.Nullable[string]             `json:"detail,omitempty"`
+	ExpiresOn nullable.Nullable[openapi_types.Date] `json:"expiresOn,omitempty"`
+	IssuedOn  nullable.Nullable[openapi_types.Date] `json:"issuedOn,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind  *LicencePrivilegeKind     `json:"kind,omitempty"`
+	Notes nullable.Nullable[string] `json:"notes,omitempty"`
 }
 
 // License defines model for License.
@@ -7488,10 +8719,25 @@ type MessageParams struct {
 	// Example: 42
 	Days *int `json:"days,omitempty"`
 
+	// Method Launch method a remedy key refers to
+	//
+	// Example: aerotow
+	Method *string `json:"method,omitempty"`
+
+	// Missing Outstanding amount a remedy key asks for, in `unit`
+	//
+	// Example: 2
+	Missing *int `json:"missing,omitempty"`
+
 	// Needed Outstanding count for a shortfall key (landings, launches)
 	//
 	// Example: 2
 	Needed *int `json:"needed,omitempty"`
+
+	// Unit Unit of `missing` (minutes, landings, launches, flights, approaches, holds)
+	//
+	// Example: launches
+	Unit *string `json:"unit,omitempty"`
 }
 
 // NotificationCategory Notification category for granular control:
@@ -7729,7 +8975,7 @@ type PassengerCurrency struct {
 	// Example: 2026-11-15
 	DayExpiresOn *openapi_types.Date `json:"dayExpiresOn,omitempty"`
 
-	// DayLandings Number of landings in the preceding 90 days
+	// DayLandings Number of landings in the preceding 90 days. For a German ultralight entry (ulKind set), the smaller of the take-off and landing counts (LuftPersV §45a).
 	DayLandings int `json:"dayLandings"`
 
 	// DayRequired Required landings for day passenger currency (typically 3)
@@ -7772,6 +9018,12 @@ type PassengerCurrency struct {
 	// RegulatoryAuthority Authority that defines the passenger currency rules
 	RegulatoryAuthority string `json:"regulatoryAuthority"`
 
+	// Requirements Informational prerequisites of carrying passengers that do not change `dayStatus`:
+	// on SPL sailplane and TMG passenger currency the SFCL.115(a)(2) experience since
+	// licence issue; on a German ultralight entry without a recorded passenger
+	// authorisation, progress toward it (LuftPersV §84a). Absent otherwise.
+	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
 	// RuleDescription Regulatory reference for the passenger currency rule
 	//
 	// Example: 3 takeoffs & landings in same type/class within preceding 90 days to carry passengers (EASA FCL.060(b))
@@ -7783,8 +9035,8 @@ type PassengerCurrency struct {
 	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
 
 	// UlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
-	// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
-	// so there is one entry per kind.
+	// LuftPersV §45a passenger recency counts take-offs and landings in an ultralight of the
+	// same kind, so there is one entry per kind. A rating with no kind has no entry.
 	UlKind *PassengerCurrencyUlKind `json:"ulKind,omitempty"`
 }
 
@@ -7795,9 +9047,91 @@ type PassengerCurrencyDayStatus string
 type PassengerCurrencyNightStatus string
 
 // PassengerCurrencyUlKind Ultralight kind this entry covers, present only for a German ULTRALIGHT rating.
-// LuftPersV §45a passenger recency counts landings in an ultralight of the same kind,
-// so there is one entry per kind.
+// LuftPersV §45a passenger recency counts take-offs and landings in an ultralight of the
+// same kind, so there is one entry per kind. A rating with no kind has no entry.
 type PassengerCurrencyUlKind string
+
+// PilotProfile defines model for PilotProfile.
+type PilotProfile struct {
+	// Disciplines One entry per discipline, in Discipline enum order.
+	Disciplines []DisciplineState `json:"disciplines"`
+
+	// Mode adaptive folds features for inactive disciplines; everything shows every feature.
+	Mode PilotProfileMode `json:"mode"`
+
+	// PendingAcknowledgement Disciplines active or training by evidence alone (intent auto) whose activation the pilot has not acknowledged.
+	PendingAcknowledgement []Discipline `json:"pendingAcknowledgement"`
+}
+
+// PilotProfileMode adaptive folds features for inactive disciplines; everything shows every feature.
+type PilotProfileMode string
+
+// PilotProfileUpdate Partial, idempotent merge into the stored pilot profile.
+type PilotProfileUpdate struct {
+	// Acknowledge Disciplines whose automatic activation the pilot has seen.
+	Acknowledge *[]Discipline `json:"acknowledge,omitempty"`
+
+	// Intents Intent per discipline; disciplines not named keep their intent.
+	//
+	// Example: {"IFR":"off","SAILPLANE":"goal"}
+	Intents *map[string]DisciplineIntent `json:"intents,omitempty"`
+	Mode    *PilotProfileUpdateMode      `json:"mode,omitempty"`
+}
+
+// PilotProfileUpdateMode defines model for PilotProfileUpdate.Mode.
+type PilotProfileUpdateMode string
+
+// PrivilegeCurrency defines model for PrivilegeCurrency.
+type PrivilegeCurrency struct {
+	// Detail The privilege's detail (launch method, ultralight kind, aircraft type)
+	Detail *string `json:"detail,omitempty"`
+
+	// Kind - SAILPLANE_TOWING: sailplane towing (SFCL.205; on an FAA licence the 14 CFR 61.69 tow privilege)
+	// - BANNER_TOWING: banner towing (SFCL.205)
+	// - CLOUD_FLYING: sailplane cloud flying (SFCL.215)
+	// - AEROBATIC_BASIC, AEROBATIC_ADVANCED: sailplane aerobatics (SFCL.200)
+	// - TMG_NIGHT: night flying in a TMG (SFCL.210)
+	// - FI_S, BI_S, FE_S: sailplane flight instructor (SFCL.360), basic instructor, examiner
+	// - UL_PASSENGER_AUTH: German UL passenger authorisation (LuftPersV §84a)
+	// - UL_TOWING: German UL towing authorisation (DULV Schleppberechtigung); detail is the ultralight kind
+	// - UL_TYPE_BRIEFING: UL type briefing (Einweisung); detail is the aircraft type
+	// - LAUNCH_METHOD_TRAINED: a launch method the pilot is trained for (SFCL.155(a)); detail is the method
+	Kind      LicencePrivilegeKind `json:"kind"`
+	LicenseId openapi_types.UUID   `json:"licenseId"`
+
+	// MessageKey Stable key for client-side localisation; catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	// Example: privilege.recency_current
+	MessageKey string `json:"messageKey"`
+
+	// MessageParams Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	MessageParams *MessageParams     `json:"messageParams,omitempty"`
+	PrivilegeId   openapi_types.UUID `json:"privilegeId"`
+
+	// Requirements Recency rows of the privilege. A row whose `messageKey` is
+	// `requirement.untracked` is informational: NinerLog cannot count it and it never
+	// changes `status`.
+	Requirements *[]CurrencyRequirement `json:"requirements,omitempty"`
+
+	// RuleDescriptionKey Stable key for the applied rule (e.g. `sfcl_205_towing`, `faa_61_69_towing`)
+	//
+	// Example: sfcl_205_towing
+	RuleDescriptionKey *string `json:"ruleDescriptionKey,omitempty"`
+
+	// Status - current: valid, and any recency rule of the privilege is met
+	// - lapsed: a rolling recency rule (SFCL.205, SFCL.215, SFCL.360, 14 CFR 61.69,
+	//   DULV towing) is not met; the privilege is not exercisable until it is restored
+	// - expired: past the privilege's `expiresOn`
+	// - unknown: flight data could not be read
+	Status PrivilegeCurrencyStatus `json:"status"`
+}
+
+// PrivilegeCurrencyStatus - current: valid, and any recency rule of the privilege is met
+//   - lapsed: a rolling recency rule (SFCL.205, SFCL.215, SFCL.360, 14 CFR 61.69,
+//     DULV towing) is not met; the privilege is not exercisable until it is restored
+//   - expired: past the privilege's `expiresOn`
+//   - unknown: flight data could not be read
+type PrivilegeCurrencyStatus string
 
 // PublicSignatureInfo Deliberately minimal — no owner PII beyond the flight's own logged details.
 type PublicSignatureInfo struct {
@@ -7823,6 +9157,78 @@ type PublicSignatureInfo struct {
 
 // PublicSignatureInfoStatus Always "pending" on a 200 response; any other state is reported via 404/410 instead.
 type PublicSignatureInfoStatus string
+
+// ReadinessItem defines model for ReadinessItem.
+type ReadinessItem struct {
+	// ClassRatingId The rating answered (kind rating) or the rating the launch method belongs to
+	ClassRatingId *openapi_types.UUID `json:"classRatingId,omitempty"`
+
+	// ClassType Aircraft class rating type:
+	// - SEP_LAND/SEP_SEA: Single Engine Piston (Land/Sea)
+	// - MEP_LAND/MEP_SEA: Multi Engine Piston (Land/Sea)
+	// - SET_LAND/SET_SEA: Single Engine Turboprop (Land/Sea)
+	// - TMG: Touring Motor Glider
+	// - IR: Instrument Rating
+	// - OTHER: Other rating type
+	// - GLIDER: Sailplane / glider, including self-launching sailplanes (EASA SFCL.160 recency, FAA glider launches)
+	// - ULTRALIGHT: Ultralight / microlight (LuftPersV §45 recency; the kind is in ulKind)
+	// - GYROPLANE: Gyroplane (EASA GPL, FCL.240.G recency)
+	ClassType *ClassType `json:"classType,omitempty"`
+
+	// CredentialId The medical certificate answered (kind credential)
+	CredentialId *openapi_types.UUID `json:"credentialId,omitempty"`
+	Kind         ReadinessItemKind   `json:"kind"`
+
+	// LaunchMethod Launch method (kind launch_method)
+	//
+	// Example: aerotow
+	LaunchMethod *string             `json:"launchMethod,omitempty"`
+	LicenseId    *openapi_types.UUID `json:"licenseId,omitempty"`
+
+	// Params Variable parts of a localised message that are not already fields on the enclosing object. Which fields are present is determined by messageKey; see docs/CURRENCY_MESSAGES.md for the per-key contract.
+	Params *MessageParams `json:"params,omitempty"`
+
+	// Ready Whether the privilege may be exercised on the date
+	Ready bool `json:"ready"`
+
+	// ReasonKey Message key explaining the answer — a rating, passenger or remedy key, or a
+	// `readiness.*` key. Catalogued in docs/CURRENCY_MESSAGES.md.
+	//
+	//
+	// Example: remedy.launch_method_dual
+	ReasonKey string `json:"reasonKey"`
+
+	// Status A rating's currency status on the date; `current` or `lapsed` for a launch
+	// method; the day passenger status for passengers; `valid` or `expired` for a
+	// credential.
+	Status ReadinessItemStatus `json:"status"`
+
+	// UlKind Ultralight kind of the rating or passenger entry
+	UlKind *ReadinessItemUlKind `json:"ulKind,omitempty"`
+}
+
+// ReadinessItemKind defines model for ReadinessItem.Kind.
+type ReadinessItemKind string
+
+// ReadinessItemStatus A rating's currency status on the date; `current` or `lapsed` for a launch
+// method; the day passenger status for passengers; `valid` or `expired` for a
+// credential.
+type ReadinessItemStatus string
+
+// ReadinessItemUlKind Ultralight kind of the rating or passenger entry
+type ReadinessItemUlKind string
+
+// ReadinessReport defines model for ReadinessReport.
+type ReadinessReport struct {
+	// AircraftReg Registration of the aircraft the answer is restricted to, as stored
+	AircraftReg *string `json:"aircraftReg,omitempty"`
+
+	// Date The date answered for
+	Date openapi_types.Date `json:"date"`
+
+	// Items Ratings first, then launch methods, passengers and medical certificates
+	Items []ReadinessItem `json:"items"`
+}
 
 // RegistrationResponse defines model for RegistrationResponse.
 type RegistrationResponse struct {
@@ -7861,6 +9267,24 @@ type RestoreWarning struct {
 	// Example: customCurrencyRules
 	Section string `json:"section"`
 }
+
+// SaveWarning defines model for SaveWarning.
+type SaveWarning struct {
+	// Code `ul_night_flight`: a flight on an ULTRALIGHT aircraft logs night time or night landings; German UL have no night privilege (LuftPersV §44(2), §45a). `ul_mtom_exceeds_600`: an ULTRALIGHT aircraft's MTOM is above the 600 kg German UL class limit. `ul_120kg_class` (info): an ULTRALIGHT aircraft with an MTOM of at most 120 kg may fall in the single-seat 120 kg class.
+	Code SaveWarningCode `json:"code"`
+
+	// Params Values for the message. `ul_night_flight`: `nightTime` (minutes), `landingsNight`, `registration`, `ulKind` (when set). `ul_mtom_exceeds_600` and `ul_120kg_class`: `mtomKg`, `limitKg`.
+	//
+	// Example: {"landingsNight":1,"nightTime":25,"registration":"D-MXYZ","ulKind":"THREE_AXIS"}
+	Params   map[string]interface{} `json:"params"`
+	Severity SaveWarningSeverity    `json:"severity"`
+}
+
+// SaveWarningCode `ul_night_flight`: a flight on an ULTRALIGHT aircraft logs night time or night landings; German UL have no night privilege (LuftPersV §44(2), §45a). `ul_mtom_exceeds_600`: an ULTRALIGHT aircraft's MTOM is above the 600 kg German UL class limit. `ul_120kg_class` (info): an ULTRALIGHT aircraft with an MTOM of at most 120 kg may fall in the single-seat 120 kg class.
+type SaveWarningCode string
+
+// SaveWarningSeverity defines model for SaveWarningSeverity.
+type SaveWarningSeverity string
 
 // Session One signed-in device holding a live session.
 type Session struct {
@@ -7935,6 +9359,52 @@ type SignatureRequestCreatedMethod string
 
 // SignatureRequestCreatedStatus defines model for SignatureRequestCreated.Status.
 type SignatureRequestCreatedStatus string
+
+// SoaringLaunchesByMethod Launches per launch method; `unspecified` counts soaring flights without one.
+type SoaringLaunchesByMethod struct {
+	Aerotow     int `json:"aerotow"`
+	Bungee      int `json:"bungee"`
+	Car         int `json:"car"`
+	SelfLaunch  int `json:"selfLaunch"`
+	Unspecified int `json:"unspecified"`
+	Winch       int `json:"winch"`
+}
+
+// SoaringSeason One calendar year of soaring flights (see `GET /reports/soaring-season`). Durations in minutes.
+type SoaringSeason struct {
+	// AverageFlightMinutes totalMinutes / flights, rounded; 0 without flights
+	AverageFlightMinutes int `json:"averageFlightMinutes"`
+	Flights              int `json:"flights"`
+	Launches             int `json:"launches"`
+
+	// LaunchesByMethod Launches per launch method; `unspecified` counts soaring flights without one.
+	LaunchesByMethod SoaringLaunchesByMethod `json:"launchesByMethod"`
+	LongestFlight    *SoaringSeasonFlight    `json:"longestFlight,omitempty"`
+
+	// Outlandings Soaring flights marked as an outlanding
+	Outlandings int `json:"outlandings"`
+
+	// Sites Top five departure places by soaring flights, most first
+	Sites        []SoaringSeasonSite `json:"sites"`
+	TotalMinutes int                 `json:"totalMinutes"`
+	Year         int                 `json:"year"`
+}
+
+// SoaringSeasonFlight defines model for SoaringSeasonFlight.
+type SoaringSeasonFlight struct {
+	AircraftReg *string            `json:"aircraftReg"`
+	Date        openapi_types.Date `json:"date"`
+	FlightId    openapi_types.UUID `json:"flightId"`
+	Minutes     int                `json:"minutes"`
+}
+
+// SoaringSeasonSite defines model for SoaringSeasonSite.
+type SoaringSeasonSite struct {
+	Flights int `json:"flights"`
+
+	// Place Departure as logged (ICAO code or free-text place)
+	Place string `json:"place"`
+}
 
 // Statistics defines model for Statistics.
 type Statistics struct {
@@ -8084,6 +9554,9 @@ type TwoFactorSetup struct {
 	// Example: JBSWY3DPEHPK3PXP
 	Secret string `json:"secret"`
 }
+
+// ULKind Kind of an ultralight (German "Luftsportgeräteart").
+type ULKind string
 
 // UpdateComponent defines model for UpdateComponent.
 type UpdateComponent struct {
@@ -8369,6 +9842,9 @@ type ImportId = openapi_types.UUID
 
 // LicenseId Example: 550e8400-e29b-41d4-a716-446655440000
 type LicenseId = openapi_types.UUID
+
+// PrivilegeId defines model for PrivilegeId.
+type PrivilegeId = openapi_types.UUID
 
 // RestoreMode defines model for RestoreMode.
 type RestoreMode string
@@ -8693,6 +10169,19 @@ type ListCredentialsParams struct {
 	UpdatedSince *UpdatedSince `form:"updatedSince,omitempty" json:"updatedSince,omitempty"`
 }
 
+// GetCurrencyReadinessParams defines parameters for GetCurrencyReadiness.
+type GetCurrencyReadinessParams struct {
+	// Date Calendar date to answer for, from the day before today's UTC date to 366 days
+	// after it. Defaults to today (UTC).
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+
+	// AircraftReg Registration of one of the caller's aircraft; restricts the answer to it.
+	AircraftReg *string `form:"aircraftReg,omitempty" json:"aircraftReg,omitempty"`
+
+	// Passengers Include passenger currency.
+	Passengers *bool `form:"passengers,omitempty" json:"passengers,omitempty"`
+}
+
 // ExportFlightsCSVParams defines parameters for ExportFlightsCSV.
 type ExportFlightsCSVParams struct {
 	// Format CSV column format — easa, faa, weblogbook (vsimakhin/web-logbook import), or standard (ForeFlight-compatible default)
@@ -8752,16 +10241,17 @@ type ExportFlightsCSVParamsSortOrder string
 
 // ExportFlightsPDFParams defines parameters for ExportFlightsPDF.
 type ExportFlightsPDFParams struct {
-	// LogbookLicenseId Filter flights for a specific logbook license
+	// LogbookLicenseId Separate-logbook license filter, as `GET /flights`. Flights credited toward the
+	// license from another class print `[Credited]` at the start of their remarks.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
-	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), or summary (simplified totals)
+	// Format PDF format — easa (AMC1 FCL.050 columns), faa (14 CFR § 61.51 / ASA-Jeppesen columns), sailplane (AMC1 SFCL.050 columns), ultralight (UL columns), or summary (simplified totals). Omitted, it is easa, except with `logbookLicenseId`: sailplane for an SPL, LAPL(S) or FAA glider licence, ultralight for an ultralight licence (a DULV/DAeC licence or a licence type naming UL), easa otherwise.
 	Format *ExportFlightsPDFParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 
 	// PageSize Page size for the generated PDF. All sizes are rendered in landscape orientation.
 	PageSize *ExportFlightsPDFParamsPageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
 
-	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary format.
+	// Layout Page layout. `spread` (default) lays the logbook out as a book-style two-page spread (left + right facing pages) intended for double-sided printing, in any page size; intentionally-blank filler pages (one at the start, one before the totals summary) keep each spread on facing pages when printed duplex. `single` renders all columns on one landscape page per batch of flights — designed for single-page A4 landscape printing. Ignored for the summary, sailplane and ultralight formats.
 	Layout *ExportFlightsPDFParamsLayout `form:"layout,omitempty" json:"layout,omitempty"`
 
 	// RowsPerPage Number of flight rows per logbook page. When set, the row height — and, for dense layouts, the body font — scales dynamically so the rows fill the page: fewer rows give an airier, larger-print logbook, more rows a denser one. Values are clamped to what stays legible on the chosen page size; omitted, the row count is derived from the page size's default row height. Ignored for the summary format.
@@ -8840,7 +10330,9 @@ type ListFlightsParams struct {
 	// distance; isPic; isDual; isIpc (ipc); isFlightReview (flightReview,
 	// bfr); isProficiencyCheck (proficiencyCheck); signed; instructorName
 	// (instructor); instructorComments; picName; crew; fstdType (fstd);
-	// endorsements; launchMethod (launch); createdAt; updatedAt.
+	// endorsements; launchMethod (launch); launches; isOutlanding
+	// (outlanding); isTowFlight (towflight); releaseHeightM (releaseHeight);
+	// createdAt; updatedAt.
 	//
 	// Example: `q=(departure:EDDF OR arrival:EDDF) AND nightTime>0 NOT remarks:cancelled`
 	//
@@ -8859,7 +10351,11 @@ type ListFlightsParams struct {
 	// SortOrder Sort order
 	SortOrder *ListFlightsParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
 
-	// LogbookLicenseId Filter flights for a separate-logbook license. Only returns flights on aircraft whose class matches the license's class ratings.
+	// LogbookLicenseId Filter flights for a separate-logbook license: flights on aircraft of the license's
+	// class ratings (aircraft class compared trimmed and case-insensitively; an ULTRALIGHT
+	// rating with a kind admits only ultralights of a kind it covers), plus flights the
+	// currency engine credits toward those ratings from other classes, except towed
+	// launches credited toward a powered rating.
 	LogbookLicenseId *openapi_types.UUID `form:"logbookLicenseId,omitempty" json:"logbookLicenseId,omitempty"`
 
 	// UpdatedSince Delta sync: return only records whose `updatedAt` is **strictly after** this instant. The value is an RFC 3339 date-time and is compared with full timestamp precision, so a client can pass back the highest `updatedAt` it has seen and receive exactly what changed since. Combines with the endpoint's other filters (ANDed) and pages as usual; on paginated endpoints `pagination.total` counts the delta.
@@ -8950,6 +10446,12 @@ type ExportCustomReportParams struct {
 
 // ExportCustomReportParamsFormat defines parameters for ExportCustomReport.
 type ExportCustomReportParamsFormat string
+
+// GetSoaringSeasonParams defines parameters for GetSoaringSeason.
+type GetSoaringSeasonParams struct {
+	// Year Calendar year (UTC). Defaults to the current year; 1900 to next year.
+	Year *int `form:"year,omitempty" json:"year,omitempty"`
+}
 
 // GetStatsByClassParams defines parameters for GetStatsByClass.
 type GetStatsByClassParams struct {
@@ -9184,6 +10686,9 @@ type RecordFlightSessionEventJSONRequestBody = FlightSessionEvent
 // CreateFlightJSONRequestBody defines body for CreateFlight for application/json ContentType.
 type CreateFlightJSONRequestBody = FlightCreate
 
+// CreateFlightBatchJSONRequestBody defines body for CreateFlightBatch for application/json ContentType.
+type CreateFlightBatchJSONRequestBody = FlightBatchCreate
+
 // UpdateFlightJSONRequestBody defines body for UpdateFlight for application/json ContentType.
 type UpdateFlightJSONRequestBody = FlightUpdate
 
@@ -9221,6 +10726,12 @@ type UpdateLicenseJSONRequestBody UpdateLicenseJSONBody
 
 // UploadLicenseFileMultipartRequestBody defines body for UploadLicenseFile for multipart/form-data ContentType.
 type UploadLicenseFileMultipartRequestBody = DocumentFileUpload
+
+// CreateLicencePrivilegeJSONRequestBody defines body for CreateLicencePrivilege for application/json ContentType.
+type CreateLicencePrivilegeJSONRequestBody = LicencePrivilegeCreate
+
+// UpdateLicencePrivilegeJSONRequestBody defines body for UpdateLicencePrivilege for application/json ContentType.
+type UpdateLicencePrivilegeJSONRequestBody = LicencePrivilegeUpdate
 
 // CreateClassRatingJSONRequestBody defines body for CreateClassRating for application/json ContentType.
 type CreateClassRatingJSONRequestBody = ClassRatingCreate
@@ -9263,6 +10774,9 @@ type RestoreUserDataJSONRequestBody = BackupPayload
 
 // UpdateNotificationPreferencesJSONRequestBody defines body for UpdateNotificationPreferences for application/json ContentType.
 type UpdateNotificationPreferencesJSONRequestBody = NotificationPreferencesUpdate
+
+// UpdatePilotProfileJSONRequestBody defines body for UpdatePilotProfile for application/json ContentType.
+type UpdatePilotProfileJSONRequestBody = PilotProfileUpdate
 
 // AsAuthResponse returns the union data inside the LoginUser200JSONResponseBody as a AuthResponse
 func (t LoginUser200JSONResponseBody) AsAuthResponse() (AuthResponse, error) {

@@ -3,6 +3,8 @@ package service
 import (
 	"testing"
 	"time"
+
+	"github.com/fjaeckel/ninerlog-api/internal/service/currency"
 )
 
 func TestFormatDateForUser(t *testing.T) {
@@ -75,5 +77,25 @@ func TestStrPtr(t *testing.T) {
 	}
 	if *p != "hello" {
 		t.Errorf("strPtr = %q, want hello", *p)
+	}
+}
+
+func TestRatingRequirementsNotMet(t *testing.T) {
+	tests := []struct {
+		status currency.Status
+		want   bool
+	}{
+		{currency.StatusCurrent, false},
+		{currency.StatusExpiring, true},
+		{currency.StatusExpired, true},
+		{currency.StatusLapsed, true},
+		{currency.StatusUnknown, false},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			if got := ratingRequirementsNotMet(tt.status); got != tt.want {
+				t.Errorf("ratingRequirementsNotMet(%s) = %v, want %v", tt.status, got, tt.want)
+			}
+		})
 	}
 }
