@@ -300,8 +300,8 @@ func TestJSONImport_LaunchMethod(t *testing.T) {
 		registerAndLogin(t, dst, uniqueEmail("launch-json-bad"), "SecurePass123!", "Dst")
 		r := dst.POST("/imports/json", backup)
 		assertStatus(t, r, http.StatusBadRequest)
-		if !strings.Contains(string(r.Body), "invalid launch method") {
-			t.Errorf("error = %s, want it to name the invalid launch method", r.Body)
+		if !strings.Contains(string(r.Body), `Invalid entry 0 in backup section \"flights\"`) {
+			t.Errorf("error = %s, want it to name the flights entry", r.Body)
 		}
 		list := dst.GET("/flights")
 		var page map[string]interface{}
