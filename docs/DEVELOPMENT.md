@@ -105,7 +105,7 @@ are compiled with an older Go and refuse this module's `go` directive. To use a 
 directly, build it with the repo toolchain:
 
 ```bash
-GOTOOLCHAIN=go1.27.2 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+GOTOOLCHAIN=go1.27.3 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 ```
 
 The config enables the standard set (errcheck, govet, ineffassign, staticcheck, unused)
