@@ -2945,8 +2945,8 @@ paths:
         no on-block time; otherwise the end of the flight day), when the
         flight has ever carried a completed signature, when the flight date is on or
         before the latest `certifiedThrough`, or when it sets an `*Override` value after
-        the flight day. A correction needs `correctionReason`; after a voided signature
-        the void reason is reused when none is given. Every change is recorded as a
+        the flight day. A correction needs `correctionReason`, also after a voided
+        signature. Every change is recorded as a
         revision (`GET /flights/{flightId}/revisions`). Outside strict mode nothing is
         recorded and `correctionReason` is ignored.
       operationId: updateFlight
@@ -3005,7 +3005,7 @@ paths:
         - name: reason
           in: query
           required: false
-          description: Why the flight is deleted; stored on the void record in strict mode. Defaults to the void reason of the flight's latest voided signature.
+          description: Why the flight is deleted; stored on the void record in strict mode.
           schema:
             type: string
             maxLength: 500

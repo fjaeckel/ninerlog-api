@@ -8876,7 +8876,7 @@ type ListFlightsParamsSortOrder string
 
 // DeleteFlightParams defines parameters for DeleteFlight.
 type DeleteFlightParams struct {
-	// Reason Why the flight is deleted; stored on the void record in strict mode. Defaults to the void reason of the flight's latest voided signature.
+	// Reason Why the flight is deleted; stored on the void record in strict mode.
 	Reason *string `form:"reason,omitempty" json:"reason,omitempty"`
 }
 

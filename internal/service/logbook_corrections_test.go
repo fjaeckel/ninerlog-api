@@ -150,14 +150,25 @@ func TestFlightService_UpdateClassification(t *testing.T) {
 			mutate: func(f *models.Flight) { f.Remarks = strp("x") }, wantErr: ErrCorrectionReasonRequired,
 		},
 		{
-			name: "void reason is the default correction reason", strict: true, daysAgo: 0,
+			name: "a voided signature does not supply the correction reason", strict: true, daysAgo: 0,
 			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
 				voidedAt := testNow.Add(-time.Hour)
 				e.sigs.byID[uuid.New()] = &models.FlightSignature{
 					FlightID: f.ID, Status: models.SignatureStatusVoided, VoidedAt: &voidedAt, VoidedReason: strp("wrong landing count"),
 				}
 			},
-			mutate: func(f *models.Flight) { f.AllLandings = 2 }, wantCorrection: true, wantReason: "wrong landing count", wantWrite: true,
+			mutate: func(f *models.Flight) { f.AllLandings = 2 }, wantErr: ErrCorrectionReasonRequired,
+		},
+		{
+			name: "after a voided signature the given reason is stored", strict: true, daysAgo: 0,
+			prepare: func(t *testing.T, e *correctionEnv, f *models.Flight) {
+				voidedAt := testNow.Add(-time.Hour)
+				e.sigs.byID[uuid.New()] = &models.FlightSignature{
+					FlightID: f.ID, Status: models.SignatureStatusVoided, VoidedAt: &voidedAt, VoidedReason: strp("wrong landing count"),
+				}
+			},
+			mutate: func(f *models.Flight) { f.AllLandings = 2 }, reason: "touch and go missed",
+			wantCorrection: true, wantReason: "touch and go missed", wantWrite: true,
 		},
 		{
 			name: "raising an override after the flight day is a correction", strict: true, daysAgo: 1,
@@ -409,7 +420,7 @@ func TestFlightService_FreeEditWindowFollowsLanding(t *testing.T) {
 	}
 }
 
-func TestFlightService_DeleteDefaultsToTheVoidReason(t *testing.T) {
+func TestFlightService_DeleteStoresOnlyTheGivenReason(t *testing.T) {
 	voidedAt := testNow.Add(-time.Hour)
 	tests := []struct {
 		name       string
@@ -417,7 +428,7 @@ func TestFlightService_DeleteDefaultsToTheVoidReason(t *testing.T) {
 		reason     string
 		wantReason string
 	}{
-		{"no reason takes the void reason", true, "", "wrong landing count"},
+		{"no reason stores none", true, "", ""},
 		{"a given reason wins", true, "entered twice", "entered twice"},
 		{"non-strict delete takes nothing", false, "", ""},
 	}

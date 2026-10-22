@@ -465,7 +465,7 @@ is anchored on the flight: `hours_48` ends 48 hours after its landing (date plus
 UTC, rolled to the next day for an overnight flight; the end of the flight day when there is no
 on-block time) and `flight_day` at the end of the flight day, so a flight entered after its day
 is already a correction. In strict mode an
-edit that is a correction without a reason (and without a voided signature to take it from) is
+edit that is a correction without a reason is
 `422` with `code: correction_reason_required`, and nothing is written. Under a Swiss licence
 `POST /flights` and `PUT /flights/{flightId}` answer `422` with
 `code: override_exceeds_calculated` and one `details[].field` per override that exceeds its
@@ -485,8 +485,7 @@ optional `fieldsHash`; when it differs from the flight's current hash the answer
 The bulk deletes (`DELETE /users/me/data`, either scope, and `DELETE /flights/delete-all`)
 store a void record per flight in strict mode, flagged `isCorrection` for flights past their
 draft window, inside a certified range or that have carried a signature. A `DELETE
-/flights/{flightId}` without `reason` stores the void reason of the flight's latest voided
-signature. `POST /imports/confirm` reports an override above the calculated value under a Swiss
+/flights/{flightId}` without `reason` stores no reason. `POST /imports/confirm` reports an override above the calculated value under a Swiss
 licence as a row error naming the field (`nightTime`, `takeoffsNight`, ...), not as a failed
 import.
 
