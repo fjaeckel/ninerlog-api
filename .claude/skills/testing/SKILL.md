@@ -65,7 +65,7 @@ bash scripts/run-e2e-tests.sh
 `go.mod` toolchain — no install needed. It lints tests and the `integration`/`e2e` tags and
 enforces gofmt/goimports; CI's `lint` job runs the same and gates the image publish. A
 prebuilt or older golangci-lint on `PATH` refuses this module's Go version; build one with
-`GOTOOLCHAIN=go1.27.2 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0`
+`GOTOOLCHAIN=go1.27.3 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0`
 if you want to call it directly.
 
 Add `make migrate-check` when `db/migrations/` changed and `make dashboard-check` when a metric

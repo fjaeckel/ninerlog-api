@@ -6,7 +6,7 @@ For general project guidelines, see the [project-level CONTRIBUTING.md](https://
 
 ## Prerequisites
 
-- **Go 1.27.2+**
+- **Go 1.27.3+**
 - **PostgreSQL 16+** (or Docker)
 - **Docker & Docker Compose**
 - **golangci-lint** — `make lint` runs the pinned v2.15.0; no separate install needed
