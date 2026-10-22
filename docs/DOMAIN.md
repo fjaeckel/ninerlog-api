@@ -508,8 +508,8 @@ For a `user_edit` update of a flight owned by a strict-mode user, the edit is a
 4. a `*Override` flag goes from false to true, or an overridden value changes, and now is
    after the end of the flight day.
 
-A correction needs a non-blank `correctionReason`; the void reason of the latest voided
-signature stands in when none is given. Without either, `PUT /flights/{id}` answers `422`
+A correction needs a non-blank `correctionReason`; the void reason of a voided signature never
+stands in for it. Without one, `PUT /flights/{id}` answers `422`
 `correction_reason_required` and writes nothing. The classification is stored on the revision
 (`is_correction`) with the reason. A save that changes nothing is not classified and records
 nothing. Deletes are classified by rules 1 to 3 and stored on the void record; a delete is

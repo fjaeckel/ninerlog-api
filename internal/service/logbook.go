@@ -228,9 +228,8 @@ func (s *LogbookService) CreateCertification(ctx context.Context, userID uuid.UU
 
 // EditClassification is the verdict on a strict-mode edit or delete.
 type EditClassification struct {
-	Strict        bool
-	IsCorrection  bool
-	DefaultReason string
+	Strict       bool
+	IsCorrection bool
 }
 
 // StrictState is a user's strict-mode state, read once for a write.
@@ -283,19 +282,11 @@ func (s *LogbookService) ClassifyEditWith(ctx context.Context, state *StrictStat
 	if err != nil {
 		return result, err
 	}
-	var latestVoid *models.FlightSignature
 	for _, sig := range sigs {
-		if sig.Status != models.SignatureStatusCompleted && sig.Status != models.SignatureStatusVoided {
-			continue
+		if sig.Status == models.SignatureStatusCompleted || sig.Status == models.SignatureStatusVoided {
+			result.IsCorrection = true
+			break
 		}
-		result.IsCorrection = true
-		if sig.Status == models.SignatureStatusVoided && sig.VoidedReason != nil &&
-			(latestVoid == nil || voidedAfter(sig, latestVoid)) {
-			latestVoid = sig
-		}
-	}
-	if latestVoid != nil {
-		result.DefaultReason = strings.TrimSpace(*latestVoid.VoidedReason)
 	}
 	return result, nil
 }
@@ -376,13 +367,6 @@ func (s *LogbookService) DeleteCorrections(ctx context.Context, repos repository
 		return nil, err
 	}
 	return classifier.Corrections(flights), nil
-}
-
-func voidedAfter(a, b *models.FlightSignature) bool {
-	if a.VoidedAt == nil {
-		return false
-	}
-	return b.VoidedAt == nil || a.VoidedAt.After(*b.VoidedAt)
 }
 
 func (s *LogbookService) lonOf(f *models.Flight) float64 {

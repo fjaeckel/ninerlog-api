@@ -202,9 +202,6 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 				return err
 			}
 			reason := strings.TrimSpace(opts.CorrectionReason)
-			if reason == "" {
-				reason = class.DefaultReason
-			}
 			if reason != "" {
 				change.Reason = &reason
 			}
@@ -261,9 +258,6 @@ func (s *FlightService) DeleteFlightWithReason(ctx context.Context, flightID, us
 			return err
 		}
 		change.IsCorrection = class.Strict && class.IsCorrection
-		if reason == "" {
-			reason = class.DefaultReason
-		}
 	}
 	if reason != "" {
 		change.Reason = &reason

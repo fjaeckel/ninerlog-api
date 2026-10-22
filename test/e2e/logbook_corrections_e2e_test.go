@@ -77,7 +77,7 @@ func TestFlightCorrections(t *testing.T) {
 		requireStatus(t, putFlight(cc, id, body), http.StatusOK)
 	})
 
-	t.Run("a voided signature makes the edit a correction and supplies the reason", func(t *testing.T) {
+	t.Run("a voided signature makes the edit a correction that still needs its own reason", func(t *testing.T) {
 		cs := NewE2EClient(t)
 		registerAndLogin(t, cs, uniqueEmail("corr-sig"), "SecurePass123!", "Signed")
 		switchStrict(t, cs, true)
@@ -108,10 +108,16 @@ func TestFlightCorrections(t *testing.T) {
 
 		body := newFlightBody(today(), "D-ESIG")
 		body["landings"] = 2
+		r := putFlight(cs, id, body)
+		requireStatus(t, r, http.StatusUnprocessableEntity)
+		if code := errorCode(t, r); code != "correction_reason_required" {
+			t.Errorf("code = %q", code)
+		}
+		body["correctionReason"] = "Second landing was missing"
 		requireStatus(t, putFlight(cs, id, body), http.StatusOK)
 
 		revs := listRevisions(t, cs, id)
-		if len(revs) != 1 || revs[0]["isCorrection"] != true || revs[0]["reason"] != "Wrong landing count" {
+		if len(revs) != 1 || revs[0]["isCorrection"] != true || revs[0]["reason"] != "Second landing was missing" {
 			t.Fatalf("revisions = %v", revs)
 		}
 
