@@ -433,6 +433,14 @@ explicitly declares the co-pilot seat and is honoured on any aircraft. Mark the 
 with `isMultiPilot` (on `POST`/`PATCH /aircraft`) and re-run `POST /flights/recalculate` to
 re-derive existing flights. See [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
 
+Create and update accept `isPic: true` to declare PIC time on a flight flown while
+receiving instruction (14 CFR §61.51(e)(1)(i)). When the crew makes the flight dual
+received (a third-party `Instructor` or `Examiner`), the flight responds with `isPic` and
+`isDual` both `true` and `picTime` equal to `dualTime`; the shared minutes count once
+against `totalTime`. On any other flight PIC is derived from the crew and `isPic` changes
+nothing. On `PUT`, omitting `isPic` keeps the stored declaration and `false` removes it.
+See [DOMAIN.md](./DOMAIN.md#pic-while-receiving-instruction-faa).
+
 Create and update accept the declared function times `picusTime` (PIC under supervision),
 `spicTime` (student PIC), `examinerTime` and `reliefTime`, all integer minutes. They are
 never auto-calculated; a declared PICUS/SPIC/relief value carves out of the derived

@@ -7547,11 +7547,17 @@ components:
         isPic:
           type: boolean
           example: true
-          description: Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+          description: >-
+            Whether this flight was logged as pilot-in-command. True together with isDual
+            when the pilot logged PIC time while receiving instruction (14 CFR
+            §61.51(e)(1)(i)); picTime and dualTime then cover the same minutes and count
+            once toward the function-time total.
         isDual:
           type: boolean
           example: false
-          description: Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+          description: >-
+            Whether this flight was logged as dual instruction received. May be true together
+            with isPic (PIC while receiving instruction, 14 CFR §61.51(e)(1)(i)).
         picTime:
           type: integer
           minimum: 0
@@ -7888,7 +7894,7 @@ components:
           minimum: 0
           readOnly: true
           example: 150
-          description: Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+          description: Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise. On a flight logged as both PIC and dual it equals dualTime.
         dualTime:
           type: integer
           minimum: 0
@@ -8028,6 +8034,16 @@ components:
           type: [string, 'null']
           maxLength: 2000
           description: Instructor endorsements, skill test references
+        isPic:
+          type: boolean
+          writeOnly: true
+          description: >-
+            Declares PIC time on a flight flown while receiving instruction (14 CFR
+            §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of
+            the controls). Only takes effect when the crew makes the flight dual received
+            (a third-party Instructor or Examiner); the flight is then logged with isPic and
+            isDual both true and picTime equal to dualTime, counted once toward total time.
+            On any other flight PIC is derived from the crew and this field is ignored.
         crewMembers:
           type: array
           items:
@@ -8253,6 +8269,17 @@ components:
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
+        isPic:
+          type: boolean
+          writeOnly: true
+          description: >-
+            Declares PIC time on a flight flown while receiving instruction (14 CFR
+            §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of
+            the controls). Only takes effect when the crew makes the flight dual received
+            (a third-party Instructor or Examiner); the flight is then logged with isPic and
+            isDual both true and picTime equal to dualTime, counted once toward total time.
+            On any other flight PIC is derived from the crew and this field is ignored.
+            Omitted, the stored declaration is kept; false removes it.
         crewMembers:
           type: array
           items:

@@ -62,6 +62,51 @@ by `ValidateTimeDistribution()`. Two consequences are easy to get wrong:
 
 `SoloTime` and `CrossCountryTime` are likewise subsets of the total, not additional slices.
 
+### PIC while receiving instruction (FAA)
+
+Under 14 CFR §61.51(e)(1)(i) a pilot rated for the aircraft may log PIC time while
+receiving instruction as sole manipulator of the controls — a flight review, an IPC,
+complex, high-performance or tailwheel training. The same minutes then appear in the PIC
+column and the dual received column of an FAA logbook. NinerLog records this as a flight
+with **both `IsPIC` and `IsDual` set**; `PICTime` and `DualTime` cover the same minutes and
+the overlap (`Flight.PICDualOverlap`, the smaller of the two) is counted **once** in the
+function-time sum:
+
+`PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime − overlap <= TotalTime`
+
+A 96-minute flight review is therefore 96 minutes of total time, 96 of PIC and 96 of dual
+received — not 192 minutes of function time. Outside such a flight PIC and dual minutes
+never coexist: `PICTime > 0 && DualTime > 0` without both flags fails with
+`ErrInvalidTimeDistribution`.
+
+The pilot declares it; it is never inferred from the crew list.
+
+- **API** — `isPic: true` on `POST /flights` or `PUT /flights/{flightId}`. It takes effect
+  only when the crew makes the flight dual received (a third-party `Instructor` or
+  `Examiner`); `PICTime` is then derived equal to `DualTime` (both after any declared
+  PICUS/SPIC/relief carve). On any other flight PIC is derived from the crew as usual and
+  `isPic` changes nothing. On `PUT`, omitting `isPic` keeps the stored declaration and
+  `false` removes it.
+- **Re-derivation** — `flightcalc.calculatePICDual` keeps a flight that arrives with both
+  flags set as PIC while dual for as long as the user receives instruction, so updates and
+  `POST /flights/recalculate` preserve it. Any other role (PIC without an instructor,
+  co-pilot, passenger, FSTD session) clears it.
+- **CSV import** — a row with a value in both the column mapped to `isPic` and the one
+  mapped to `isDual` (the PIC and dual received columns of ForeFlight and other FAA
+  logbooks) is imported with the declaration.
+- **JSON restore** — rows carrying both flags are restored as they are.
+- **Currency** — the "PIC or dual" hour requirements (sailplane and TMG recency,
+  SFCL.160) sum PIC and dual minutes less the overlap (`Progress.PICDualOverlapMinutes`),
+  so the shared minutes count once. Requirements on PIC time alone or on dual time alone
+  count them in full, as the respective column does.
+- **Totals, reports and exports** show the minutes in both the PIC and the dual column,
+  as the paper FAA logbook does.
+
+EASA has no equivalent — a pilot receiving instruction logs dual time, and SPIC is the
+only student PIC time (FCL.050). The API does not restrict the declaration by authority;
+clients offer it to pilots with an FAA licence and on flights already logged this way, so
+EASA pilots never meet it (docs/PERSONAS.md).
+
 When a row declares `SICTime` but carries no crew list — typical of imported logbooks —
 `flightrules.DetermineRole` resolves the user to co-pilot so `PICTime` is not also claimed
 for the same minutes. Whether the time may be logged at all is a separate question, covered
@@ -228,6 +273,9 @@ have to compute them by hand. The entry point is
   every save, so a stored value is never reused.
 - **Solo time** — derived when the flight is neither dual nor flown as PIC with other
   crew.
+- **PIC and dual** — derived from the pilot role; a flight declared as PIC while receiving
+  instruction keeps both (see
+  [PIC while receiving instruction](#pic-while-receiving-instruction-faa)).
 - **Cross-country time** — derived as the whole block time when departure ≠ arrival
   airport; see [Manual overrides](#manual-overrides) for why a pilot may replace it.
 - **Distance** — great-circle distance (nautical miles) from airport coordinates in the
@@ -331,7 +379,10 @@ Validation is layered:
    - `ValidateTimeDistribution()` — function-time consistency: component times must not
      exceed total time,
      `PICTime + PICUSTime + SPICTime + SICTime + DualTime + ReliefTime <= TotalTime`
-     (instructor and examiner time overlay instead), PIC/dual logic must be coherent, and
+     (instructor and examiner time overlay instead; on a flight logged as both PIC and dual
+     the shared minutes count once, see
+     [PIC while receiving instruction](#pic-while-receiving-instruction-faa)), PIC and dual
+     minutes coexist only on such a flight, and
      a session or passenger flight must carry no flight time at all.
 2. **Text-field limits** (`internal/models/validation.go`) — enforces maximum lengths on
    free-text fields (registration, type, remarks, notes, …) to prevent abuse and oversized
