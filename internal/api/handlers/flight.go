@@ -410,7 +410,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg, flight.Date)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
 	flightcalc.ApplyAutoCalculations(&flight, userName, facts)
@@ -638,7 +638,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg, flight.Date)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
 	flightcalc.ApplyAutoCalculations(flight, userName, facts)

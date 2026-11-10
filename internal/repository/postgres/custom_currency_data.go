@@ -119,6 +119,7 @@ func (p *customCurrencyDataProvider) AggregateMetrics(ctx context.Context, userI
 		SELECT %s
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE %s
 	`, strings.Join(selects, ", "), whereSQL)
 
@@ -151,6 +152,7 @@ func (p *customCurrencyDataProvider) MetricRowsByDate(ctx context.Context, userI
 		SELECT f.date, %s
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE %s
 		ORDER BY f.date ASC
 	`, strings.Join(rowSelects, ", "), whereSQL)

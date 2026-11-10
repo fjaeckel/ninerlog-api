@@ -410,6 +410,27 @@ func TestRestore_DuplicatesWithinTheBackupAreSkipped(t *testing.T) {
 	assert.Equal(t, 1, res.ContactsSkipped)
 }
 
+func TestRestore_ReusedRegistrationWithDisjointRangesIsKept(t *testing.T) {
+	store := restorefake.New()
+	p := samplePayload()
+	until := time.Date(2019, 12, 31, 0, 0, 0, 0, time.UTC)
+	from := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	p.Aircraft = []*models.Aircraft{
+		{Registration: "N123AB", Type: "C172", Make: "Cessna", Model: "172", ValidTo: &until},
+		{Registration: "N123AB", Type: "PA16", Make: "Piper", Model: "Clipper", ValidFrom: &from},
+		{Registration: "N123AB", Type: "PA18", Make: "Piper", Model: "Super Cub", ValidFrom: &from},
+	}
+
+	res, err := restoreSample(t, store, p, RestoreModeRestore)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.AircraftImported)
+	assert.Equal(t, 1, res.AircraftSkipped)
+	require.Len(t, store.State.Aircraft, 2)
+	assert.Equal(t, "C172", store.State.Aircraft[0].Type)
+	assert.Equal(t, "PA16", store.State.Aircraft[1].Type)
+}
+
 func TestRestore_CrewNameWithoutContactCreatesOne(t *testing.T) {
 	store := restorefake.New()
 	p := samplePayload()

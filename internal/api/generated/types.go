@@ -3051,6 +3051,16 @@ type Aircraft struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom *openapi_types.Date `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo *openapi_types.Date `json:"validTo,omitempty"`
 }
 
 // AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
@@ -3146,6 +3156,16 @@ type AircraftCreate struct {
 	//
 	// Example: THREE_AXIS
 	UlKind *AircraftCreateUlKind `json:"ulKind,omitempty"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom *openapi_types.Date `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo *openapi_types.Date `json:"validTo,omitempty"`
 }
 
 // AircraftCreateUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
@@ -3312,7 +3332,7 @@ type AircraftUpdate struct {
 	// Registration Example: D-EFGH
 	Registration *string `json:"registration,omitempty"`
 
-	// RenameFlights When true and the registration is being changed, logged flights that reference the old registration are updated to the new one.
+	// RenameFlights When true and the registration is being changed, logged flights that reference the old registration and are dated within this aircraft's validFrom/validTo range are updated to the new one.
 	//
 	// Example: false
 	RenameFlights *bool `json:"renameFlights,omitempty"`
@@ -3337,6 +3357,16 @@ type AircraftUpdate struct {
 	//
 	// Example: THREE_AXIS
 	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom nullable.Nullable[openapi_types.Date] `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo nullable.Nullable[openapi_types.Date] `json:"validTo,omitempty"`
 }
 
 // Airport defines model for Airport.

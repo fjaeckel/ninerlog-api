@@ -41,12 +41,20 @@ func (s *LogbookScope) Apply(ctx context.Context, userID, licenseID uuid.UUID, o
 		return err
 	}
 	regs := make([]string, 0, len(aircraftList))
+	var windows []repository.RegistrationWindow
 	for _, ac := range aircraftList {
-		if ac.AircraftClass != nil && allowedClasses[*ac.AircraftClass] {
-			regs = append(regs, registration.Canonical(ac.Registration))
+		if ac.AircraftClass == nil || !allowedClasses[*ac.AircraftClass] {
+			continue
 		}
+		reg := registration.Canonical(ac.Registration)
+		if ac.ValidFrom == nil && ac.ValidTo == nil {
+			regs = append(regs, reg)
+			continue
+		}
+		windows = append(windows, repository.RegistrationWindow{Registration: reg, From: ac.ValidFrom, To: ac.ValidTo})
 	}
 	opts.FilterByRegistrations = true
 	opts.AircraftRegistrations = regs
+	opts.RegistrationWindows = windows
 	return nil
 }

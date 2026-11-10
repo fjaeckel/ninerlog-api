@@ -27,10 +27,14 @@ type Aircraft struct {
 	// MTOMKg is the maximum certificated take-off mass in kilograms.
 	MTOMKg *int `json:"maxTakeoffMassKg,omitempty"`
 	// Logging defaults, prefilled when a flight with this aircraft is logged
-	DefaultDepartureICAO *string   `json:"defaultDepartureIcao,omitempty"`
-	DefaultArrivalICAO   *string   `json:"defaultArrivalIcao,omitempty"`
-	CreatedAt            time.Time `json:"createdAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
+	DefaultDepartureICAO *string `json:"defaultDepartureIcao,omitempty"`
+	DefaultArrivalICAO   *string `json:"defaultArrivalIcao,omitempty"`
+	// ValidFrom and ValidTo bound the dates the registration identified this
+	// aircraft; nil is open-ended.
+	ValidFrom *time.Time `json:"validFrom,omitempty"`
+	ValidTo   *time.Time `json:"validTo,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // AircraftStats holds flight statistics aggregated per aircraft registration
@@ -82,6 +86,9 @@ func (a *Aircraft) Validate() error {
 	if a.Model == "" {
 		return ErrAircraftModelRequired
 	}
+	if a.ValidFrom != nil && a.ValidTo != nil && a.ValidTo.Before(*a.ValidFrom) {
+		return ErrInvalidAircraftValidity
+	}
 	if a.MTOMKg != nil && (*a.MTOMKg <= 0 || *a.MTOMKg > 1000000) {
 		return ErrInvalidAircraftMTOM
 	}
@@ -99,4 +106,27 @@ func (a *Aircraft) NormalizeULKind() error {
 		return ErrInvalidULKind
 	}
 	return nil
+}
+
+// CoversDate reports whether date falls inside the aircraft's validity range.
+func (a *Aircraft) CoversDate(date time.Time) bool {
+	d := date.Format(time.DateOnly)
+	if a.ValidFrom != nil && d < a.ValidFrom.Format(time.DateOnly) {
+		return false
+	}
+	if a.ValidTo != nil && d > a.ValidTo.Format(time.DateOnly) {
+		return false
+	}
+	return true
+}
+
+// ValidityOverlaps reports whether the validity ranges of a and b intersect.
+func (a *Aircraft) ValidityOverlaps(b *Aircraft) bool {
+	if a.ValidTo != nil && b.ValidFrom != nil && a.ValidTo.Format(time.DateOnly) < b.ValidFrom.Format(time.DateOnly) {
+		return false
+	}
+	if b.ValidTo != nil && a.ValidFrom != nil && b.ValidTo.Format(time.DateOnly) < a.ValidFrom.Format(time.DateOnly) {
+		return false
+	}
+	return true
 }

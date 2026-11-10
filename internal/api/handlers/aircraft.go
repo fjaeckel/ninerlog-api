@@ -125,10 +125,16 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 	aircraft.MTOMKg = req.MaxTakeoffMassKg
 	aircraft.DefaultDepartureICAO = normalizeICAO(req.DefaultDepartureIcao)
 	aircraft.DefaultArrivalICAO = normalizeICAO(req.DefaultArrivalIcao)
+	aircraft.ValidFrom = dateToTimePtr(req.ValidFrom)
+	aircraft.ValidTo = dateToTimePtr(req.ValidTo)
 
 	if err := h.aircraftService.CreateAircraft(c.Request.Context(), aircraft); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
-			h.sendError(c, http.StatusConflict, "Aircraft registration already exists")
+			h.sendError(c, http.StatusConflict, "Another aircraft with this registration has an overlapping validity range")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidAircraftValidity) {
+			h.sendError(c, http.StatusBadRequest, "validFrom must not be after validTo")
 			return
 		}
 		if errors.Is(err, models.ErrInvalidULKind) {
@@ -241,10 +247,17 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 		}
 	}
 
+	applyNullableDate(&aircraft.ValidFrom, req.ValidFrom)
+	applyNullableDate(&aircraft.ValidTo, req.ValidTo)
+
 	renameFlights := req.RenameFlights != nil && *req.RenameFlights
 	if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), aircraft, userID, renameFlights); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
-			h.sendError(c, http.StatusConflict, "Aircraft registration already exists")
+			h.sendError(c, http.StatusConflict, "Another aircraft with this registration has an overlapping validity range")
+			return
+		}
+		if errors.Is(err, models.ErrInvalidAircraftValidity) {
+			h.sendError(c, http.StatusBadRequest, "validFrom must not be after validTo")
 			return
 		}
 		if errors.Is(err, models.ErrInvalidULKind) {
@@ -366,5 +379,7 @@ func convertToGeneratedAircraft(a *models.Aircraft) generated.Aircraft {
 		ac.UlKind = &k
 	}
 	ac.MaxTakeoffMassKg = a.MTOMKg
+	ac.ValidFrom = timeToDatePtr(a.ValidFrom)
+	ac.ValidTo = timeToDatePtr(a.ValidTo)
 	return ac
 }

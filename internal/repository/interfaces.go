@@ -244,6 +244,16 @@ type FlightQueryOptions struct {
 	// FilterByRegistrations=true matches no flights. Applied at the SQL level.
 	FilterByRegistrations bool
 	AircraftRegistrations []string
+	// RegistrationWindows also match, each only between its dates
+	// (inclusive, nil open).
+	RegistrationWindows []RegistrationWindow
+}
+
+// RegistrationWindow is a registration limited to a date range.
+type RegistrationWindow struct {
+	Registration string
+	From         *time.Time
+	To           *time.Time
 }
 
 // FlightSessionRepository defines the interface for in-progress flight

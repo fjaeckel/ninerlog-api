@@ -127,7 +127,7 @@ rating covers — `THREE_AXIS`, `WEIGHT_SHIFT`, `GYROPLANE`, `HELICOPTER`, `POWE
 or `SAILPLANE` — and is cleared on any other class. NULL is evaluated as `THREE_AXIS`. See
 [DOMAIN.md](./DOMAIN.md#ultralights).
 
-### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73)
+### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73, 80)
 
 A user's aircraft: registration, type, make, model, and a class (e.g. `SEP_LAND`) that
 links flights in that aircraft to the right currency bucket. Equipment flags capture
@@ -149,6 +149,18 @@ EASA SEP/TMG crediting (FCL.035(a)(4)); see [DOMAIN.md](./DOMAIN.md#ultralights)
 kilograms. FCL.035(a)(5) credits an `ULTRALIGHT` gyroplane of at least 450 kg toward GPL
 recency; see [DOMAIN.md](./DOMAIN.md#gyroplanes-gpl). Migration 73 also normalises free-text
 `GYROPLANE`, `GYROCOPTER` and `TRAGSCHRAUBER` aircraft classes to `GYROPLANE`.
+
+`valid_from` / `valid_to` (migration 80, nullable `DATE`, inclusive, NULL open-ended) bound
+the days the registration identified this aircraft, because a registration can be reissued
+to a different airframe or type (N123AB as a C172, later as a PA-16). Migration 80 replaced
+the unique `(user_id, registration)` index with the exclusion constraint
+`aircraft_registration_validity_excl` (`btree_gist`): ranges of the same user and
+registration may not overlap, so any flight date resolves to at most one fleet entry, and an
+entry with both bounds NULL stays the only one for its registration. `aircraft_validity_order`
+rejects `valid_from > valid_to`. Every join from `flights` to `aircraft` matches
+`f.date BETWEEN COALESCE(valid_from, '-infinity') AND COALESCE(valid_to, 'infinity')` in
+addition to the registration, and the Go-side lookups go through `service.FleetIndex`; see
+[AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md#one-registration-several-airframes).
 
 ### Credential (`internal/models/credential.go`, migration 9)
 
