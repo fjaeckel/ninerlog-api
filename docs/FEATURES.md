@@ -228,8 +228,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
 - **Cross-class crediting** — EASA LAPL(A) recency counts flights on every aeroplane class
   and TMG together (FCL.140.A), and accepts a LAPL(A) proficiency check instead; a PPL/CPL/ATPL
   holding both SEP(land) and TMG ratings revalidates both from flights in either class
-  (FCL.740.A(b)(1)). No custom rule is needed. The rating result lists the pooled classes in
-  `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
+  (FCL.740.A(b)(1)). FAA §61.57 passenger currency counts every aircraft of the FAA airplane
+  class: an `SEP_LAND` rating counts `SET_LAND` and `SEJ_LAND` flights, an `MEP_SEA` rating
+  counts a Twin Otter on floats (`MET_SEA`). No custom rule is needed. The rating result
+  lists the pooled classes in `countedClasses`. Details in [DOMAIN.md](./DOMAIN.md#credited-classes).
 - **Ultralights** — an `ULTRALIGHT` aircraft or rating carries its kind (three-axis, UL
   motorglider, trike, gyroplane, UL helicopter, powered paraglider, UL sailplane). Three-axis
   UL time and landings count toward EASA SEP/TMG revalidation and LAPL(A) recency, the

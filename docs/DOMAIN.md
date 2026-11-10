@@ -142,14 +142,6 @@ single-pilot and the time is not multi-pilot time. `PilotingCategoryFor` continu
 a row as MP on `MultiPilotTime > 0`, which is now only ever filled for a multi-pilot
 aircraft.
 
-### Single-pilot SE / ME columns
-
-The AMC1 FCL.050 single-pilot columns split by engine count, not by powerplant. Outside
-multi-pilot time, `PilotingCategoryFor` puts a flight in SP-ME when the aircraft class
-starts with `ME` (`MEP_*`, `MET_*`, `MEJ_LAND`) and in SP-SE otherwise, so a single-engine
-turboprop (`SET_*`) or jet (`SEJ_LAND`) logs SP-SE. Flights whose registration has no fleet
-entry, and the CSV and web-logbook exports, which do not look up the fleet, log SP-SE.
-
 ### Existing data
 
 Migration `000065` does not infer `is_multi_pilot` from existing `multi_pilot_time`: that
@@ -163,6 +155,48 @@ list was written by derivation. Marking only the former as declared protects imp
 hand-entered logbooks from being re-derived on the next save, and leaves derived values
 free to be corrected. Everything else stays as it is until the pilot marks their fleet and
 runs `POST /flights/recalculate`.
+
+### Single-pilot SE / ME columns
+
+The AMC1 FCL.050 single-pilot columns split by engine count, not by powerplant. Outside
+multi-pilot time, `PilotingCategoryFor` puts a flight in SP-ME when the aircraft class
+starts with `ME` (`MEP_*`, `MET_*`, `MEJ_LAND`) and in SP-SE otherwise, so a single-engine
+turboprop (`SET_*`) or jet (`SEJ_LAND`) logs SP-SE. Flights whose registration has no fleet
+entry, and the CSV and web-logbook exports, which do not look up the fleet, log SP-SE.
+
+## Credited classes
+
+A class rating's currency counts flights on aircraft whose `aircraft_class` (trimmed, upper
+case) is one of the classes the rule resolves for it. Usually that is the rating's own class.
+When it is more than one, `ClassRatingCurrency.countedClasses` lists them:
+
+| Rule | Classes counted |
+| --- | --- |
+| EASA LAPL(A), FCL.140.A | Every aeroplane class and TMG |
+| EASA SEP(land) and TMG on one licence, FCL.740.A(b)(1) | `SEP_LAND` and `TMG` |
+| EASA GLIDER rating and SPL TMG rating, SFCL.160(a)(1), (b)(1) | `GLIDER` and `TMG` (flight time) |
+| FAA airplane class, 14 CFR 61.57(a)/(b) | The FAA class pool below |
+
+The FAA airplane class is single- or multi-engine, land or sea (§61.5(c)), whatever the
+powerplant. `faaClasses` pools the aircraft classes of one FAA class, and both the rating
+rule and the Tier-2 passenger currency count landings across the pool:
+
+| Rating | Pool |
+| --- | --- |
+| `SEP_LAND`, `SET_LAND` | `SEP_LAND`, `SET_LAND`, `SEJ_LAND` |
+| `SEP_SEA`, `SET_SEA` | `SEP_SEA`, `SET_SEA` |
+| `MEP_LAND` | `MEP_LAND`, `MET_LAND`, `MEJ_LAND` |
+| `MEP_SEA` | `MEP_SEA`, `MET_SEA` |
+
+A type rating (§61.57(a) "and type, if a type rating is required") is not modelled, so
+landings in a turbojet or a type-rated turboprop count toward the class but no per-type
+currency is shown. EASA rules keep their own class: EASA rates multi-engine turbine and jet
+aeroplanes by type, so `MET_*`, `SEJ_LAND` and `MEJ_LAND` feed no EASA class rating.
+`countedClasses` items are aircraft classes and may name these values even though they are
+not class rating types.
+
+Ultralight flights credited beside the classes are listed separately in
+`creditedUltralightKinds` (see [API.md](./API.md#currency)).
 
 ## FSTD (simulator) sessions
 

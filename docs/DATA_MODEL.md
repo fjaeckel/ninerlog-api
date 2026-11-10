@@ -148,9 +148,10 @@ Currency matches the class case-insensitively against class rating types, and a
 licence-scoped logbook keeps only aircraft whose class equals one of the licence's class
 ratings. `MET_*`, `SEJ_LAND` and `MEJ_LAND` have no matching `ClassType`, since EASA rates
 these aeroplanes by type and type ratings are not modelled, so flights in them feed no
-class-rating currency and fall outside a licence-scoped logbook, as a custom class does.
-FAA multi-engine class currency (§61.57) does not yet credit `MET_*`/`MEJ_LAND` flights to
-`MEP_*` ratings.
+EASA class-rating currency and fall outside a licence-scoped logbook, as a custom class
+does. FAA §61.57 currency pools them into the FAA airplane class: `MET_*` and `MEJ_LAND`
+count toward `MEP_*` ratings, `SEJ_LAND` toward `SEP_LAND`/`SET_LAND` (see
+[DOMAIN.md](./DOMAIN.md#credited-classes)).
 The EASA logbook buckets single-pilot time by engine count: a class starting with `ME` is
 SP-ME, everything else SP-SE (`flightrules.PilotingCategoryFor`). Equipment flags capture
 complex/high-performance/tailwheel characteristics. `IsMultiPilot` (migration 65) records

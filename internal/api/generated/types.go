@@ -4697,11 +4697,14 @@ type ClassRatingCurrency struct {
 	// than the rating's own class — EASA LAPL(A) pools every aeroplane class and TMG
 	// (FCL.140.A); a license holding both SEP_LAND and TMG ratings pools those two
 	// (FCL.740.A(b)(1)); a GLIDER rating and an SPL TMG rating count flight time on
-	// GLIDER and TMG (SFCL.160(a)(1), (b)(1)).
+	// GLIDER and TMG (SFCL.160(a)(1), (b)(1)); an FAA airplane class rating counts piston,
+	// turboprop and jet aircraft of the same engine count and surface (14 CFR 61.57(a)/(b)), so
+	// SEP_LAND also counts SET_LAND and SEJ_LAND, and MEP_SEA also counts MET_SEA. Items are
+	// aircraft classes, which need not be class rating types.
 	//
 	//
 	// Example: ["SEP_LAND","TMG"]
-	CountedClasses *[]ClassType `json:"countedClasses,omitempty"`
+	CountedClasses *[]string `json:"countedClasses,omitempty"`
 
 	// CreditedUltralightKinds Ultralight kinds whose flights also count toward this rating, present only when any do.
 	// EASA LAPL(A) recency and SEP/TMG revalidation credit THREE_AXIS (as SEP_LAND) and
