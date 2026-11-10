@@ -5860,7 +5860,7 @@ type Flight struct {
 	// InstructorName Name of the instructor for this flight
 	InstructorName *string `json:"instructorName,omitempty"`
 
-	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+	// IsDual Whether this flight was logged as dual instruction received. May be true together with isPic (PIC while receiving instruction, 14 CFR §61.51(e)(1)(i)).
 	//
 	// Example: false
 	IsDual bool `json:"isDual"`
@@ -5888,7 +5888,7 @@ type Flight struct {
 	// Example: false
 	IsPassenger bool `json:"isPassenger"`
 
-	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+	// IsPic Whether this flight was logged as pilot-in-command. True together with isDual when the pilot logged PIC time while receiving instruction (14 CFR §61.51(e)(1)(i)); picTime and dualTime then cover the same minutes and count once toward the function-time total.
 	//
 	// Example: true
 	IsPic bool `json:"isPic"`
@@ -6293,7 +6293,10 @@ type FlightCreate struct {
 	InstructorName     *string `json:"instructorName,omitempty"`
 	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
 	IsIpc              *bool   `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
+
+	// IsPic Declares PIC time on a flight flown while receiving instruction (14 CFR §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of the controls). Only takes effect when the crew makes the flight dual received (a third-party Instructor or Examiner); the flight is then logged with isPic and isDual both true and picTime equal to dualTime, counted once toward total time. On any other flight PIC is derived from the crew and this field is ignored.
+	IsPic              *bool `json:"isPic,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Marks this entry as an FSTD (simulator) session rather than a flight.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
@@ -6323,7 +6326,7 @@ type FlightCreate struct {
 	// PicName Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
 	PicName *string `json:"picName,omitempty"`
 
-	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise. On a flight logged as both PIC and dual it equals dualTime.
 	//
 	// Example: 150
 	PicTime *int `json:"picTime,omitempty"`
@@ -6741,7 +6744,10 @@ type FlightUpdate struct {
 	InstructorName     nullable.Nullable[string] `json:"instructorName,omitempty"`
 	IsFlightReview     *bool                     `json:"isFlightReview,omitempty"`
 	IsIpc              *bool                     `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
+
+	// IsPic Declares PIC time on a flight flown while receiving instruction (14 CFR §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of the controls). Only takes effect when the crew makes the flight dual received (a third-party Instructor or Examiner); the flight is then logged with isPic and isDual both true and picTime equal to dualTime, counted once toward total time. On any other flight PIC is derived from the crew and this field is ignored. Omitted, the stored declaration is kept; false removes it.
+	IsPic              *bool `json:"isPic,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
