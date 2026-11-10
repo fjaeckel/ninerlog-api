@@ -2611,7 +2611,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: Another aircraft with this registration has an overlapping validity range
+          description: An aircraft with this registration already exists for an overlapping period
           content:
             application/json:
               schema:
@@ -2703,7 +2703,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Another aircraft with this registration has an overlapping validity range
+          description: An aircraft with this registration already exists for an overlapping period
           content:
             application/json:
               schema:

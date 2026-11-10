@@ -14,7 +14,7 @@ import (
 var (
 	ErrAircraftNotFound      = errors.New("aircraft not found")
 	ErrUnauthorizedAircraft  = errors.New("unauthorized access to aircraft")
-	ErrDuplicateRegistration = errors.New("another aircraft with this registration has an overlapping validity range")
+	ErrDuplicateRegistration = errors.New("an aircraft with this registration already exists for an overlapping period")
 )
 
 const (

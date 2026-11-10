@@ -130,7 +130,7 @@ func (h *APIHandler) CreateAircraft(c *gin.Context) {
 
 	if err := h.aircraftService.CreateAircraft(c.Request.Context(), aircraft); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
-			h.sendError(c, http.StatusConflict, "Another aircraft with this registration has an overlapping validity range")
+			h.sendError(c, http.StatusConflict, "An aircraft with this registration already exists for an overlapping period")
 			return
 		}
 		if errors.Is(err, models.ErrInvalidAircraftValidity) {
@@ -253,7 +253,7 @@ func (h *APIHandler) UpdateAircraft(c *gin.Context, aircraftId generated.Aircraf
 	renameFlights := req.RenameFlights != nil && *req.RenameFlights
 	if _, err := h.aircraftService.UpdateAircraft(c.Request.Context(), aircraft, userID, renameFlights); err != nil {
 		if errors.Is(err, service.ErrDuplicateRegistration) {
-			h.sendError(c, http.StatusConflict, "Another aircraft with this registration has an overlapping validity range")
+			h.sendError(c, http.StatusConflict, "An aircraft with this registration already exists for an overlapping period")
 			return
 		}
 		if errors.Is(err, models.ErrInvalidAircraftValidity) {
