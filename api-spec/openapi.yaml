@@ -10364,6 +10364,29 @@ components:
           type: string
           description: Time parsing format. Only relevant for time fields.
           example: '15:04'
+        durationFormat:
+          type: string
+          enum: [auto, decimal, minutes]
+          default: auto
+          description: |
+            How a bare number in a duration column is read. Only relevant for
+            duration fields (`totalTime`, `isDual`, `nightTime`,
+            `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+            `simulatedInstrumentTime`, `dualGivenTime`).
+            `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+            same under every option.
+            - `decimal`: decimal hours; a whole number is whole hours ("2" is
+              120 minutes, "1.3" is 78, "1,5" is 90)
+            - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+              error
+            - `auto` (default): when every non-empty cell in the column is a
+              bare number and at least one has a fraction, the column is read
+              as `decimal`; otherwise a whole number is minutes and a fraction
+              is decimal hours
+
+            The upload response suggests `decimal` for a duration column whose
+            cells match that pattern across the whole file.
+          example: decimal
         trueValue:
           type: string
           description: String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
