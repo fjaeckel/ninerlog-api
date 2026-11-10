@@ -144,8 +144,17 @@ func TestPilotingCategoryFor(t *testing.T) {
 		{"multi-pilot wins", &models.Flight{MultiPilotTime: 60, TotalTime: 60}, "SEP", CategoryMP},
 		{"SEP → SP-SE", &models.Flight{TotalTime: 60}, "SEP", CategorySPSE},
 		{"MEP → SP-ME", &models.Flight{TotalTime: 60}, "MEP", CategorySPME},
-		{"SET → SP-ME", &models.Flight{TotalTime: 60}, "SET", CategorySPME},
+		{"SET → SP-SE (C7)", &models.Flight{TotalTime: 60}, "SET", CategorySPSE},
+		{"SET_LAND → SP-SE", &models.Flight{TotalTime: 60}, "SET_LAND", CategorySPSE},
+		{"SET_SEA → SP-SE", &models.Flight{TotalTime: 60}, "SET_SEA", CategorySPSE},
+		{"SEJ_LAND → SP-SE", &models.Flight{TotalTime: 60}, "SEJ_LAND", CategorySPSE},
 		{"MET → SP-ME", &models.Flight{TotalTime: 60}, "MET", CategorySPME},
+		{"MET_LAND → SP-ME", &models.Flight{TotalTime: 60}, "MET_LAND", CategorySPME},
+		{"MET_SEA twin otter → SP-ME", &models.Flight{TotalTime: 60}, "MET_SEA", CategorySPME},
+		{"MEJ_LAND → SP-ME", &models.Flight{TotalTime: 60}, "MEJ_LAND", CategorySPME},
+		{"lower-case padded mep → SP-ME", &models.Flight{TotalTime: 60}, " mep_land ", CategorySPME},
+		{"TMG → SP-SE", &models.Flight{TotalTime: 60}, "TMG", CategorySPSE},
+		{"multi-pilot jet → MP", &models.Flight{MultiPilotTime: 60, TotalTime: 60}, "MEJ_LAND", CategoryMP},
 		{"unknown → SP-SE", &models.Flight{TotalTime: 60}, "", CategorySPSE},
 	}
 	for _, tc := range cases {

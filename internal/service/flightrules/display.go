@@ -181,20 +181,20 @@ const (
 )
 
 // PilotingCategoryFor returns the bucket for `flight`. acClass is the user's
-// stored AircraftClass for this registration (e.g. "SEP", "MEP", "SET",
-// "MET", "SES"), passed in by callers that have aircraft data. When acClass
-// is empty (no fleet entry available) the rule defaults to SP-SE.
+// stored AircraftClass for this registration (e.g. "SEP_LAND", "MEP_LAND",
+// "SET_LAND", "MET_SEA", "MEJ_LAND"), passed in by callers that have aircraft
+// data. When acClass is empty (no fleet entry available) the rule defaults to
+// SP-SE.
 //
 // Rule:
 //   - MultiPilotTime > 0 ⇒ MP (user-declared)
-//   - acClass starts with "ME" or "MET" or "SET" ⇒ SP-ME
-//   - otherwise ⇒ SP-SE
+//   - acClass starts with "ME" (MEP, MET, MEJ) ⇒ SP-ME
+//   - otherwise (SEP, SET, SEJ, TMG, custom) ⇒ SP-SE
 func PilotingCategoryFor(f *models.Flight, acClass string) PilotingCategory {
 	if f != nil && f.MultiPilotTime > 0 {
 		return CategoryMP
 	}
-	c := strings.ToUpper(strings.TrimSpace(acClass))
-	if strings.HasPrefix(c, "MEP") || strings.HasPrefix(c, "MET") || strings.HasPrefix(c, "SET") {
+	if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(acClass)), "ME") {
 		return CategorySPME
 	}
 	return CategorySPSE

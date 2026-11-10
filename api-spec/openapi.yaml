@@ -7084,7 +7084,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+          description: Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
         ulKind:
           type: [string, 'null']
           enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE, 'null']
@@ -7187,7 +7187,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+          description: Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
         ulKind:
           type: [string, 'null']
           enum: [THREE_AXIS, THREE_AXIS_MOTORGLIDER, WEIGHT_SHIFT, GYROPLANE, HELICOPTER, POWERED_PARAGLIDER, SAILPLANE, 'null']
@@ -7257,7 +7257,7 @@ components:
         aircraftClass:
           type: [string, 'null']
           example: SEP_LAND
-          description: Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+          description: Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
           x-go-type: nullable.Nullable[string]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable

@@ -488,3 +488,54 @@ func TestImportEdgeCases(t *testing.T) {
 
 // Ensure unused import is consumed
 var _ = time.Now
+
+// #303: ForeFlight aircraft get their class from Class and EngineType.
+func TestImportForeFlight_TurbineAircraftClasses(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-ff-turbine"), "SecurePass123!", "Sam Bush")
+
+	d := today()
+	ff := "ForeFlight Logbook Import,,,,,,,,,,,,,\n" +
+		",,,,,,,,,,,,,\n" +
+		"Aircraft Table,,,,,,,,,,,,,\n" +
+		"AircraftID,EquipmentType,TypeCode,Year,Make,Model,Category,Class,GearType,EngineType,Complex,TAA,HighPerformance,Pressurized\n" +
+		"C-GTWO,aircraft,DHC6,,de Havilland,DHC-6-300,airplane,airplane_multi_engine_sea,floats,Turboprop,FALSE,FALSE,TRUE,FALSE\n" +
+		"N350KA,aircraft,BE35,,Beechcraft,King Air 350,airplane,airplane_multi_engine_land,retractable_tricycle,Turboprop,TRUE,FALSE,TRUE,TRUE\n" +
+		"N650CJ,aircraft,C56X,,Cessna,Citation Excel,airplane,airplane_multi_engine_land,retractable_tricycle,Turbofan,TRUE,FALSE,TRUE,TRUE\n" +
+		"N172SP,aircraft,C172,,Cessna,172SP,airplane,airplane_single_engine_land,fixed_tricycle,Piston,FALSE,FALSE,FALSE,FALSE\n" +
+		",,,,,,,,,,,,,\n" +
+		"Flights Table,,,,,,,,,,,,,\n" +
+		"Date,AircraftID,From,To,TimeOut,TimeIn,TotalTime,PIC,SIC,DayTakeoffs,DayLandingsFullStop,NightTakeoffs,NightLandingsFullStop,AllLandings,PilotComments\n" +
+		d + ",C-GTWO,CYVR,CYYJ,08:00,09:00,1.0,1.0,0.0,1,1,0,0,1,Floats\n" +
+		d + ",N350KA,KBFI,KPDX,10:00,11:00,1.0,1.0,0.0,1,1,0,0,1,Twin turboprop\n" +
+		d + ",N650CJ,KPDX,KSFO,12:00,13:30,1.5,1.5,0.0,1,1,0,0,1,Jet\n" +
+		d + ",N172SP,KSFO,KOAK,15:00,15:30,0.5,0.5,0.0,1,1,0,0,1,Piston\n"
+	flights := importWithSuggestedMappings(t, c, "foreflight.csv", ff)
+	if len(flights) != 4 {
+		t.Fatalf("imported %d flights, want 4", len(flights))
+	}
+
+	fleet := c.GET("/aircraft")
+	requireStatus(t, fleet, http.StatusOK)
+	var page map[string]interface{}
+	fleet.MustJSON(t, &page)
+	data, _ := page["data"].([]interface{})
+	classes := map[string]string{}
+	for _, item := range data {
+		a, _ := item.(map[string]interface{})
+		reg, _ := a["registration"].(string)
+		class, _ := a["aircraftClass"].(string)
+		classes[reg] = class
+	}
+	want := map[string]string{
+		"C-GTWO": "MET_SEA",
+		"N350KA": "MET_LAND",
+		"N650CJ": "MEJ_LAND",
+		"N172SP": "SEP_LAND",
+	}
+	for reg, w := range want {
+		if classes[reg] != w {
+			t.Errorf("%s aircraftClass = %q, want %q (fleet: %v)", reg, classes[reg], w, classes)
+		}
+	}
+}

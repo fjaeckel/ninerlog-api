@@ -467,7 +467,10 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   crew names (the same auto-creation that flight create/update performs — see
   **Contacts / people** under Pilot data management), and fleet entries for every registration in the file that the
   user does not own yet (from a ForeFlight export's Aircraft Table when present, otherwise from
-  the flight rows' registration/type columns). Rows skipped as duplicates still
+  the flight rows' registration/type columns). A ForeFlight aircraft's class comes from its
+  `Class` and `EngineType`: piston, diesel, electric or blank give `SEP_*`/`MEP_*`, turboprop
+  gives `SET_*`/`MET_*`, and turbofan, turbojet or jet give `SEJ_LAND`/`MEJ_LAND` (a jet on
+  water is classed as turbine, `SET_SEA`/`MET_SEA`). Rows skipped as duplicates still
   contribute their aircraft, so re-importing a file backfills a fleet an earlier import
   left empty. Registrations are keyed in canonical notation while collecting them, so a
   file that spells one aircraft two ways yields one fleet entry, not two. The confirm

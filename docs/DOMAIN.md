@@ -142,6 +142,14 @@ single-pilot and the time is not multi-pilot time. `PilotingCategoryFor` continu
 a row as MP on `MultiPilotTime > 0`, which is now only ever filled for a multi-pilot
 aircraft.
 
+### Single-pilot SE / ME columns
+
+The AMC1 FCL.050 single-pilot columns split by engine count, not by powerplant. Outside
+multi-pilot time, `PilotingCategoryFor` puts a flight in SP-ME when the aircraft class
+starts with `ME` (`MEP_*`, `MET_*`, `MEJ_LAND`) and in SP-SE otherwise, so a single-engine
+turboprop (`SET_*`) or jet (`SEJ_LAND`) logs SP-SE. Flights whose registration has no fleet
+entry, and the CSV and web-logbook exports, which do not look up the fleet, log SP-SE.
+
 ### Existing data
 
 Migration `000065` does not infer `is_multi_pilot` from existing `multi_pilot_time`: that
