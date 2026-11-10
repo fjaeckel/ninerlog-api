@@ -41,3 +41,12 @@ All regressions below were fixed in the Phase 6b¾ implementation.
 - Backend: `AuthService.UpdateUser()` catches `ErrDuplicateEmail` → `ErrUserAlreadyExists`
 - Handler maps to 409 Conflict
 - Frontend: ProfilePage shows specific message for 409
+
+### ~~11. PUT /flights/{id} without crewMembers re-derived as if the crew were empty~~ — FIXED
+- Found with #298: a partial update of a dual flight (e.g. only `remarks`) turned it into a
+  solo PIC flight while its instructor stayed in the crew table.
+- Backend: `UpdateFlight` loads the stored crew before `ApplyAutoCalculations` when the
+  request carries no `crewMembers` key.
+- `TestFlightUpdateEdgeCases/PUT_with_crew_change_from_dual_to_solo_recalculates` asserted
+  the old behaviour (it omitted `crewMembers` yet expected the instructor gone); it now sends
+  an empty `crewMembers` to remove the crew.

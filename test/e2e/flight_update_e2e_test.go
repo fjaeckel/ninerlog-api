@@ -68,12 +68,14 @@ func TestFlightUpdateEdgeCases(t *testing.T) {
 	})
 
 	t.Run("PUT with crew change from dual to solo recalculates", func(t *testing.T) {
-		// Remove instructor → should switch from dual to PIC
+		// Remove instructor → should switch from dual to PIC. An empty
+		// crewMembers removes the crew; omitting the key keeps it (#298).
 		r := c.PUT(fmt.Sprintf("/flights/%s", fid), map[string]interface{}{
 			"date": "2025-06-16", "aircraftReg": "D-EUPD", "aircraftType": "PA28",
 			"departureIcao": "EDDS", "arrivalIcao": "EDDM",
 			"offBlockTime": "10:00", "onBlockTime": "12:00",
-			"landings": 1,
+			"landings":    1,
+			"crewMembers": []map[string]interface{}{},
 		})
 		requireStatus(t, r, 200)
 		var f map[string]interface{}
