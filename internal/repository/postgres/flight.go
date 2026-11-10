@@ -30,18 +30,31 @@ func appendRegistrationFilter(query string, args []interface{}, argNum int, opts
 	if opts == nil || !opts.FilterByRegistrations {
 		return query, args, argNum
 	}
-	if len(opts.AircraftRegistrations) == 0 {
+	if len(opts.AircraftRegistrations) == 0 && len(opts.RegistrationWindows) == 0 {
 		// An empty registration list matches no flights.
 		return query + " AND 1=0", args, argNum
 	}
-	placeholders := make([]string, 0, len(opts.AircraftRegistrations))
-	for _, reg := range opts.AircraftRegistrations {
-		placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
-		args = append(args, reg)
-		argNum++
+	var terms []string
+	if len(opts.AircraftRegistrations) > 0 {
+		placeholders := make([]string, 0, len(opts.AircraftRegistrations))
+		for _, reg := range opts.AircraftRegistrations {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argNum))
+			args = append(args, reg)
+			argNum++
+		}
+		terms = append(terms, "UPPER(aircraft_reg) IN ("+strings.Join(placeholders, ", ")+")")
 	}
-	query += " AND UPPER(aircraft_reg) IN (" + strings.Join(placeholders, ", ") + ")"
-	return query, args, argNum
+	for _, w := range opts.RegistrationWindows {
+		terms = append(terms, fmt.Sprintf(
+			"(UPPER(aircraft_reg) = $%d AND date >= COALESCE($%d::date, '-infinity'::date) AND date <= COALESCE($%d::date, 'infinity'::date))",
+			argNum, argNum+1, argNum+2))
+		args = append(args, w.Registration, dateParam(w.From), dateParam(w.To))
+		argNum += 3
+	}
+	if len(terms) == 1 {
+		return query + " AND " + terms[0], args, argNum
+	}
+	return query + " AND (" + strings.Join(terms, " OR ") + ")", args, argNum
 }
 
 // appendFlightFilters appends every FlightQueryOptions filter to a query over

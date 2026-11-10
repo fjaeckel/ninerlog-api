@@ -3,13 +3,14 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type aircraftRepository struct {
@@ -26,8 +27,8 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 		INSERT INTO aircraft (user_id, registration, type, make, model,
 		                      is_complex, is_high_performance, is_tailwheel, is_multi_pilot,
 		                      notes, is_active, aircraft_class, ul_kind, mtom_kg,
-		                      default_departure_icao, default_arrival_icao)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		                      default_departure_icao, default_arrival_icao, valid_from, valid_to)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at
 	`
 	err := r.writer().QueryRowContext(ctx, query,
@@ -47,12 +48,11 @@ func (r *aircraftRepository) Create(ctx context.Context, aircraft *models.Aircra
 		aircraft.MTOMKg,
 		aircraft.DefaultDepartureICAO,
 		aircraft.DefaultArrivalICAO,
+		dateParam(aircraft.ValidFrom),
+		dateParam(aircraft.ValidTo),
 	).Scan(&aircraft.ID, &aircraft.CreatedAt, &aircraft.UpdatedAt)
 	if err != nil {
-		if strings.Contains(err.Error(), "idx_aircraft_user_registration") {
-			return repository.ErrDuplicateRegistration
-		}
-		return err
+		return mapAircraftWriteError(err)
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
-		       created_at, updated_at
+		       valid_from, valid_to, created_at, updated_at
 		FROM aircraft WHERE id = $1
 	`
 	a := &models.Aircraft{}
@@ -71,6 +71,7 @@ func (r *aircraftRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 		&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
 		&a.Notes, &a.IsActive, &a.AircraftClass, &a.ULKind, &a.MTOMKg,
 		&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
+		&a.ValidFrom, &a.ValidTo,
 		&a.CreatedAt, &a.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -87,11 +88,11 @@ func (r *aircraftRepository) GetByUserID(ctx context.Context, userID uuid.UUID, 
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
-		       created_at, updated_at
+		       valid_from, valid_to, created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
 	args := []any{userID}
 	clause, clauseArgs := updatedSinceClause(updatedSince, 2)
-	query += clause + " ORDER BY registration ASC"
+	query += clause + " ORDER BY registration ASC, valid_from ASC NULLS FIRST"
 	args = append(args, clauseArgs...)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -119,11 +120,11 @@ func (r *aircraftRepository) GetPageByUserID(ctx context.Context, userID uuid.UU
 		SELECT id, user_id, registration, type, make, model,
 		       is_complex, is_high_performance, is_tailwheel, is_multi_pilot, notes, is_active,
 		       aircraft_class, ul_kind, mtom_kg, default_departure_icao, default_arrival_icao,
-		       created_at, updated_at
+		       valid_from, valid_to, created_at, updated_at
 		FROM aircraft WHERE user_id = $1`
 	args := append([]any{}, countArgs...)
 	argNum := len(args) + 1
-	query += clause + " ORDER BY registration ASC, id ASC"
+	query += clause + " ORDER BY registration ASC, valid_from ASC NULLS FIRST, id ASC"
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argNum, argNum+1)
 	args = append(args, limit, offset)
 
@@ -149,6 +150,7 @@ func scanAircraftRows(rows *sql.Rows) ([]*models.Aircraft, error) {
 			&a.IsComplex, &a.IsHighPerformance, &a.IsTailwheel, &a.IsMultiPilot,
 			&a.Notes, &a.IsActive, &a.AircraftClass, &a.ULKind, &a.MTOMKg,
 			&a.DefaultDepartureICAO, &a.DefaultArrivalICAO,
+			&a.ValidFrom, &a.ValidTo,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -165,8 +167,9 @@ const aircraftUpdateQuery = `
 	    is_tailwheel = $7, is_multi_pilot = $8,
 	    notes = $9, is_active = $10, aircraft_class = $11, ul_kind = $12, mtom_kg = $13,
 	    default_departure_icao = $14, default_arrival_icao = $15,
-	    updated_at = $16
-	WHERE id = $17
+	    valid_from = $16, valid_to = $17,
+	    updated_at = $18
+	WHERE id = $19
 `
 
 func aircraftUpdateArgs(aircraft *models.Aircraft, now time.Time) []any {
@@ -176,6 +179,7 @@ func aircraftUpdateArgs(aircraft *models.Aircraft, now time.Time) []any {
 		aircraft.IsMultiPilot,
 		aircraft.Notes, aircraft.IsActive, aircraft.AircraftClass, aircraft.ULKind, aircraft.MTOMKg,
 		aircraft.DefaultDepartureICAO, aircraft.DefaultArrivalICAO,
+		dateParam(aircraft.ValidFrom), dateParam(aircraft.ValidTo),
 		now, aircraft.ID,
 	}
 }
@@ -184,10 +188,7 @@ func (r *aircraftRepository) Update(ctx context.Context, aircraft *models.Aircra
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, aircraftUpdateQuery, aircraftUpdateArgs(aircraft, now)...)
 	if err != nil {
-		if strings.Contains(err.Error(), "idx_aircraft_user_registration") {
-			return repository.ErrDuplicateRegistration
-		}
-		return err
+		return mapAircraftWriteError(err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
@@ -214,10 +215,7 @@ func (r *aircraftRepository) UpdateWithFlightRename(ctx context.Context, aircraf
 	now := time.Now()
 	result, err := tx.ExecContext(ctx, aircraftUpdateQuery, aircraftUpdateArgs(aircraft, now)...)
 	if err != nil {
-		if strings.Contains(err.Error(), "idx_aircraft_user_registration") {
-			return 0, repository.ErrDuplicateRegistration
-		}
-		return 0, err
+		return 0, mapAircraftWriteError(err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
@@ -231,8 +229,11 @@ func (r *aircraftRepository) UpdateWithFlightRename(ctx context.Context, aircraf
 	// signed with.
 	flightsResult, err := tx.ExecContext(ctx,
 		`UPDATE flights SET aircraft_reg = $1, updated_at = NOW()
-		 WHERE user_id = $2 AND aircraft_reg = $3 AND signature_id IS NULL`,
+		 WHERE user_id = $2 AND aircraft_reg = $3 AND signature_id IS NULL
+		   AND date >= COALESCE($4::date, '-infinity'::date)
+		   AND date <= COALESCE($5::date, 'infinity'::date)`,
 		aircraft.Registration, aircraft.UserID, oldRegistration,
+		dateParam(aircraft.ValidFrom), dateParam(aircraft.ValidTo),
 	)
 	if err != nil {
 		return 0, err
@@ -371,6 +372,28 @@ func (r *aircraftRepository) GetRecencyRowsByUserID(ctx context.Context, userID 
 		result = append(result, row)
 	}
 	return result, rows.Err()
+}
+
+// mapAircraftWriteError maps constraint violations on aircraft to sentinels.
+func mapAircraftWriteError(err error) error {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		switch pqErr.Constraint {
+		case "aircraft_registration_validity_excl":
+			return repository.ErrDuplicateRegistration
+		case "aircraft_validity_order":
+			return models.ErrInvalidAircraftValidity
+		}
+	}
+	return err
+}
+
+// dateParam renders an optional calendar date as a DATE parameter.
+func dateParam(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.Format(time.DateOnly)
 }
 
 // writer returns the transaction the repository is bound to, else the pool.
