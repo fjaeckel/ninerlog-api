@@ -61,7 +61,7 @@ func metricVal(p *Progress, m metric) int {
 	case mHolds:
 		return p.Holds
 	case mPICOrDualMinutes:
-		return p.PICMinutes + p.InstructorMinutes
+		return p.PICMinutes + p.InstructorMinutes - p.PICDualOverlapMinutes
 	case mLaunches:
 		return p.Launches
 	case mTrainingFlights:
@@ -250,6 +250,7 @@ func addProgress(total, p *Progress, withDual bool) {
 	total.IFRMinutes += p.IFRMinutes
 	if withDual {
 		total.InstructorMinutes += p.InstructorMinutes
+		total.PICDualOverlapMinutes += p.PICDualOverlapMinutes
 	}
 	total.NightMinutes += p.NightMinutes
 	total.Landings += p.Landings

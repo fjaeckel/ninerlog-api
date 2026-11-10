@@ -464,6 +464,7 @@ var easaSPLRule = ratingRule{
 			}
 			hours.PICMinutes += tmg.PICMinutes
 			hours.InstructorMinutes += tmg.InstructorMinutes
+			hours.PICDualOverlapMinutes += tmg.PICDualOverlapMinutes
 			rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}
 			ulMinutes, err := rt.ulHoursCredit(ctx, models.ULKindSailplane, models.ULKindThreeAxisMotorglider)
 			if err != nil {
@@ -609,6 +610,7 @@ var easaSPLTMGRule = ratingRule{
 		hours := *tmg
 		hours.PICMinutes += glider.PICMinutes + ulSailplane + ulMotorglider
 		hours.InstructorMinutes += glider.InstructorMinutes
+		hours.PICDualOverlapMinutes += glider.PICDualOverlapMinutes
 		tmgHours := *tmg
 		tmgHours.PICMinutes += ulMotorglider
 		rt.result.CountedClasses = []models.ClassType{models.ClassTypeGlider, models.ClassTypeTMG}

@@ -234,7 +234,9 @@ are **integer minutes**):
   relief co-pilot). PICUS/SPIC/relief join the function-time sum and are carved out of the
   derived PIC/SIC/dual time; examiner time overlays like `DualGivenTime`. See
   [DOMAIN.md](./DOMAIN.md#declared-function-times-picus-spic-examiner-relief).
-- **Booleans**: `IsPIC`, `IsDual`.
+- **Booleans**: `IsPIC`, `IsDual`. Both may be set on one flight (PIC while receiving
+  instruction, 14 CFR §61.51(e)(1)(i)); migration 80 dropped the `pic_dual_exclusive`
+  check. See [DOMAIN.md](./DOMAIN.md#pic-while-receiving-instruction-faa).
 - **Takeoffs/landings**: `LandingsDay`, `LandingsNight`, `AllLandings` (auto),
   `TakeoffsDay`, `TakeoffsNight` (auto: one per landing, split by sunset/sunrise at departure).
 - **Auto-calculated**: `SoloTime`, `CrossCountryTime`, `Distance` (NM, from airport

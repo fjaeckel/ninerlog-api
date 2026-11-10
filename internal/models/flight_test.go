@@ -75,12 +75,62 @@ func TestFlightValidateTimeDistribution_Valid(t *testing.T) {
 	}
 }
 
-func TestFlightValidateTimeDistribution_PICAndDual(t *testing.T) {
+func TestFlightValidateTimeDistribution_PICWhileDual(t *testing.T) {
 	f := validFlight()
+	f.TotalTime = 96
 	f.IsPIC = true
 	f.IsDual = true
+	f.PICTime = 96
+	f.DualTime = 96
+	if err := f.ValidateTimeDistribution(); err != nil {
+		t.Errorf("ValidateTimeDistribution() = %v, want nil", err)
+	}
+	if got := f.PICDualOverlap(); got != 96 {
+		t.Errorf("PICDualOverlap() = %d, want 96", got)
+	}
+}
+
+func TestFlightValidateTimeDistribution_PICWhileDualPartial(t *testing.T) {
+	f := validFlight()
+	f.TotalTime = 90
+	f.IsPIC = true
+	f.IsDual = true
+	f.PICTime = 60
+	f.DualTime = 90
+	if err := f.ValidateTimeDistribution(); err != nil {
+		t.Errorf("ValidateTimeDistribution() = %v, want nil", err)
+	}
+}
+
+func TestFlightValidateTimeDistribution_PICWhileDualCountsOverlapOnce(t *testing.T) {
+	f := validFlight()
+	f.TotalTime = 96
+	f.IsPIC = true
+	f.IsDual = true
+	f.PICTime = 96
+	f.DualTime = 96
+	f.PICUSTime = 10
+	if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrInvalidFunctionTime) {
+		t.Errorf("ValidateTimeDistribution() = %v, want ErrInvalidFunctionTime", err)
+	}
+}
+
+func TestFlightValidateTimeDistribution_PICAndDualTimeWithoutBothFlags(t *testing.T) {
+	f := validFlight()
+	f.IsPIC = true
+	f.IsDual = false
+	f.PICTime = 45
+	f.DualTime = 45
 	if err := f.ValidateTimeDistribution(); !errors.Is(err, ErrInvalidTimeDistribution) {
 		t.Errorf("ValidateTimeDistribution() = %v, want ErrInvalidTimeDistribution", err)
+	}
+}
+
+func TestFlightPICDualOverlap_NotBoth(t *testing.T) {
+	f := validFlight()
+	f.DualTime = 30
+	if got := f.PICDualOverlap(); got != 0 {
+		t.Errorf("PICDualOverlap() = %d, want 0", got)
 	}
 }
 

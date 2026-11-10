@@ -412,6 +412,8 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
 
+	declarePICWhileDual(&flight, req.IsPic)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split, SIC, dual given)
 	flightcalc.ApplyAutoCalculations(&flight, userName, facts)
 
@@ -640,6 +642,12 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
 
+	// Stored crew for an update without a crewMembers key
+	if req.CrewMembers == nil {
+		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
+	}
+	declarePICWhileDual(flight, req.IsPic)
+
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
 	flightcalc.ApplyAutoCalculations(flight, userName, facts)
 
@@ -688,10 +696,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
-	}
-
-	if req.CrewMembers == nil {
-		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
 
 	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))
@@ -955,4 +959,15 @@ func calculateBlockTime(offBlock, onBlock string) (int, error) {
 
 	minutes := int(math.Round(duration.Minutes()))
 	return minutes, nil
+}
+
+// declarePICWhileDual applies the request's isPic declaration ahead of
+// auto-calculation: true logs the flight as both PIC and dual received, false
+// clears it, omitted keeps the flight's current flags.
+func declarePICWhileDual(flight *models.Flight, isPic *bool) {
+	if isPic == nil {
+		return
+	}
+	flight.IsPIC = *isPic
+	flight.IsDual = *isPic
 }

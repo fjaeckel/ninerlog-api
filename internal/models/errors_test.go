@@ -10,7 +10,7 @@ func TestErrorMessages(t *testing.T) {
 		err  error
 		want string
 	}{
-		{"InvalidTimeDistribution", ErrInvalidTimeDistribution, "PIC and dual time are mutually exclusive"},
+		{"InvalidTimeDistribution", ErrInvalidTimeDistribution, "PIC and dual time overlap only on a flight logged as both PIC and dual"},
 		{"InvalidNightTime", ErrInvalidNightTime, "night time exceeds total time"},
 		{"InvalidIFRTime", ErrInvalidIFRTime, "IFR time exceeds total time"},
 		{"InvalidCrossCountryTime", ErrInvalidCrossCountryTime, "cross-country time exceeds total time"},

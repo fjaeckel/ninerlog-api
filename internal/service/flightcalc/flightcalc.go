@@ -228,13 +228,21 @@ func derivedFunctionMinutes(flight *models.Flight) int {
 // only the designated PIC logs PIC time (AMC1 FCL.050). A passenger logs no
 // pilot function time at all. Declared PICUS/SPIC/relief minutes are carved
 // out of the derived column so the function times still decompose TotalTime.
+//
+// A flight that arrives logged as both PIC and dual stays so while the user
+// receives instruction: PIC time then equals dual time (14 CFR
+// §61.51(e)(1)(i)). Any other role clears the declaration.
 func calculatePICDual(flight *models.Flight, role userPilotRole) {
 	switch role {
 	case roleDualReceiving:
-		flight.IsPIC = false
+		picWhileDual := flight.IsPICWhileDual()
+		flight.IsPIC = picWhileDual
 		flight.IsDual = true
 		flight.DualTime = derivedFunctionMinutes(flight)
 		flight.PICTime = 0
+		if picWhileDual {
+			flight.PICTime = flight.DualTime
+		}
 	case roleSIC:
 		flight.IsPIC = false
 		flight.IsDual = false

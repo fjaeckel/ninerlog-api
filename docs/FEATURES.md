@@ -177,6 +177,11 @@ rules.
   what keeps a GA pilot from logging co-pilot time they may not log, while an airline
   first officer's line flying is unaffected. See
   [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
+- PIC while receiving instruction (FAA): `isPic: true` on a flight with a third-party
+  instructor or examiner logs the same minutes as both PIC and dual received
+  (14 CFR §61.51(e)(1)(i) — flight reviews, IPCs, endorsement training), counted once
+  against total time. JSON restores and CSV imports of FAA logbooks carry it over. See
+  [DOMAIN.md](./DOMAIN.md#pic-while-receiving-instruction-faa).
 - Declared function times: `picusTime` (PIC under supervision, the time an airline first
   officer logs toward unfreezing an ATPL), `spicTime` (student PIC), `examinerTime` and
   `reliefTime` (cruise relief co-pilot). Declared by the pilot, never auto-calculated,
