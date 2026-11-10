@@ -87,7 +87,8 @@ The pilot declares it; it is never inferred from the crew list.
   PICUS/SPIC/relief carve). On any other flight PIC is derived from the crew as usual and
   `isPic` changes nothing. On `PUT`, omitting `isPic` keeps the stored declaration and
   `false` removes it.
-- **Re-derivation** — `flightcalc.calculatePICDual` keeps a flight that arrives with both
+- **Re-derivation** — `PUT /flights/{flightId}` without a `crewMembers` key derives from
+  the stored crew. `flightcalc.calculatePICDual` keeps a flight that arrives with both
   flags set as PIC while dual for as long as the user receives instruction, so updates and
   `POST /flights/recalculate` preserve it. Any other role (PIC without an instructor,
   co-pilot, passenger, FSTD session) clears it.

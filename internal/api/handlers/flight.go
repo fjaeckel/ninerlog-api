@@ -642,6 +642,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
 
+	// Stored crew for an update without a crewMembers key
+	if req.CrewMembers == nil {
+		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
+	}
 	declarePICWhileDual(flight, req.IsPic)
 
 	// Apply auto-calculations (solo, cross-country, distance, takeoff/landing split)
@@ -692,10 +696,6 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 		h.sendError(c, http.StatusBadRequest, "Failed to update flight")
 		return
-	}
-
-	if req.CrewMembers == nil {
-		h.attachCrewMembers(c.Request.Context(), []*models.Flight{flight})
 	}
 
 	c.JSON(http.StatusOK, withDisplayPICName(convertToGeneratedFlight(flight), flight, h.getUserNameFromContext(c)))

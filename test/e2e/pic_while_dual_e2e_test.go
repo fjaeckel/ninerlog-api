@@ -68,6 +68,17 @@ func TestPICWhileDual(t *testing.T) {
 		assertBoth(t, f, false, 0)
 	})
 
+	t.Run("an update without crewMembers keeps a dual flight dual", func(t *testing.T) {
+		f := create(t, map[string]interface{}{"crewMembers": instructor})
+		id := f["id"].(string)
+		resp := c.PUT("/flights/"+id, map[string]interface{}{"remarks": "Steep turns"})
+		requireStatus(t, resp, http.StatusOK)
+		var updated map[string]interface{}
+		resp.MustJSON(t, &updated)
+		assertBoth(t, updated, false, 0)
+		assertBoth(t, get(t, id), false, 0)
+	})
+
 	t.Run("without an instructor isPic is plain PIC", func(t *testing.T) {
 		f := create(t, map[string]interface{}{"isPic": true})
 		assertBool(t, "isPic", gb(f, "isPic"), true)
