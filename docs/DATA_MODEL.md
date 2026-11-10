@@ -130,7 +130,30 @@ or `SAILPLANE` — and is cleared on any other class. NULL is evaluated as `THRE
 ### Aircraft (`internal/models/aircraft.go`, migrations 12, 21, 22, 24, 36, 65, 72, 73)
 
 A user's aircraft: registration, type, make, model, and a class (e.g. `SEP_LAND`) that
-links flights in that aircraft to the right currency bucket. Equipment flags capture
+links flights in that aircraft to the right currency bucket. `aircraft_class` is free text
+(up to 30 characters); the API documents these well-known values, and anything else is a
+custom class:
+
+| Value | Meaning |
+| --- | --- |
+| `SEP_LAND` / `SEP_SEA` | Single-engine piston (land/sea) |
+| `MEP_LAND` / `MEP_SEA` | Multi-engine piston (land/sea) |
+| `SET_LAND` / `SET_SEA` | Single-engine turboprop (land/sea) |
+| `MET_LAND` / `MET_SEA` | Multi-engine turboprop (land/sea), e.g. King Air, Twin Otter on floats |
+| `SEJ_LAND` | Single-engine jet |
+| `MEJ_LAND` | Multi-engine jet (turbofan or turbojet) |
+| `TMG`, `GLIDER`, `ULTRALIGHT`, `GYROPLANE` | As the class rating types of the same name |
+
+Currency matches the class case-insensitively against class rating types, and a
+licence-scoped logbook keeps only aircraft whose class equals one of the licence's class
+ratings. `MET_*`, `SEJ_LAND` and `MEJ_LAND` have no matching `ClassType`, since EASA rates
+these aeroplanes by type and type ratings are not modelled, so flights in them feed no
+EASA class-rating currency and fall outside a licence-scoped logbook, as a custom class
+does. FAA §61.57 currency pools them into the FAA airplane class: `MET_*` and `MEJ_LAND`
+count toward `MEP_*` ratings, `SEJ_LAND` toward `SEP_LAND`/`SET_LAND` (see
+[DOMAIN.md](./DOMAIN.md#credited-classes)).
+The EASA logbook buckets single-pilot time by engine count: a class starting with `ME` is
+SP-ME, everything else SP-SE (`flightrules.PilotingCategoryFor`). Equipment flags capture
 complex/high-performance/tailwheel characteristics. `IsMultiPilot` (migration 65) records
 that the type is certificated for a minimum crew of two pilots; it is what makes co-pilot
 and multi-pilot time loggable, and `aircraft_class` cannot stand in for it because that

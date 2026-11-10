@@ -57,11 +57,15 @@ func faaSelectRule(rating *models.ClassRating, license *models.License) *ratingR
 //
 //	(a) Day: 3 takeoffs and landings in preceding 90 days in same category/class.
 //	(b) Night: 3 full-stop takeoffs and landings at night within preceding 90 days.
+//
+// The class is the FAA airplane class (faaClasses): piston, turboprop and jet
+// aircraft of the same engine count and surface pool.
 var faaPassengerRatingRule = ratingRule{
 	displayKey:  "faa_pax_day_night",
 	description: "Requires 3 takeoffs & landings in preceding 90 days in same category/class for day passenger currency; 3 full-stop night takeoffs & landings in 90 days for night currency (14 CFR 61.57)",
 	window:      windowSpec{kind: windowRollingNow, days: 90},
-	scope:       scopeByClass,
+	scope:       scopeClassGroup,
+	classGroup:  faaRatingClasses,
 	baseReqs: []reqSpec{
 		{nameKey: ReqKeyDayLandings, metric: mLandings, threshold: 3, unit: "landings"},
 		{nameKey: ReqKeyNightLandings, metric: mNightLandings, threshold: 3, unit: "landings"},
@@ -264,7 +268,8 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 		result.RuleDescription = "3 takeoffs & landings in preceding 90 days for day passenger currency (14 CFR 61.57(a)) — night not applicable for " + license.LicenseType
 	}
 
-	days, err := dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), false, since)
+	classes := faaClasses(classType)
+	days, err := landingDaysByClasses(ctx, dp, license.UserID, classes, includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER")), false, since)
 	if err != nil {
 		result.DayStatus = StatusUnknown
 		result.NightStatus = StatusUnknown
@@ -288,7 +293,7 @@ func (e *FAAEvaluator) EvaluatePassengerCurrency(ctx context.Context, classType 
 	}
 	includeTowed := includeTowedFlights(classType, strings.EqualFold(license.LicenseType, "GLIDER"))
 	fillPaxLapseDates(ctx, &result, func(from time.Time) ([]LandingDay, error) {
-		return dp.GetLandingDaysByAircraftClass(ctx, license.UserID, classType, includeTowed, false, from)
+		return landingDaysByClasses(ctx, dp, license.UserID, classes, includeTowed, false, from)
 	}, nil, time.Now())
 
 	if !hasNight {
