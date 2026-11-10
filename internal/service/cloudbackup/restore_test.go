@@ -434,7 +434,7 @@ func TestRestore_CrewNameWithoutContactCreatesOne(t *testing.T) {
 func TestRestore_FlightFailingRevalidationIsRestoredWithWarning(t *testing.T) {
 	store := restorefake.New()
 	p := samplePayload()
-	p.Flights[1].IsDual = true
+	p.Flights[1].DualTime = 60
 
 	res, err := restoreSample(t, store, p, RestoreModeRestore)
 

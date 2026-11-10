@@ -125,7 +125,9 @@ func TestValidateFunctionTimeDecomposesTotal(t *testing.T) {
 		// instructor time with no PIC time of their own.
 		{"instructor without pic time", func(f *Flight) { f.PICTime, f.DualGivenTime = 0, 120 }, nil},
 		{"pic plus co-pilot over total", func(f *Flight) { f.SICTime = 60 }, ErrInvalidFunctionTime},
-		{"pic plus dual over total", func(f *Flight) { f.DualTime = 60 }, ErrInvalidFunctionTime},
+		{"pic plus dual without both flags", func(f *Flight) { f.DualTime = 60 }, ErrInvalidTimeDistribution},
+		{"pic while dual counts the overlap once", func(f *Flight) { f.IsPIC, f.IsDual, f.DualTime = true, true, 120 }, nil},
+		{"pic while dual plus co-pilot over total", func(f *Flight) { f.IsPIC, f.IsDual, f.DualTime, f.SICTime = true, true, 120, 10 }, ErrInvalidFunctionTime},
 		{"instructor over total", func(f *Flight) { f.DualGivenTime = 180 }, ErrInvalidDualGivenTime},
 		{"night over total", func(f *Flight) { f.NightTime = 180 }, ErrInvalidNightTime},
 		{"ifr over total", func(f *Flight) { f.IFRTime = 180 }, ErrInvalidIFRTime},
