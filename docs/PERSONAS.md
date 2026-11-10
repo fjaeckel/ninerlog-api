@@ -309,6 +309,9 @@ multi-crew, German radio licences.
   time like any ICAO airport.
 - T7: No screen he visits in a normal week says "SEP (Land)", "revalidation" or "FCL";
   classes read as FAA classes (ASEL).
+- T8: His flight review with a CFI on board logs as both PIC and dual received (§61.51(e)),
+  counted once in total time, from an "I was PIC" toggle that EASA-only pilots never see; a
+  migrated logbook with such flights restores without errors.
 
 ### C2 — Claudia, PPL(A) aircraft owner with SEP, MEP and IR
 
