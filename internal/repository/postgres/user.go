@@ -25,6 +25,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	if user.PreferredLocale == "" {
 		user.PreferredLocale = "en"
 	}
+	user.DefaultFlightTimeMethod = models.FlightTimeBlock
 	// Match the DB column defaults.
 	user.RecencyPerModel = true
 	user.FlightListColumnMode = models.FlightListColumnModeAuto
@@ -61,7 +62,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at, default_flight_time_method
 		FROM users
 		WHERE email = $1
 	`
@@ -93,6 +94,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.FlightListColumns,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.DefaultFlightTimeMethod,
 	)
 
 	if err != nil {
@@ -108,7 +110,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, name, email_verified, two_factor_enabled, two_factor_secret, recovery_codes,
-		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at
+		       failed_login_attempts, locked_until, disabled, is_admin, last_login_at, time_display_format, date_format, clock_format, logbook_terms, decimal_separator, preferred_locale, recency_per_model, recency_per_registration, flight_list_column_mode, flight_list_columns, created_at, updated_at, default_flight_time_method
 		FROM users
 		WHERE id = $1
 	`
@@ -140,6 +142,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.FlightListColumns,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.DefaultFlightTimeMethod,
 	)
 
 	if err != nil {
@@ -159,7 +162,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		    two_factor_secret = $5, recovery_codes = $6, disabled = $7,
 		    last_login_at = $8, time_display_format = $9, date_format = $10, decimal_separator = $11, preferred_locale = $12,
 		    recency_per_model = $13, recency_per_registration = $14, flight_list_column_mode = $15,
-		    flight_list_columns = $16, email_verified = $17, updated_at = $18, clock_format = $19, logbook_terms = $20
+		    flight_list_columns = $16, email_verified = $17, updated_at = $18, clock_format = $19, logbook_terms = $20, default_flight_time_method = $22
 		WHERE id = $21
 	`
 
@@ -203,6 +206,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		clockFormat,
 		logbookTerms,
 		user.ID,
+		models.EffectiveFlightTimeMethod(user.DefaultFlightTimeMethod),
 	)
 
 	if err != nil {

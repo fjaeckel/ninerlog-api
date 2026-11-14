@@ -112,6 +112,12 @@ func DiffFlightStates(oldSnap json.RawMessage, oldCrew json.RawMessage, newSnap 
 		return nil, err
 	}
 
+	for _, obj := range []map[string]any{oldObj, newObj} {
+		if obj["flight_time_method"] == nil {
+			obj["flight_time_method"] = models.FlightTimeBlock
+		}
+	}
+
 	keys := make(map[string]struct{}, len(oldObj)+len(newObj))
 	for k := range oldObj {
 		keys[k] = struct{}{}

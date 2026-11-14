@@ -929,3 +929,45 @@ history. See [FEATURES.md](./FEATURES.md#cloud-backups).
 > When you add or change an endpoint, update `api-spec/openapi.yaml` first, regenerate,
 > implement the handler/service, add tests, and update this document and
 > [FEATURES.md](./FEATURES.md) if the feature surface changed.
+
+## Flight time source (frontend issue #483)
+
+`User.defaultFlightTimeMethod` and `PATCH /users/me.defaultFlightTimeMethod` accept `block`
+(default), `hobbs`, or `manual`. The preference applies only when creating a flight without an explicit
+`flightTimeMethod`. It never updates or recalculates existing flights. FSTD creation always
+defaults to block regardless of the preference.
+
+Flight responses, creates, updates and backup flights carry `flightTimeMethod`,
+`hobbsStartTenths` and `hobbsEndTenths`. Meter readings are integers in tenths of an hour:
+15234 represents 1523.4 hours. Readings range from 0 to 99999999; both are required for
+Hobbs flights and the end must exceed the start. Invalid methods/readings return 400.
+Create totals are calculated by the server. Hobbs total minutes equal `(end - start) * 6`.
+Block timestamps remain optional on Hobbs flights and never replace the meter-based total.
+
+Updates retain an omitted method and omitted readings. Switching to block clears the meter
+readings and requires a complete pair of block timestamps. Readings may be explicitly cleared
+with JSON null when switching to block. Existing block manual-total overrides remain supported
+when block timestamps are not changed. Editing unrelated fields preserves recorded totals.
+Simulator entries reject Hobbs methods/readings; passenger entries retain the readings but log
+zero flight time, following the existing passenger rules.
+
+CSV mapping adds `flightTimeMethod`, `hobbsStart` and `hobbsEnd`. CSV meter readings use decimal
+hours with at most one decimal place (dot or comma), independent of duration parsing. A pair
+of mapped readings implies Hobbs unless a method is explicitly mapped. Legacy imports default
+to block independently of the user's preference. NinerLog Standard CSV recognizes and exports
+these columns. Other templates retain their existing mappings, and can be mapped manually.
+
+Manual flights require positive `manualTotalTime` integer minutes. Their optional clocks never
+replace that duration. Updates retain it unless changed or switched to another method; changing
+away clears its source metadata. Both source types preserve recorded minutes through recalc.
+
+`picTime` and `dualTime` on create are optional independent minute credits. Update values override;
+JSON null restores crew derivation, omission preserves the existing setting, and zero is an explicit
+zero. `picTimeOverride` / `dualTimeOverride` describe their state in responses/backups. Each credit
+must fit within the flight duration; explicit PIC/dual may overlap. Other function columns still
+share the remaining duration. Strict downward-only policies still apply. Crew-role booleans remain
+crew-derived and mutually exclusive; the minute columns contain the pilot's recorded credit.
+
+Standard CSV adds exact `ManualTotalTime`, `PICEntered`, `DualEntered` H:MM source columns and
+PIC/dual override flags, so decimal display rounding does not change exact minutes on reimport.
+Map these to `manualTotalTime`, `picTime`, `dualTime`, `picTimeOverride`, `dualTimeOverride`.

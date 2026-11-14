@@ -28,6 +28,15 @@ const (
 	FieldDepartureTime Field = "departureTime"
 	FieldArrivalTime   Field = "arrivalTime"
 
+	FieldManualTotalTime  Field = "manualTotalTime"
+	FieldPICTime          Field = "picTime"
+	FieldDualTime         Field = "dualTime"
+	FieldPICTimeOverride  Field = "picTimeOverride"
+	FieldDualTimeOverride Field = "dualTimeOverride"
+	FieldFlightTimeMethod Field = "flightTimeMethod"
+	FieldHobbsStart       Field = "hobbsStart"
+	FieldHobbsEnd         Field = "hobbsEnd"
+
 	FieldTotalTime               Field = "totalTime"
 	FieldNightTime               Field = "nightTime"
 	FieldCrossCountryTime        Field = "crossCountryTime"

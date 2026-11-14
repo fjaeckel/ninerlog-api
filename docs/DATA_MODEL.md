@@ -508,3 +508,22 @@ Retention is bounded by `TOMBSTONE_RETENTION` (default 90 days) and swept hourly
 
 > When you add or change a migration, update this document and
 > [DOMAIN.md](./DOMAIN.md) if the change affects domain rules.
+
+## Hobbs source and meter readings (migration 000080)
+
+- `users.default_flight_time_method`: non-null `block`, `hobbs`, or `manual`, default `block`.
+- `flights.flight_time_method`: non-null `block`, `hobbs`, or `manual`, default `block`.
+- `flights.hobbs_start_tenths` / `hobbs_end_tenths`: nullable integers in meter tenths,
+  bounded to 0..99999999; required and ordered for Hobbs flights, absent for non-Hobbs flights.
+- `flights.total_time`: unchanged integer-minute recorded total. No historical durations are
+  rewritten during migration. Existing manual/imported totals remain intact.
+
+The existing flight insert/update/list/detail, JSON backup restore and audit snapshots retain
+these fields. No new user-owned table is introduced. The down migration refuses rollback
+while non-block sources/preferences or PIC/dual overrides exist, preventing silent loss of meter data; export
+and explicitly convert those records/preferences before downgrading.
+
+- `flights.manual_total_time`: nullable original positive integer-minute duration, present only for
+  manual flights. Migration does not convert legacy manual `total_time` overrides to this source.
+- `flights.pic_time_override` / `dual_time_override`: false by default; retain independently entered
+  minute credits. Existing rows preserve crew-based behavior and exclusive crew-role flags.

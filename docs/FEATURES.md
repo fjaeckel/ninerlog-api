@@ -670,3 +670,17 @@ Admin-only endpoints (caller must be an admin — the `users.is_admin` flag or t
 
 > When you add a feature, document it here and update the related deep-dive document
 > (DATA_MODEL / DOMAIN / API) in the same PR.
+
+## Hobbs-based flight logging
+
+Pilots can choose a persistent Block Time/Hobbs Time default beside the decimal display
+preference and override it for one flight. Hobbs entries keep the original start/end readings,
+calculate exact integer-minute totals, and accept optional block timestamps without replacing
+those totals. Existing flights retain their method and total when the preference changes.
+Standard CSV and JSON backups round-trip the method/readings; reports, currency and
+regulatory exports use the recorded total. See [API.md](API.md#flight-time-source-frontend-issue-483)
+and [frontend #483](https://github.com/fjaeckel/ninerlog-frontend/issues/483).
+
+Direct flight time entry also supports manual totals with optional clocks. The decimal-hour UI
+accepts 1.5 total, 1.5 dual received, .5 simulated instrument and 1.1 PIC independently. Original
+integer minutes and override state survive recalculation, CSV and JSON backup restoration.

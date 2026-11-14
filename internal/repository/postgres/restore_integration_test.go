@@ -117,6 +117,7 @@ func TestRestoreStoreIntegration(t *testing.T) {
 			t.Fatalf("read back flight: %v", err)
 		}
 		want := *batch[7]
+		want.FlightTimeMethod = models.EffectiveFlightTimeMethod(want.FlightTimeMethod)
 		if !got.Date.Equal(want.Date) {
 			t.Errorf("date = %v, want %v", got.Date, want.Date)
 		}

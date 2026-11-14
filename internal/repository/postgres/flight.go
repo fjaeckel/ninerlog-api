@@ -139,7 +139,7 @@ const flightInsertColumns = `
 	is_proficiency_check, launch_method, pic_name, multi_pilot_time, fstd_type, approaches,
 	endorsements, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 	picus_time, spic_time, examiner_time, relief_time, night_time_override,
-	cross_country_time_override
+	cross_country_time_override, flight_time_method, hobbs_start_tenths, hobbs_end_tenths, manual_total_time, pic_time_override, dual_time_override
 `
 
 // flightInsertArgs returns the values for flightInsertColumns.
@@ -209,6 +209,12 @@ func flightInsertArgs(flight *models.Flight) []any {
 		flight.ReliefTime,
 		flight.NightTimeOverride,
 		flight.CrossCountryTimeOverride,
+		models.EffectiveFlightTimeMethod(flight.FlightTimeMethod),
+		flight.HobbsStartTenths,
+		flight.HobbsEndTenths,
+		flight.ManualTotalTime,
+		flight.PICTimeOverride,
+		flight.DualTimeOverride,
 	}
 }
 
@@ -274,7 +280,8 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
 		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 		       picus_time, spic_time, examiner_time, relief_time,
-		       night_time_override, cross_country_time_override
+		       night_time_override, cross_country_time_override,
+		       flight_time_method, hobbs_start_tenths, hobbs_end_tenths, manual_total_time, pic_time_override, dual_time_override
 		FROM flights
 		WHERE id = $1
 	`
@@ -347,6 +354,12 @@ func (r *flightRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 		&flight.ReliefTime,
 		&flight.NightTimeOverride,
 		&flight.CrossCountryTimeOverride,
+		&flight.FlightTimeMethod,
+		&flight.HobbsStartTenths,
+		&flight.HobbsEndTenths,
+		&flight.ManualTotalTime,
+		&flight.PICTimeOverride,
+		&flight.DualTimeOverride,
 	)
 
 	if err == sql.ErrNoRows {
@@ -485,7 +498,7 @@ func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) erro
 		    sic_time_override = $52, multi_pilot_time_override = $53,
 		    picus_time = $54, spic_time = $55, examiner_time = $56, relief_time = $57,
 		    night_time_override = $58, cross_country_time_override = $59,
-		    updated_at = $60
+		    updated_at = $60, flight_time_method = $62, hobbs_start_tenths = $63, hobbs_end_tenths = $64, manual_total_time = $65, pic_time_override = $66, dual_time_override = $67
 		WHERE id = $61
 	`
 
@@ -552,6 +565,12 @@ func updateFlightRow(ctx context.Context, db execer, flight *models.Flight) erro
 		flight.CrossCountryTimeOverride,
 		time.Now(),
 		flight.ID,
+		models.EffectiveFlightTimeMethod(flight.FlightTimeMethod),
+		flight.HobbsStartTenths,
+		flight.HobbsEndTenths,
+		flight.ManualTotalTime,
+		flight.PICTimeOverride,
+		flight.DualTimeOverride,
 	)
 	if err != nil {
 		return err
@@ -829,7 +848,8 @@ func (r *flightRepository) buildQuery(baseCondition string, baseValue interface{
 		       pic_name, multi_pilot_time, fstd_type, approaches, endorsements,
 		       signature_id, is_simulator, is_passenger, sic_time_override, multi_pilot_time_override,
 		       picus_time, spic_time, examiner_time, relief_time,
-		       night_time_override, cross_country_time_override
+		       night_time_override, cross_country_time_override,
+		       flight_time_method, hobbs_start_tenths, hobbs_end_tenths, manual_total_time, pic_time_override, dual_time_override
 		FROM flights
 		WHERE ` + baseCondition
 
@@ -955,6 +975,12 @@ func (r *flightRepository) scanFlights(rows *sql.Rows) ([]*models.Flight, error)
 			&flight.ReliefTime,
 			&flight.NightTimeOverride,
 			&flight.CrossCountryTimeOverride,
+			&flight.FlightTimeMethod,
+			&flight.HobbsStartTenths,
+			&flight.HobbsEndTenths,
+			&flight.ManualTotalTime,
+			&flight.PICTimeOverride,
+			&flight.DualTimeOverride,
 		)
 		if err != nil {
 			return nil, err

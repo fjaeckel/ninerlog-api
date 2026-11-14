@@ -59,17 +59,18 @@ type ClassRatingCurrency struct {
 
 // Progress holds progress metrics toward currency requirements (all times in minutes)
 type Progress struct {
-	TotalMinutes      int `json:"totalMinutes"`
-	PICMinutes        int `json:"picMinutes"`
-	IFRMinutes        int `json:"ifrMinutes"`
-	InstructorMinutes int `json:"instructorMinutes"`
-	NightMinutes      int `json:"nightMinutes"`
-	Landings          int `json:"landings"`
-	DayLandings       int `json:"dayLandings"`
-	NightLandings     int `json:"nightLandings"`
-	Flights           int `json:"flights"`
-	Approaches        int `json:"approaches"`
-	Holds             int `json:"holds"`
+	OverlappingPICDualMinutes int `json:"-"`
+	TotalMinutes              int `json:"totalMinutes"`
+	PICMinutes                int `json:"picMinutes"`
+	IFRMinutes                int `json:"ifrMinutes"`
+	InstructorMinutes         int `json:"instructorMinutes"`
+	NightMinutes              int `json:"nightMinutes"`
+	Landings                  int `json:"landings"`
+	DayLandings               int `json:"dayLandings"`
+	NightLandings             int `json:"nightLandings"`
+	Flights                   int `json:"flights"`
+	Approaches                int `json:"approaches"`
+	Holds                     int `json:"holds"`
 	// Launches counts takeoffs, at least one per flight.
 	Launches int `json:"launches"`
 	// TrainingFlights counts flights with dual time received.

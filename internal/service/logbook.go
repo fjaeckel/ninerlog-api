@@ -389,6 +389,8 @@ type overrideField struct {
 }
 
 var overrideFields = []overrideField{
+	{"picTime", func(f *models.Flight) *bool { return &f.PICTimeOverride }, func(f *models.Flight) *int { return &f.PICTime }},
+	{"dualTime", func(f *models.Flight) *bool { return &f.DualTimeOverride }, func(f *models.Flight) *int { return &f.DualTime }},
 	{"nightTime", func(f *models.Flight) *bool { return &f.NightTimeOverride }, func(f *models.Flight) *int { return &f.NightTime }},
 	{"crossCountryTime", func(f *models.Flight) *bool { return &f.CrossCountryTimeOverride }, func(f *models.Flight) *int { return &f.CrossCountryTime }},
 	{"takeoffsDay", func(f *models.Flight) *bool { return &f.TakeoffsDayOverride }, func(f *models.Flight) *int { return &f.TakeoffsDay }},

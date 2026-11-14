@@ -209,6 +209,7 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 	twoFA := user.TwoFactorEnabled
 	emailVerified := user.EmailVerified
 	isAdmin := h.isAdminUser(user)
+	method := generated.FlightTimeMethod(models.EffectiveFlightTimeMethod(user.DefaultFlightTimeMethod))
 	tdf := generated.UserTimeDisplayFormat(user.TimeDisplayFormat)
 	locale := generated.UserPreferredLocale(user.PreferredLocale)
 	df := generated.UserDateFormat(user.DateFormat)
@@ -232,23 +233,24 @@ func (h *APIHandler) buildUserResponse(user *models.User) generated.User {
 		columns = append(columns, generated.FlightListColumn(c))
 	}
 	return generated.User{
-		Id:                     openapi_types.UUID(user.ID),
-		Email:                  openapi_types.Email(user.Email),
-		Name:                   user.Name,
-		EmailVerified:          &emailVerified,
-		TwoFactorEnabled:       &twoFA,
-		IsAdmin:                &isAdmin,
-		TimeDisplayFormat:      &tdf,
-		DateFormat:             &df,
-		ClockFormat:            &cf,
-		LogbookTerms:           &lt,
-		DecimalSeparator:       &ds,
-		PreferredLocale:        &locale,
-		RecencyPerModel:        &recencyPerModel,
-		RecencyPerRegistration: &recencyPerRegistration,
-		FlightListColumnMode:   &columnMode,
-		FlightListColumns:      &columns,
-		CreatedAt:              user.CreatedAt,
-		UpdatedAt:              user.UpdatedAt,
+		Id:                      openapi_types.UUID(user.ID),
+		Email:                   openapi_types.Email(user.Email),
+		Name:                    user.Name,
+		EmailVerified:           &emailVerified,
+		TwoFactorEnabled:        &twoFA,
+		IsAdmin:                 &isAdmin,
+		TimeDisplayFormat:       &tdf,
+		DefaultFlightTimeMethod: &method,
+		DateFormat:              &df,
+		ClockFormat:             &cf,
+		LogbookTerms:            &lt,
+		DecimalSeparator:        &ds,
+		PreferredLocale:         &locale,
+		RecencyPerModel:         &recencyPerModel,
+		RecencyPerRegistration:  &recencyPerRegistration,
+		FlightListColumnMode:    &columnMode,
+		FlightListColumns:       &columns,
+		CreatedAt:               user.CreatedAt,
+		UpdatedAt:               user.UpdatedAt,
 	}
 }

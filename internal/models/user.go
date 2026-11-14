@@ -9,25 +9,26 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID                  uuid.UUID      `json:"id"`
-	Email               string         `json:"email"`
-	PasswordHash        string         `json:"-"`
-	Name                string         `json:"name"`
-	EmailVerified       bool           `json:"emailVerified"`
-	TwoFactorEnabled    bool           `json:"twoFactorEnabled"`
-	TwoFactorSecret     *string        `json:"-"` // never exposed in JSON
-	RecoveryCodes       pq.StringArray `json:"-"` // never exposed in JSON
-	FailedLoginAttempts int            `json:"-"`
-	LockedUntil         *time.Time     `json:"-"`
-	Disabled            bool           `json:"disabled"`
-	IsAdmin             bool           `json:"-"`
-	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
-	TimeDisplayFormat   string         `json:"timeDisplayFormat"`
-	DateFormat          string         `json:"dateFormat"`
-	ClockFormat         string         `json:"clockFormat"`
-	LogbookTerms        string         `json:"logbookTerms"`
-	DecimalSeparator    string         `json:"decimalSeparator"`
-	PreferredLocale     string         `json:"preferredLocale"`
+	ID                      uuid.UUID      `json:"id"`
+	Email                   string         `json:"email"`
+	PasswordHash            string         `json:"-"`
+	Name                    string         `json:"name"`
+	EmailVerified           bool           `json:"emailVerified"`
+	TwoFactorEnabled        bool           `json:"twoFactorEnabled"`
+	TwoFactorSecret         *string        `json:"-"` // never exposed in JSON
+	RecoveryCodes           pq.StringArray `json:"-"` // never exposed in JSON
+	FailedLoginAttempts     int            `json:"-"`
+	LockedUntil             *time.Time     `json:"-"`
+	Disabled                bool           `json:"disabled"`
+	IsAdmin                 bool           `json:"-"`
+	LastLoginAt             *time.Time     `json:"lastLoginAt,omitempty"`
+	DefaultFlightTimeMethod string         `json:"defaultFlightTimeMethod"`
+	TimeDisplayFormat       string         `json:"timeDisplayFormat"`
+	DateFormat              string         `json:"dateFormat"`
+	ClockFormat             string         `json:"clockFormat"`
+	LogbookTerms            string         `json:"logbookTerms"`
+	DecimalSeparator        string         `json:"decimalSeparator"`
+	PreferredLocale         string         `json:"preferredLocale"`
 	// Informational 90-day recency indicator preferences (FCL.060(b)-style)
 	RecencyPerModel        bool `json:"recencyPerModel"`
 	RecencyPerRegistration bool `json:"recencyPerRegistration"`

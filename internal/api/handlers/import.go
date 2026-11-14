@@ -837,6 +837,8 @@ func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportC
 type importRowExtras struct {
 	// landingsDay and landingsNight are the file's own split; nil when the
 	// row has no value in a mapped split column.
+	picOverride   *bool
+	dualOverride  *bool
 	landingsDay   *int
 	landingsNight *int
 	// selfSIC is set when the row lists the logbook owner with the SIC role.
@@ -916,6 +918,43 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			captureDateFromTimestamp(val, &timestampDate)
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
+		case "flightTimeMethod":
+			method := generated.FlightTimeMethod(strings.ToLower(strings.TrimSpace(val)))
+			if method != generated.FlightTimeMethodBlock && method != generated.FlightTimeMethodHobbs && method != generated.FlightTimeMethodManual {
+				errs = append(errs, fieldError{"flightTimeMethod", models.ErrFlightTimeMethod.Error()})
+			}
+			flight.FlightTimeMethod = &method
+		case "hobbsStart", "hobbsEnd":
+			if reading, err := models.ParseHobbsReading(val); err != nil {
+				errs = append(errs, fieldError{string(mapping.TargetField), err.Error()})
+			} else if string(mapping.TargetField) == "hobbsStart" {
+				flight.HobbsStartTenths = &reading
+			} else {
+				flight.HobbsEndTenths = &reading
+			}
+		case "manualTotalTime", "picTime", "dualTime":
+			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err != nil {
+				errs = append(errs, fieldError{string(mapping.TargetField), "Invalid duration"})
+			} else {
+				switch string(mapping.TargetField) {
+				case "manualTotalTime":
+					flight.ManualTotalTime = &mins
+				case "picTime":
+					flight.PicTime = &mins
+				case "dualTime":
+					flight.DualTime = &mins
+				}
+			}
+		case "picTimeOverride", "dualTimeOverride":
+			flag, err := strconv.ParseBool(val)
+			if err != nil {
+				errs = append(errs, fieldError{string(mapping.TargetField), "Invalid override flag"})
+			} else if string(mapping.TargetField) == "picTimeOverride" {
+				extras.picOverride = &flag
+			} else {
+				extras.dualOverride = &flag
+			}
+
 		case "totalTime":
 			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
 				flight.TotalTime = &mins
@@ -1227,6 +1266,42 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		}
 	}
 
+	if flight.FlightTimeMethod == nil {
+		method := generated.FlightTimeMethodBlock
+		if flight.ManualTotalTime != nil {
+			method = generated.FlightTimeMethodManual
+		}
+		if flight.HobbsStartTenths != nil || flight.HobbsEndTenths != nil {
+			method = generated.FlightTimeMethodHobbs
+		}
+		flight.FlightTimeMethod = &method
+	}
+	if *flight.FlightTimeMethod == generated.FlightTimeMethodHobbs {
+		if minutes, err := models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths); err != nil {
+			errs = append(errs, fieldError{"hobbsEnd", err.Error()})
+		} else {
+			flight.TotalTime = &minutes
+		}
+	} else if flight.HobbsStartTenths != nil || flight.HobbsEndTenths != nil {
+		errs = append(errs, fieldError{"flightTimeMethod", models.ErrHobbsMethod.Error()})
+	}
+
+	if *flight.FlightTimeMethod == generated.FlightTimeMethodManual {
+		if flight.ManualTotalTime == nil || *flight.ManualTotalTime <= 0 {
+			errs = append(errs, fieldError{"manualTotalTime", models.ErrManualTime.Error()})
+		} else {
+			flight.TotalTime = flight.ManualTotalTime
+		}
+	} else if flight.ManualTotalTime != nil {
+		errs = append(errs, fieldError{"manualTotalTime", models.ErrManualMethod.Error()})
+	}
+	if extras.picOverride != nil && !*extras.picOverride {
+		flight.PicTime = nil
+	}
+	if extras.dualOverride != nil && !*extras.dualOverride {
+		flight.DualTime = nil
+	}
+
 	// ForeFlight: pre-derive IFR time from actual + simulated instrument when
 	// not explicitly set (flightrules.EffectiveIFRTime), capped at the
 	// effective total time.
@@ -1239,7 +1314,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
 		totalCap := 0
-		if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
+		if *flight.FlightTimeMethod == generated.FlightTimeMethodBlock && *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
 			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
 				totalCap = m
 			}
@@ -1263,6 +1338,9 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		flight.IsSimulator = &isSim
 	}
 
+	if isSimulatorCreate(&flight) && (*flight.FlightTimeMethod != generated.FlightTimeMethodBlock || flight.HobbsStartTenths != nil || flight.HobbsEndTenths != nil) {
+		errs = append(errs, fieldError{"flightTimeMethod", models.ErrHobbsMethod.Error()})
+	}
 	return flight, extras, errs
 }
 
@@ -1283,8 +1361,16 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	offBlock := safeStr(flight.OffBlockTime)
 	onBlock := safeStr(flight.OnBlockTime)
 
+	method := models.FlightTimeBlock
+	if flight.FlightTimeMethod != nil {
+		method = string(*flight.FlightTimeMethod)
+	}
 	totalTime := 0
-	if offBlock != "" && onBlock != "" {
+	if method == models.FlightTimeHobbs {
+		totalTime, _ = models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths)
+	} else if method == models.FlightTimeManual && flight.ManualTotalTime != nil {
+		totalTime = *flight.ManualTotalTime
+	} else if offBlock != "" && onBlock != "" {
 		totalTime, _ = calculateBlockTime(offBlock, onBlock)
 	} else if flight.TotalTime != nil {
 		totalTime = *flight.TotalTime
@@ -1305,6 +1391,14 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 		DepartureICAO:           &departureIcao,
 		ArrivalICAO:             &arrivalIcao,
 		TotalTime:               totalTime,
+		FlightTimeMethod:        method,
+		ManualTotalTime:         flight.ManualTotalTime,
+		PICTime:                 getIntOrDefault(flight.PicTime, 0),
+		DualTime:                getIntOrDefault(flight.DualTime, 0),
+		PICTimeOverride:         flight.PicTime != nil,
+		DualTimeOverride:        flight.DualTime != nil,
+		HobbsStartTenths:        flight.HobbsStartTenths,
+		HobbsEndTenths:          flight.HobbsEndTenths,
 		IFRTime:                 getIntOrDefault(flight.IfrTime, 0),
 		AllLandings:             getIntOrDefault(flight.Landings, 0),
 		ActualInstrumentTime:    getIntOrDefault(flight.ActualInstrumentTime, 0),
