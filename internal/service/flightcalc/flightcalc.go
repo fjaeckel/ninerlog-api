@@ -44,7 +44,9 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 	}
 
 	// Resolve total time from the saved method.
-	if models.EffectiveFlightTimeMethod(flight.FlightTimeMethod) == models.FlightTimeHobbs {
+	if flight.ManualTotalTime != nil {
+		flight.TotalTime = *flight.ManualTotalTime
+	} else if models.EffectiveFlightTimeMethod(flight.FlightTimeMethod) == models.FlightTimeHobbs {
 		if minutes, err := models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths); err == nil {
 			flight.TotalTime = minutes
 		}

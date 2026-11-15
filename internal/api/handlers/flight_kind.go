@@ -50,7 +50,7 @@ func validateCreateShape(req *generated.FlightCreate) error {
 		return models.ErrFlightTimeMethod
 	}
 	if req.DepartureIcao == nil || req.ArrivalIcao == nil ||
-		(method == models.FlightTimeBlock && (req.OffBlockTime == nil || req.OnBlockTime == nil)) ||
+		(method == models.FlightTimeBlock && req.ManualTotalTime == nil && (req.OffBlockTime == nil || req.OnBlockTime == nil)) ||
 		req.AircraftReg == nil || req.Landings == nil {
 		return errFlightFieldsMissing
 	}

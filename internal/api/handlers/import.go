@@ -27,7 +27,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
-	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -933,7 +932,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.HobbsEndTenths = &reading
 			}
 		case "manualTotalTime", "picTime", "dualTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err != nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err != nil {
 				errs = append(errs, fieldError{string(mapping.TargetField), "Invalid duration"})
 			} else {
 				switch string(mapping.TargetField) {
@@ -943,6 +942,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 					flight.PicTime = &mins
 				case "dualTime":
 					flight.DualTime = &mins
+					dualReceivedVal = float64(mins)
 				}
 			}
 		case "picTimeOverride", "dualTimeOverride":
@@ -956,7 +956,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			}
 
 		case "totalTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.TotalTime = &mins
 			} else {
 				errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Invalid duration '%s'", val)})
@@ -965,35 +965,35 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			// Auto-calculated from crew; ignore imported value
 		case "isDual":
 			// Track DualReceived for crew role inference
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				dualReceivedVal = float64(mins)
 			}
 		case "nightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.NightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"nightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "crossCountryTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.CrossCountryTime = &mins
 			} else {
 				errs = append(errs, fieldError{"crossCountryTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "ifrTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.IfrTime = &mins
 			} else {
 				errs = append(errs, fieldError{"ifrTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "actualInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.ActualInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"actualInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "simulatedInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.SimulatedInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
@@ -1053,13 +1053,13 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.FstdType = &t
 			}
 		case "simulatedFlightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.SimulatedFlightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedFlightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "dualGivenTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := parseImportDuration(val, mapping.DurationUnit); err == nil {
 				flight.DualGivenTime = &mins
 				dualGivenVal = float64(mins)
 			} else {
@@ -1093,7 +1093,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		}
 		switch field {
 		case importtemplate.AuxSICTime, importtemplate.AuxMultiPilotTime:
-			mins, err := duration.ParseDuration(normalizeDecimalSeparator(val))
+			mins, err := parseImportDuration(val, nil)
 			if err != nil || mins < 0 {
 				continue
 			}
@@ -1268,32 +1268,70 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 
 	if flight.FlightTimeMethod == nil {
 		method := generated.FlightTimeMethodBlock
-		if flight.ManualTotalTime != nil {
-			method = generated.FlightTimeMethodManual
-		}
 		if flight.HobbsStartTenths != nil || flight.HobbsEndTenths != nil {
 			method = generated.FlightTimeMethodHobbs
+		} else if flight.ManualTotalTime != nil || (flight.TotalTime != nil && (*flight.OffBlockTime == "" || *flight.OnBlockTime == "")) {
+			method = generated.FlightTimeMethodManual
+			if flight.ManualTotalTime == nil {
+				flight.ManualTotalTime = flight.TotalTime
+			}
 		}
 		flight.FlightTimeMethod = &method
 	}
-	if *flight.FlightTimeMethod == generated.FlightTimeMethodHobbs {
-		if minutes, err := models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths); err != nil {
-			errs = append(errs, fieldError{"hobbsEnd", err.Error()})
-		} else {
-			flight.TotalTime = &minutes
+	policy := generated.Review
+	for _, mapping := range mappings {
+		if mapping.TargetField == "totalTime" && mapping.TotalTimePolicy != nil {
+			policy = *mapping.TotalTimePolicy
 		}
-	} else if flight.HobbsStartTenths != nil || flight.HobbsEndTenths != nil {
-		errs = append(errs, fieldError{"flightTimeMethod", models.ErrHobbsMethod.Error()})
 	}
-
-	if *flight.FlightTimeMethod == generated.FlightTimeMethodManual {
-		if flight.ManualTotalTime == nil || *flight.ManualTotalTime <= 0 {
+	if !policy.Valid() {
+		errs = append(errs, fieldError{"totalTime", "Invalid total-time conflict policy"})
+	}
+	if flight.ManualTotalTime != nil {
+		if *flight.ManualTotalTime <= 0 {
 			errs = append(errs, fieldError{"manualTotalTime", models.ErrManualTime.Error()})
-		} else {
-			flight.TotalTime = flight.ManualTotalTime
 		}
-	} else if flight.ManualTotalTime != nil {
-		errs = append(errs, fieldError{"manualTotalTime", models.ErrManualMethod.Error()})
+		flight.TotalTime = flight.ManualTotalTime
+	} else {
+		var calculated *int
+		switch *flight.FlightTimeMethod {
+		case generated.FlightTimeMethodHobbs:
+			minutes, err := models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths)
+			if err != nil {
+				errs = append(errs, fieldError{"hobbsEnd", err.Error()})
+			} else {
+				calculated = &minutes
+			}
+		case generated.FlightTimeMethodManual:
+			flight.ManualTotalTime = flight.TotalTime
+			if flight.ManualTotalTime == nil || *flight.ManualTotalTime <= 0 {
+				errs = append(errs, fieldError{"manualTotalTime", models.ErrManualTime.Error()})
+			}
+		case generated.FlightTimeMethodBlock:
+			if *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
+				if minutes, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
+					calculated = &minutes
+				}
+			}
+		}
+		if calculated != nil {
+			if flight.TotalTime != nil && *flight.TotalTime != *calculated {
+				switch policy {
+				case generated.Recorded:
+					flight.ManualTotalTime = flight.TotalTime
+				case generated.Calculated:
+					flight.TotalTime = calculated
+				default:
+					errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Recorded total %d min differs from calculated %d min; choose which total to use", *flight.TotalTime, *calculated)})
+				}
+			} else {
+				flight.TotalTime = calculated
+			}
+		}
+	}
+	observations := models.Flight{HobbsStartTenths: flight.HobbsStartTenths, HobbsEndTenths: flight.HobbsEndTenths}
+	if err := observations.ValidateHobbsObservations(); err != nil {
+		errs = append(errs, fieldError{"hobbsEnd", err.Error()})
 	}
 	if extras.picOverride != nil && !*extras.picOverride {
 		flight.PicTime = nil
@@ -1314,7 +1352,10 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			ifrTotal += *flight.SimulatedInstrumentTime
 		}
 		totalCap := 0
-		if *flight.FlightTimeMethod == generated.FlightTimeMethodBlock && *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
+		if flight.TotalTime != nil {
+			totalCap = *flight.TotalTime
+		}
+		if totalCap == 0 && *flight.FlightTimeMethod == generated.FlightTimeMethodBlock && *flight.OffBlockTime != "" && *flight.OnBlockTime != "" {
 			if m, err := calculateBlockTime(*flight.OffBlockTime, *flight.OnBlockTime); err == nil {
 				totalCap = m
 			}
@@ -1366,7 +1407,9 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 		method = string(*flight.FlightTimeMethod)
 	}
 	totalTime := 0
-	if method == models.FlightTimeHobbs {
+	if flight.ManualTotalTime != nil {
+		totalTime = *flight.ManualTotalTime
+	} else if method == models.FlightTimeHobbs {
 		totalTime, _ = models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths)
 	} else if method == models.FlightTimeManual && flight.ManualTotalTime != nil {
 		totalTime = *flight.ManualTotalTime
@@ -2043,7 +2086,7 @@ func parseFlexibleDate(val, hint string) (time.Time, error) {
 			return t, nil
 		}
 	}
-	for _, layout := range dateLayouts {
+	for _, layout := range append(dateLayouts, "1/2/06", "01/02/06") {
 		if layout == hint {
 			continue
 		}

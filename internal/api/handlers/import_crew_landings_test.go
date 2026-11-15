@@ -105,6 +105,7 @@ func (e *importConfirmEnv) confirm(t *testing.T, data []byte) (generated.ImportR
 		t.Fatalf("parseCSV: %v", err)
 	}
 	_, format, mappings := detectImportFormat(columns)
+	mappings = calculatedFixtureTotals(mappings)
 	token := uuid.NewString()
 	sessionMu.Lock()
 	uploadSessions[token] = &uploadSession{

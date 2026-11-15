@@ -105,6 +105,11 @@ func SignedFieldsHash(f *models.Flight, crew []models.FlightCrewMember) string {
 		fields.FlightTimeMethod = f.FlightTimeMethod
 		fields.ManualTotalTime = f.ManualTotalTime
 	}
+	// Optional fields remain omitted for all previously signed records. New
+	// evidence/overrides are included without changing their legacy hash shape.
+	fields.HobbsStartTenths = f.HobbsStartTenths
+	fields.HobbsEndTenths = f.HobbsEndTenths
+	fields.ManualTotalTime = f.ManualTotalTime
 	raw, _ := json.Marshal(fields)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])

@@ -878,16 +878,16 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 
 // Defines values for CustomCurrencyThresholdUnit.
 const (
-	Hours   CustomCurrencyThresholdUnit = "hours"
-	Minutes CustomCurrencyThresholdUnit = "minutes"
+	CustomCurrencyThresholdUnitHours   CustomCurrencyThresholdUnit = "hours"
+	CustomCurrencyThresholdUnitMinutes CustomCurrencyThresholdUnit = "minutes"
 )
 
 // Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
 func (e CustomCurrencyThresholdUnit) Valid() bool {
 	switch e {
-	case Hours:
+	case CustomCurrencyThresholdUnitHours:
 		return true
-	case Minutes:
+	case CustomCurrencyThresholdUnitMinutes:
 		return true
 	default:
 		return false
@@ -1476,6 +1476,66 @@ func (e FlightTimeMethod) Valid() bool {
 	case FlightTimeMethodHobbs:
 		return true
 	case FlightTimeMethodManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FlightUpdateClockTimePolicy.
+const (
+	Preserve    FlightUpdateClockTimePolicy = "preserve"
+	Recalculate FlightUpdateClockTimePolicy = "recalculate"
+)
+
+// Valid indicates whether the value is a known member of the FlightUpdateClockTimePolicy enum.
+func (e FlightUpdateClockTimePolicy) Valid() bool {
+	switch e {
+	case Preserve:
+		return true
+	case Recalculate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingDurationUnit.
+const (
+	ImportColumnMappingDurationUnitAuto         ImportColumnMappingDurationUnit = "auto"
+	ImportColumnMappingDurationUnitDecimalHours ImportColumnMappingDurationUnit = "decimal_hours"
+	ImportColumnMappingDurationUnitMinutes      ImportColumnMappingDurationUnit = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingDurationUnit enum.
+func (e ImportColumnMappingDurationUnit) Valid() bool {
+	switch e {
+	case ImportColumnMappingDurationUnitAuto:
+		return true
+	case ImportColumnMappingDurationUnitDecimalHours:
+		return true
+	case ImportColumnMappingDurationUnitMinutes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingTotalTimePolicy.
+const (
+	Calculated ImportColumnMappingTotalTimePolicy = "calculated"
+	Recorded   ImportColumnMappingTotalTimePolicy = "recorded"
+	Review     ImportColumnMappingTotalTimePolicy = "review"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingTotalTimePolicy enum.
+func (e ImportColumnMappingTotalTimePolicy) Valid() bool {
+	switch e {
+	case Calculated:
+		return true
+	case Recorded:
+		return true
+	case Review:
 		return true
 	default:
 		return false
@@ -4225,12 +4285,12 @@ type BackupFlight struct {
 	// Example: 0
 	GroundTrainingTime int `json:"groundTrainingTime"`
 
-	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
 
-	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
@@ -4329,7 +4389,7 @@ type BackupFlight struct {
 	// Example: winch
 	LaunchMethod *BackupFlightLaunchMethod `json:"launchMethod,omitempty"`
 
-	// ManualTotalTime Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
 	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
@@ -5914,12 +5974,12 @@ type Flight struct {
 	// Example: 0
 	GroundTrainingTime *int `json:"groundTrainingTime,omitempty"`
 
-	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
 
-	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
@@ -6018,7 +6078,7 @@ type Flight struct {
 	// Example: winch
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod,omitempty"`
 
-	// ManualTotalTime Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
 	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
@@ -6379,12 +6439,12 @@ type FlightCreate struct {
 	FstdType           *string `json:"fstdType,omitempty"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
 
-	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
 
-	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 	//
 	// Example: 15234
 	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
@@ -6407,7 +6467,7 @@ type FlightCreate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod,omitempty"`
 
-	// ManualTotalTime Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
 	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
@@ -6818,6 +6878,9 @@ type FlightUpdate struct {
 	// ArrivalTime Landing time in UTC
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
+	// ClockTimePolicy Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
+	ClockTimePolicy *FlightUpdateClockTimePolicy `json:"clockTimePolicy,omitempty"`
+
 	// CorrectionReason Why the entry is corrected. Required when a strict-mode edit is a correction; ignored otherwise.
 	CorrectionReason *string `json:"correctionReason,omitempty"`
 
@@ -6849,10 +6912,10 @@ type FlightUpdate struct {
 	FstdType           nullable.Nullable[string] `json:"fstdType,omitempty"`
 	GroundTrainingTime *int                      `json:"groundTrainingTime,omitempty"`
 
-	// HobbsEndTenths Hobbs end reading in tenths of an hour; null clears the reading when switching to block time.
+	// HobbsEndTenths Hobbs end reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
 	HobbsEndTenths nullable.Nullable[int] `json:"hobbsEndTenths,omitempty"`
 
-	// HobbsStartTenths Hobbs start reading in tenths of an hour; null clears the reading when switching to block time.
+	// HobbsStartTenths Hobbs start reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
 	HobbsStartTenths   nullable.Nullable[int]    `json:"hobbsStartTenths,omitempty"`
 	Holds              *int                      `json:"holds,omitempty"`
 	IfrTime            *int                      `json:"ifrTime,omitempty"`
@@ -6869,7 +6932,7 @@ type FlightUpdate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
 
-	// ManualTotalTime Original entered flight duration in integer minutes; null clears it when switching to another method.
+	// ManualTotalTime Explicit recorded duration in integer minutes; null restores calculation from the saved source.
 	ManualTotalTime nullable.Nullable[int] `json:"manualTotalTime,omitempty"`
 
 	// MultiPilotTime Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
@@ -6916,7 +6979,10 @@ type FlightUpdate struct {
 	TotalTime     *int                   `json:"totalTime,omitempty"`
 }
 
-// HobbsReadingTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs flights require both readings and end greater than start. Total minutes equal (end minus start) times 6. Optional block timestamps never override this total.
+// FlightUpdateClockTimePolicy Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
+type FlightUpdateClockTimePolicy string
+
+// HobbsReadingTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
 //
 // Example: 15234
 type HobbsReadingTenths = int
@@ -6928,6 +6994,9 @@ type ImportColumnMapping struct {
 	// Example: 2006-01-02
 	DateFormat *string `json:"dateFormat,omitempty"`
 
+	// DurationUnit Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+	DurationUnit *ImportColumnMappingDurationUnit `json:"durationUnit,omitempty"`
+
 	// SourceColumn Column header name from the uploaded file
 	//
 	// Example: Date
@@ -6937,7 +7006,7 @@ type ImportColumnMapping struct {
 	// accept decimal meter hours with at most one decimal place (dot or comma).
 	// A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
 	// defaults it to manual; otherwise an omitted method means block, independent
-	// of the user's entry preference. Source totals take precedence over timestamps.
+	// of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
 	// manualTotalTime, picTime and dualTime accept duration values. Optional
 	// picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
 	// false ignores the corresponding value, true retains even an explicit zero.
@@ -6967,11 +7036,20 @@ type ImportColumnMapping struct {
 	// Example: 15:04
 	TimeFormat *string `json:"timeFormat,omitempty"`
 
+	// TotalTimePolicy Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
+	TotalTimePolicy *ImportColumnMappingTotalTimePolicy `json:"totalTimePolicy,omitempty"`
+
 	// TrueValue String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
 	//
 	// Example: X
 	TrueValue *string `json:"trueValue,omitempty"`
 }
+
+// ImportColumnMappingDurationUnit Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+type ImportColumnMappingDurationUnit string
+
+// ImportColumnMappingTotalTimePolicy Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
+type ImportColumnMappingTotalTimePolicy string
 
 // ImportConfirmRequest defines model for ImportConfirmRequest.
 type ImportConfirmRequest struct {
@@ -6995,7 +7073,7 @@ type ImportConfirmRequest struct {
 // accept decimal meter hours with at most one decimal place (dot or comma).
 // A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
 // defaults it to manual; otherwise an omitted method means block, independent
-// of the user's entry preference. Source totals take precedence over timestamps.
+// of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
 // manualTotalTime, picTime and dualTime accept duration values. Optional
 // picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
 // false ignores the corresponding value, true retains even an explicit zero.

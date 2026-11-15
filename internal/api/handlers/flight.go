@@ -509,6 +509,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		return
 	}
 
+	if err := reviewClockRemoval(flight, &req); err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	// Apply updates
 	if req.Date != nil {
 		flightDate, err := time.Parse("2006-01-02", req.Date.String())

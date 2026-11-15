@@ -7453,9 +7453,10 @@ components:
       example: 15234
       description: >-
         Original Hobbs meter reading in integer tenths of an hour (15234 means
-        1523.4 hours). Hobbs flights require both readings and end greater than
-        start. Total minutes equal (end minus start) times 6. Optional block
-        timestamps never override this total.
+        1523.4 hours). Hobbs calculation requires both readings and end greater than
+        start. Total minutes equal (end minus start) times 6 unless an explicit
+        manualTotalTime override is present. Observations survive method changes.
+        Optional block timestamps never override a Hobbs total.
     Flight:
       type: object
       required:
@@ -7502,7 +7503,7 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
         flightTimeMethod:
           $ref: '#/components/schemas/FlightTimeMethod'
         hobbsStartTenths:
@@ -7879,7 +7880,7 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
         flightTimeMethod:
           $ref: '#/components/schemas/FlightTimeMethod'
         hobbsStartTenths:
@@ -8088,6 +8089,10 @@ components:
     FlightUpdate:
       type: object
       properties:
+        clockTimePolicy:
+          type: string
+          enum: [preserve, recalculate]
+          description: Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
         picTime:
           type: [integer, 'null']
           minimum: 0
@@ -8108,7 +8113,7 @@ components:
           type: [integer, 'null']
           minimum: 1
           maximum: 2147483647
-          description: Original entered flight duration in integer minutes; null clears it when switching to another method.
+          description: Explicit recorded duration in integer minutes; null restores calculation from the saved source.
           x-go-type: nullable.Nullable[int]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -8119,7 +8124,7 @@ components:
           type: [integer, 'null']
           minimum: 0
           maximum: 99999999
-          description: Hobbs start reading in tenths of an hour; null clears the reading when switching to block time.
+          description: Hobbs start reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
           x-go-type: nullable.Nullable[int]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -8128,7 +8133,7 @@ components:
           type: [integer, 'null']
           minimum: 0
           maximum: 99999999
-          description: Hobbs end reading in tenths of an hour; null clears the reading when switching to block time.
+          description: Hobbs end reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
           x-go-type: nullable.Nullable[int]
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
@@ -10360,7 +10365,7 @@ components:
         accept decimal meter hours with at most one decimal place (dot or comma).
         A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
         defaults it to manual; otherwise an omitted method means block, independent
-        of the user's entry preference. Source totals take precedence over timestamps.
+        of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
         manualTotalTime, picTime and dualTime accept duration values. Optional
         picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
         false ignores the corresponding value, true retains even an explicit zero.
@@ -10471,6 +10476,14 @@ components:
           type: string
           description: Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
           example: '2006-01-02'
+        durationUnit:
+          type: string
+          enum: [auto, decimal_hours, minutes]
+          description: Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+        totalTimePolicy:
+          type: string
+          enum: [review, recorded, calculated]
+          description: Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
         timeFormat:
           type: string
           description: Time parsing format. Only relevant for time fields.
@@ -11342,7 +11355,7 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Original entered flight duration in integer minutes. Required for the manual method; optional clock timestamps never override it.
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
         flightTimeMethod:
           $ref: '#/components/schemas/FlightTimeMethod'
         hobbsStartTenths:

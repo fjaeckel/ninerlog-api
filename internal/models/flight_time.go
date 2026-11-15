@@ -21,7 +21,7 @@ var (
 	ErrHobbsOrder       = errors.New("the Hobbs end must be greater than Hobbs start")
 	ErrHobbsMethod      = errors.New("the Hobbs meter readings require the Hobbs flight time method and cannot be used for simulator sessions")
 	ErrManualTime       = errors.New("manual flight time must be a positive duration in integer minutes")
-	ErrManualMethod     = errors.New("an entered flight duration requires the manual flight time method")
+	ErrManualMethod     = errors.New("simulator sessions cannot contain an entered flight duration")
 	ErrHobbsTotal       = errors.New("totalTime must match the Hobbs meter difference")
 )
 
@@ -50,26 +50,26 @@ func (f *Flight) ValidateFlightTimeSource() error {
 	if method != FlightTimeBlock && method != FlightTimeHobbs && method != FlightTimeManual {
 		return ErrFlightTimeMethod
 	}
-	if f.ManualTotalTime != nil && (method != FlightTimeManual || f.IsSimulator) {
-		return ErrManualMethod
-	}
-	if method == FlightTimeManual && !f.IsSimulator {
-		if f.HobbsStartTenths != nil || f.HobbsEndTenths != nil {
+	if f.IsSimulator {
+		if method != FlightTimeBlock || f.HobbsStartTenths != nil || f.HobbsEndTenths != nil || f.ManualTotalTime != nil {
 			return ErrHobbsMethod
 		}
-		if f.ManualTotalTime == nil || *f.ManualTotalTime <= 0 || *f.ManualTotalTime > 2147483647 {
-			return ErrManualTime
-		}
-		if !f.IsPassenger && f.TotalTime != *f.ManualTotalTime {
+		return nil
+	}
+	if err := f.ValidateHobbsObservations(); err != nil {
+		return err
+	}
+	if f.ManualTotalTime != nil {
+		if *f.ManualTotalTime <= 0 || *f.ManualTotalTime > 2147483647 || (!f.IsPassenger && f.TotalTime != *f.ManualTotalTime) {
 			return ErrManualTime
 		}
 		return nil
 	}
-	if method == FlightTimeBlock || f.IsSimulator {
-		if method != FlightTimeBlock || f.HobbsStartTenths != nil || f.HobbsEndTenths != nil {
-			return ErrHobbsMethod
-		}
-		return nil
+	if method == FlightTimeManual {
+		return ErrManualTime
+	}
+	if method == FlightTimeBlock {
+		return nil // Preserve legacy recorded block totals, including manual adjustments.
 	}
 	minutes, err := HobbsMinutes(f.HobbsStartTenths, f.HobbsEndTenths)
 	if err != nil {
@@ -77,6 +77,19 @@ func (f *Flight) ValidateFlightTimeSource() error {
 	}
 	if !f.IsPassenger && f.TotalTime != minutes {
 		return ErrHobbsTotal
+	}
+	return nil
+}
+
+// Observations survive source changes. A partial pair is evidence, not a calculation.
+func (f *Flight) ValidateHobbsObservations() error {
+	for _, value := range []*int{f.HobbsStartTenths, f.HobbsEndTenths} {
+		if value != nil && (*value < 0 || *value > MaxHobbsTenths) {
+			return ErrHobbsReadings
+		}
+	}
+	if f.HobbsStartTenths != nil && f.HobbsEndTenths != nil && *f.HobbsEndTenths <= *f.HobbsStartTenths {
+		return ErrHobbsOrder
 	}
 	return nil
 }

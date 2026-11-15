@@ -47,8 +47,8 @@ func TestHobbsFlightUpdate(t *testing.T) {
 			require.Equal(t, tt.want, f.TotalTime)
 			require.Equal(t, tt.method, f.FlightTimeMethod)
 			if tt.method == "block" {
-				require.Nil(t, f.HobbsStartTenths)
-				require.Nil(t, f.HobbsEndTenths)
+				require.Equal(t, &start, f.HobbsStartTenths)
+				require.Equal(t, &end, f.HobbsEndTenths)
 			}
 		})
 	}
