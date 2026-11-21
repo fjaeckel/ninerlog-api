@@ -247,6 +247,9 @@ func (pl *restorePlan) planFlights(p *Payload, contactIDs map[string]uuid.UUID) 
 			return invalidEntry("flights", i, nil)
 		}
 		f := *src
+		if err := f.ValidateFlightTimeSource(); err != nil {
+			return invalidEntry("flights", i, err)
+		}
 		f.ID = uuid.New()
 		f.CreatedAt = restoredCreatedAt(src.CreatedAt, src.Date, now)
 		pl.flightBackupIDs = append(pl.flightBackupIDs, src.ID)

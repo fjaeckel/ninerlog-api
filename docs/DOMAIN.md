@@ -642,3 +642,37 @@ event after the backup's own events. A restored flight keeps its `createdAt`; a 
 becomes the flight date at 00:00 UTC, and no value is later than the time of the restore.
 `MaxRestoreRevisions` is 1,000,000; the 200 MiB request body limit is the constraint that
 binds first.
+
+## Hobbs flight time
+
+[Frontend issue #483](https://github.com/fjaeckel/ninerlog-frontend/issues/483) adds a per-user
+new-flight default and a retained per-flight source, `block`, `hobbs`, or `manual`. Original Hobbs meter
+readings use integer tenths; the existing `total_time` and derived pilot-function columns
+remain integer minutes. The Hobbs difference multiplied by six is exact and does not depend
+on binary floating-point arithmetic or the duration display preference.
+
+Only a flight's saved source controls its calculation. Block timestamp edits cannot replace a
+Hobbs total; default-preference changes never touch flights. Historical block/import/manual
+totals remain unchanged unless the pilot changes their timing fields. Recalculation retains
+nonzero block totals and derives Hobbs totals from their original readings. Both paths feed
+the existing reporting, summaries and currency pipeline. Simulator time stays separate from
+flight time; passenger flights still contribute zero pilot-function time.
+
+Hobbs readings are not clock instants. Solar day/night classification still uses available
+clock times and locations; Hobbs does not invent takeoff/landing times. Pilots can retain
+those timestamps and use the existing night-time overrides when appropriate.
+
+Standard CSV and JSON backups preserve both method and readings. Regulatory EASA/FAA CSV/PDF
+layouts continue to show recorded totals without adding nonstandard meter columns. Live
+Quick Log captures block events and remains a block-based workflow.
+
+Direct entry uses `manualTotalTime` as the original positive integer-minute source. Independent PIC
+and dual-received overrides support partial credit, including safety-pilot entries, and may overlap.
+Omitted credits retain crew-based derivation; explicit zero differs from automatic calculation.
+Declared PICUS/SPIC/SIC/relief continue to share the remaining function time. Positive dual credit
+suppresses automatic solo time. Existing strict-mode downward-only checks include these overrides.
+
+Currency keeps raw PIC and dual aggregates. For combined PIC-or-dual requirements, independent
+credits are conservatively treated as fully overlapping: each flight contributes the larger credit,
+not their sum. This avoids inventing eligible time without interval/overlap data. The longest training
+flight metric uses recorded dual minutes, so partial instruction cannot qualify an entire flight.

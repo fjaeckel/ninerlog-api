@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
+	"github.com/fjaeckel/ninerlog-api/internal/models"
 )
 
 // Conditionally-required field checks for a FlightCreate body, which
@@ -23,9 +24,12 @@ func isSimulatorCreate(req *generated.FlightCreate) bool {
 // validateCreateShape checks the conditionally-required fields of a create
 // body. Returns nil when the body is well formed for its kind.
 func validateCreateShape(req *generated.FlightCreate) error {
+	if req.FlightTimeMethod != nil && !req.FlightTimeMethod.Valid() {
+		return models.ErrFlightTimeMethod
+	}
 	flightFieldsPresent := req.DepartureIcao != nil || req.ArrivalIcao != nil ||
 		req.OffBlockTime != nil || req.OnBlockTime != nil ||
-		req.AircraftReg != nil || req.Landings != nil
+		req.AircraftReg != nil || req.Landings != nil || req.ManualTotalTime != nil || req.HobbsStartTenths != nil || req.HobbsEndTenths != nil || (req.FlightTimeMethod != nil && string(*req.FlightTimeMethod) != models.FlightTimeBlock)
 
 	if isSimulatorCreate(req) {
 		if flightFieldsPresent {
@@ -38,8 +42,15 @@ func validateCreateShape(req *generated.FlightCreate) error {
 		return nil
 	}
 
+	method := models.FlightTimeBlock
+	if req.FlightTimeMethod != nil {
+		method = string(*req.FlightTimeMethod)
+	}
+	if method != models.FlightTimeBlock && method != models.FlightTimeHobbs && method != models.FlightTimeManual {
+		return models.ErrFlightTimeMethod
+	}
 	if req.DepartureIcao == nil || req.ArrivalIcao == nil ||
-		req.OffBlockTime == nil || req.OnBlockTime == nil ||
+		(method == models.FlightTimeBlock && req.ManualTotalTime == nil && (req.OffBlockTime == nil || req.OnBlockTime == nil)) ||
 		req.AircraftReg == nil || req.Landings == nil {
 		return errFlightFieldsMissing
 	}

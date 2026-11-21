@@ -66,6 +66,10 @@ func fullPayload() *Payload {
 
 	flight := filled[models.Flight]("Flight")
 	flight.ID = uuid.New()
+	flight.FlightTimeMethod = "block"
+	flight.ManualTotalTime = nil
+	flight.PICTimeOverride, flight.DualTimeOverride = false, false
+	flight.HobbsStartTenths, flight.HobbsEndTenths = nil, nil
 	flight.AircraftReg = "D-EABC"
 	flight.SignatureID = nil
 	flight.Approaches = []models.ApproachEntry{{Type: "ILS", Airport: ptr("EDDF"), Runway: ptr("25C")}}
@@ -266,4 +270,46 @@ func TestRestore_EveryFlightFieldSurvives(t *testing.T) {
 	want.CrewMembers, got.CrewMembers = nil, nil
 	assert.Equal(t, want, got)
 	assert.True(t, got.TakeoffsDayOverride && got.NightTimeOverride && got.CrossCountryTimeOverride && got.SICTimeOverride)
+}
+
+func TestRestore_H1HobbsReadingsAndRecordedTotal(t *testing.T) {
+	source := fullPayload()
+	start, end := 15234, 15247
+	f := source.Flights[0]
+	f.IsSimulator = false
+	f.FlightTimeMethod = "hobbs"
+	f.HobbsStartTenths = &start
+	f.HobbsEndTenths = &end
+	f.TotalTime = 78
+	store := restorefake.New()
+	_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), source, RestoreModeRestore)
+	require.NoError(t, err)
+	got := store.State.Flights[0]
+	require.Equal(t, "hobbs", got.FlightTimeMethod)
+	require.Equal(t, &start, got.HobbsStartTenths)
+	require.Equal(t, &end, got.HobbsEndTenths)
+	require.Equal(t, 78, got.TotalTime)
+}
+
+func TestRestore_ManualDurationAndIndependentCredits(t *testing.T) {
+	payload := fullPayload()
+	f := payload.Flights[0]
+	minutes := 83
+	f.IsSimulator = false
+	f.FlightTimeMethod = "manual"
+	f.ManualTotalTime = &minutes
+	f.TotalTime = 83
+	f.PICTime = 66
+	f.DualTime = 83
+	f.PICTimeOverride = true
+	f.DualTimeOverride = true
+	store := restorefake.New()
+	_, err := NewRestorer(store).Restore(context.Background(), uuid.New(), payload, RestoreModeRestore)
+	require.NoError(t, err)
+	got := payloadFromState(store.State)
+	require.Equal(t, &minutes, got.Flights[0].ManualTotalTime)
+	require.True(t, got.Flights[0].PICTimeOverride)
+	require.True(t, got.Flights[0].DualTimeOverride)
+	require.Equal(t, 66, got.Flights[0].PICTime)
+	require.Equal(t, 83, got.Flights[0].DualTime)
 }

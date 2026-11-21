@@ -48,6 +48,10 @@ type signedFields struct {
 	InstructorComments      *string          `json:"instructorComments"`
 	PICName                 *string          `json:"picName"`
 	Crew                    []models.CrewKey `json:"crew"`
+	ManualTotalTime         *int             `json:"manualTotalTime,omitempty"`
+	FlightTimeMethod        string           `json:"flightTimeMethod,omitempty"`
+	HobbsStartTenths        *int             `json:"hobbsStartTenths,omitempty"`
+	HobbsEndTenths          *int             `json:"hobbsEndTenths,omitempty"`
 }
 
 // SignedFieldsHash returns the SHA-256 (hex) over the canonical signed fields
@@ -92,6 +96,20 @@ func SignedFieldsHash(f *models.Flight, crew []models.FlightCrewMember) string {
 		PICName:                 f.PICName,
 		Crew:                    models.CrewKeys(crew),
 	}
+	if f.FlightTimeMethod == models.FlightTimeHobbs {
+		fields.FlightTimeMethod = f.FlightTimeMethod
+		fields.HobbsStartTenths = f.HobbsStartTenths
+		fields.HobbsEndTenths = f.HobbsEndTenths
+	}
+	if f.FlightTimeMethod == models.FlightTimeManual {
+		fields.FlightTimeMethod = f.FlightTimeMethod
+		fields.ManualTotalTime = f.ManualTotalTime
+	}
+	// Optional fields remain omitted for all previously signed records. New
+	// evidence/overrides are included without changing their legacy hash shape.
+	fields.HobbsStartTenths = f.HobbsStartTenths
+	fields.HobbsEndTenths = f.HobbsEndTenths
+	fields.ManualTotalTime = f.ManualTotalTime
 	raw, _ := json.Marshal(fields)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])

@@ -45,6 +45,7 @@ const progressSelect = `
 			COALESCE(SUM(f.pic_time), 0) as pic_minutes,
 			COALESCE(SUM(f.ifr_time), 0) as ifr_minutes,
 			COALESCE(SUM(f.dual_time), 0) as instructor_minutes,
+			COALESCE(SUM(CASE WHEN f.pic_time_override OR f.dual_time_override THEN LEAST(f.pic_time, f.dual_time) ELSE 0 END), 0) as overlapping_pic_dual_minutes,
 			COALESCE(SUM(f.night_time), 0) as night_minutes,
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings,
 			COALESCE(SUM(f.landings_day), 0) as day_landings,
@@ -53,7 +54,7 @@ const progressSelect = `
 			COALESCE(SUM(f.holds), 0) as holds,
 			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
-			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
+			COALESCE(MAX(f.dual_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
 
 // ulKindFilter matches ULTRALIGHT aircraft a whose kind is in $2, or unset when
 // $3, with an MTOM of at least $4 kg when $4 is not 0.
@@ -71,6 +72,7 @@ func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query str
 		&progress.PICMinutes,
 		&progress.IFRMinutes,
 		&progress.InstructorMinutes,
+		&progress.OverlappingPICDualMinutes,
 		&progress.NightMinutes,
 		&progress.Landings,
 		&progress.DayLandings,

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,6 +95,14 @@ func (p exportPrefs) formatDate(t time.Time) string {
 
 func (p exportPrefs) formatDecimal(minutes int) string {
 	s := duration.FormatDecimal(minutes)
+	if p.DecimalSeparator == "comma" {
+		return strings.Replace(s, ".", ",", 1)
+	}
+	return s
+}
+
+func (p exportPrefs) formatHobbs(value *int) string {
+	s := models.FormatHobbsReading(value)
 	if p.DecimalSeparator == "comma" {
 		return strings.Replace(s, ".", ",", 1)
 	}
@@ -220,6 +229,7 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 		"IFRTime", "Remarks",
 		"PICName", "MultiPilotTime", "FSTDType", "Endorsements",
 		"PICUS", "SPIC", "ExaminerTime", "ReliefTime",
+		"FlightTimeMethod", "HobbsStart", "HobbsEnd", "ManualTotalTime", "PICEntered", "DualEntered", "PICTimeOverride", "DualTimeOverride",
 	}
 	csvWrite(w, marks.header(headers))
 
@@ -277,7 +287,7 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 			depTime,
 			arrTime,
 			onBlock,
-			prefs.formatDecimal(f.TotalTime),
+			standardRecordedDuration(f.TotalTime, prefs),
 			prefs.formatDecimal(f.PICTime),
 			prefs.formatDecimal(f.SICTime),
 			prefs.formatDecimal(f.NightTime),
@@ -311,6 +321,12 @@ func writeStandardCSVWith(w *csv.Writer, flights []*models.Flight, prefs exportP
 			prefs.formatDecimal(f.SPICTime),
 			prefs.formatDecimal(f.ExaminerTime),
 			prefs.formatDecimal(f.ReliefTime),
+			models.EffectiveFlightTimeMethod(f.FlightTimeMethod),
+			prefs.formatHobbs(f.HobbsStartTenths),
+			prefs.formatHobbs(f.HobbsEndTenths),
+			optionalExactDuration(f.ManualTotalTime),
+			exactDuration(f.PICTime), exactDuration(f.DualTime),
+			strconv.FormatBool(f.PICTimeOverride), strconv.FormatBool(f.DualTimeOverride),
 		}
 		csvWrite(w, marks.row(row, f))
 	}
@@ -473,4 +489,21 @@ func (h *APIHandler) BackupPayloadBuilder() *cloudbackup.DefaultJSONBuilder {
 		Logbook:        h.logbookService,
 		AttachCrew:     h.AttachCrewMembers,
 	}
+}
+
+func optionalExactDuration(minutes *int) string {
+	if minutes == nil {
+		return ""
+	}
+	return fmtHM(*minutes)
+}
+
+func exactDuration(minutes int) string { return fmt.Sprintf("%d:%02d", minutes/60, minutes%60) }
+
+// Tenths are exact for Hobbs; other recorded totals need H:M for lossless exchange.
+func standardRecordedDuration(minutes int, prefs exportPrefs) string {
+	if minutes%6 != 0 {
+		return exactDuration(minutes)
+	}
+	return prefs.formatDecimal(minutes)
 }

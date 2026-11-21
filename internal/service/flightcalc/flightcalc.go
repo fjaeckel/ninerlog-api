@@ -43,12 +43,29 @@ func ApplyAutoCalculations(flight *models.Flight, userName string, aircraft *fli
 		return
 	}
 
-	// A zero total is recovered from the block times; a non-zero one is kept.
-	if flight.TotalTime == 0 {
+	// Resolve total time from the saved method.
+	if flight.ManualTotalTime != nil {
+		flight.TotalTime = *flight.ManualTotalTime
+	} else if models.EffectiveFlightTimeMethod(flight.FlightTimeMethod) == models.FlightTimeHobbs {
+		if minutes, err := models.HobbsMinutes(flight.HobbsStartTenths, flight.HobbsEndTenths); err == nil {
+			flight.TotalTime = minutes
+		}
+	} else if flight.FlightTimeMethod == models.FlightTimeManual {
+		if flight.ManualTotalTime != nil {
+			flight.TotalTime = *flight.ManualTotalTime
+		}
+	} else if flight.TotalTime == 0 {
 		flight.TotalTime = blockMinutes(flight)
 	}
 
 	role := determineUserRole(flight, userName, aircraft)
+	if role == rolePassenger {
+		if flight.PICTimeOverride && flight.PICTime > 0 {
+			role = rolePIC
+		} else if flight.DualTimeOverride && flight.DualTime > 0 {
+			role = roleDualReceiving
+		}
+	}
 	flight.IsPassenger = role == rolePassenger
 	if flight.IsPassenger {
 		applyPassengerCalculations(flight)
@@ -229,6 +246,15 @@ func derivedFunctionMinutes(flight *models.Flight) int {
 // pilot function time at all. Declared PICUS/SPIC/relief minutes are carved
 // out of the derived column so the function times still decompose TotalTime.
 func calculatePICDual(flight *models.Flight, role userPilotRole) {
+	pic, dual := flight.PICTime, flight.DualTime
+	defer func() {
+		if flight.PICTimeOverride {
+			flight.PICTime = pic
+		}
+		if flight.DualTimeOverride {
+			flight.DualTime = dual
+		}
+	}()
 	switch role {
 	case roleDualReceiving:
 		flight.IsPIC = false
@@ -298,7 +324,7 @@ func calculateNightTime(flight *models.Flight) {
 // pilot — means the flight is not solo, as does any declared PICUS, SPIC,
 // examiner or relief time (each implies another pilot on board).
 func calculateSoloTime(flight *models.Flight, userName string) {
-	if !flight.IsPIC || flight.IsDual {
+	if !flight.IsPIC || flight.IsDual || flight.PICTime == 0 || flight.DualTime > 0 {
 		flight.SoloTime = 0
 		return
 	}
@@ -312,7 +338,7 @@ func calculateSoloTime(flight *models.Flight, userName string) {
 			return
 		}
 	}
-	flight.SoloTime = flight.TotalTime
+	flight.SoloTime = min(flight.TotalTime, flight.PICTime)
 }
 
 func calculateCrossCountryTime(flight *models.Flight) {

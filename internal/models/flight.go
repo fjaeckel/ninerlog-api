@@ -39,13 +39,17 @@ type Flight struct {
 	ArrivalTime   *string `json:"arrivalTime,omitempty"`   // HH:MM:SS format - landing time (UTC)
 
 	// Flight times (in minutes)
-	TotalTime int  `json:"totalTime"`
-	IsPIC     bool `json:"isPic"`
-	IsDual    bool `json:"isDual"`
-	PICTime   int  `json:"picTime"`
-	DualTime  int  `json:"dualTime"`
-	NightTime int  `json:"nightTime"`
-	IFRTime   int  `json:"ifrTime"`
+	ManualTotalTime  *int   `json:"manualTotalTime,omitempty"`
+	FlightTimeMethod string `json:"flightTimeMethod,omitempty"`
+	HobbsStartTenths *int   `json:"hobbsStartTenths,omitempty"`
+	HobbsEndTenths   *int   `json:"hobbsEndTenths,omitempty"`
+	TotalTime        int    `json:"totalTime"`
+	IsPIC            bool   `json:"isPic"`
+	IsDual           bool   `json:"isDual"`
+	PICTime          int    `json:"picTime"`
+	DualTime         int    `json:"dualTime"`
+	NightTime        int    `json:"nightTime"`
+	IFRTime          int    `json:"ifrTime"`
 
 	// Landings
 	LandingsDay   int `json:"landingsDay"`
@@ -70,6 +74,8 @@ type Flight struct {
 	TakeoffsNightOverride    bool `json:"takeoffsNightOverride,omitempty"`
 	LandingsDayOverride      bool `json:"landingsDayOverride,omitempty"`
 	LandingsNightOverride    bool `json:"landingsNightOverride,omitempty"`
+	PICTimeOverride          bool `json:"picTimeOverride,omitempty"`
+	DualTimeOverride         bool `json:"dualTimeOverride,omitempty"`
 	SICTimeOverride          bool `json:"sicTimeOverride,omitempty"`
 	MultiPilotTimeOverride   bool `json:"multiPilotTimeOverride,omitempty"`
 	NightTimeOverride        bool `json:"nightTimeOverride,omitempty"`
@@ -196,8 +202,12 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrInvalidCrossCountryTime
 	}
 
-	// Pilot function time decomposes total time
-	if f.PICTime+f.PICUSTime+f.SPICTime+f.SICTime+f.DualTime+f.ReliefTime > f.TotalTime {
+	// Explicit PIC/dual credits may overlap; other function time still shares the remainder.
+	functionTime := f.PICTime + f.PICUSTime + f.SPICTime + f.SICTime + f.DualTime + f.ReliefTime
+	if f.PICTimeOverride || f.DualTimeOverride {
+		functionTime -= min(f.PICTime, f.DualTime)
+	}
+	if functionTime > f.TotalTime {
 		return ErrInvalidFunctionTime
 	}
 

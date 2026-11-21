@@ -102,6 +102,14 @@ func (h *APIHandler) UpdateCurrentUser(c *gin.Context) {
 			emailChanged = true
 		}
 	}
+	if req.DefaultFlightTimeMethod != nil {
+		method := string(*req.DefaultFlightTimeMethod)
+		if method != models.FlightTimeBlock && method != models.FlightTimeHobbs && method != models.FlightTimeManual {
+			h.sendError(c, http.StatusBadRequest, models.ErrFlightTimeMethod.Error())
+			return
+		}
+		user.DefaultFlightTimeMethod = method
+	}
 	if req.TimeDisplayFormat != nil {
 		format := string(*req.TimeDisplayFormat)
 		if format == "hm" || format == "decimal" {

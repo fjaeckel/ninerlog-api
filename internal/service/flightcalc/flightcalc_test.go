@@ -1387,3 +1387,26 @@ func TestApplyAutoCalculations_NightAndCrossCountryOverridesRespected(t *testing
 		t.Errorf("local CrossCountryTime = %d, want 90 (overridden)", local.CrossCountryTime)
 	}
 }
+
+func TestHobbs_I1FunctionTimesAndPassengerExclusion(t *testing.T) {
+	start, end := 15234, 15247
+	f := baseFlight()
+	f.FlightTimeMethod = models.FlightTimeHobbs
+	f.HobbsStartTenths = &start
+	f.HobbsEndTenths = &end
+	f.CrewMembers = []models.FlightCrewMember{{Name: "Pilot", Role: models.CrewRolePIC}}
+	ApplyAutoCalculations(f, "Pilot", singlePilotAircraft())
+	if f.TotalTime != 78 || f.PICTime != 78 || f.CrossCountryTime != 78 {
+		t.Fatalf("Hobbs derived times: total=%d PIC=%d XC=%d", f.TotalTime, f.PICTime, f.CrossCountryTime)
+	}
+	f.CrewMembers = []models.FlightCrewMember{{Name: "Other Pilot", Role: models.CrewRolePIC}}
+	ApplyAutoCalculations(f, "Pilot", singlePilotAircraft())
+	if !f.IsPassenger || f.TotalTime != 0 || f.PICTime != 0 {
+		t.Fatalf("passenger exclusion: %+v", f)
+	}
+	f.CrewMembers = []models.FlightCrewMember{{Name: "Pilot", Role: models.CrewRolePIC}}
+	ApplyAutoCalculations(f, "Pilot", singlePilotAircraft())
+	if f.TotalTime != 78 || f.PICTime != 78 {
+		t.Fatalf("Hobbs recovery must use meter readings: %+v", f)
+	}
+}

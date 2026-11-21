@@ -1195,6 +1195,8 @@ paths:
                     Current password. Required when changing the email address.
                     The new address is marked unverified and a verification link
                     is sent to it before it is trusted again.
+                defaultFlightTimeMethod:
+                  $ref: '#/components/schemas/FlightTimeMethod'
                 timeDisplayFormat:
                   type: string
                   enum: [hm, decimal]
@@ -6550,6 +6552,8 @@ components:
             Whether this user is an admin: the account carries the admin flag
             (granted via POST /admin/users/{userId}/grant-admin) or holds the
             ADMIN_EMAIL address. Requires a verified email address.
+        defaultFlightTimeMethod:
+          $ref: '#/components/schemas/FlightTimeMethod'
         timeDisplayFormat:
           type: string
           enum: [hm, decimal]
@@ -7432,6 +7436,27 @@ components:
             landing count is still 3 or more. Only set while the count is
             currently 3 or more.
 
+    FlightTimeMethod:
+      type: string
+      enum: [block, hobbs, manual]
+      default: block
+      description: >-
+        Source of a flight's recorded total. Block uses off/on-block timestamps;
+        Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's
+        default; an omitted method on update keeps the flight's saved method.
+        Legacy records without a method are block flights. Preference changes
+        never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+    HobbsReadingTenths:
+      type: integer
+      minimum: 0
+      maximum: 99999999
+      example: 15234
+      description: >-
+        Original Hobbs meter reading in integer tenths of an hour (15234 means
+        1523.4 hours). Hobbs calculation requires both readings and end greater than
+        start. Total minutes equal (end minus start) times 6 unless an explicit
+        manualTotalTime override is present. Observations survive method changes.
+        Optional block timestamps never override a Hobbs total.
     Flight:
       type: object
       required:
@@ -7468,6 +7493,23 @@ components:
         - createdAt
         - updatedAt
       properties:
+        picTimeOverride:
+          type: boolean
+          description: True when picTime is independently entered; otherwise derived from crew roles.
+        dualTimeOverride:
+          type: boolean
+          description: True when dualTime is independently entered; otherwise derived from crew roles.
+        manualTotalTime:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+        flightTimeMethod:
+          $ref: '#/components/schemas/FlightTimeMethod'
+        hobbsStartTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
+        hobbsEndTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
         id:
           type: string
           format: uuid
@@ -7820,8 +7862,11 @@ components:
         Creates either a flight or an FSTD (simulator) session.
 
         For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-        `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-        omitting any of them returns 400.
+        `arrivalIcao` and `landings` are required. Block flights also require
+        `offBlockTime` and `onBlockTime`; Hobbs flights require `hobbsStartTenths`
+        and `hobbsEndTenths` instead. Manual flights require `manualTotalTime`.
+        Block timestamps are optional for Hobbs and manual flights.
+        Missing required fields or invalid readings return 400.
 
         For an FSTD session (`isSimulator: true`) they must be omitted — a training
         device is not flown between places and has no block times. The session
@@ -7831,6 +7876,17 @@ components:
         - date
         - aircraftType
       properties:
+        manualTotalTime:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+        flightTimeMethod:
+          $ref: '#/components/schemas/FlightTimeMethod'
+        hobbsStartTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
+        hobbsEndTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
         date:
           type: string
           format: date
@@ -7861,12 +7917,12 @@ components:
           type: string
           format: time
           example: '14:15:00'
-          description: Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
+          description: Off-block time (chocks off / engine start) in UTC. Required for block flights, optional for Hobbs/manual flights, rejected for an FSTD session.
         onBlockTime:
           type: string
           format: time
           example: '16:55:00'
-          description: On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
+          description: On-block time (chocks on / engine shutdown) in UTC. Required for block flights, optional for Hobbs/manual flights, rejected for an FSTD session.
         departureTime:
           type: string
           format: time
@@ -7882,19 +7938,15 @@ components:
           minimum: 0
           example: 150
           readOnly: true
-          description: Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
+          description: Recorded total flight time in integer minutes, calculated from the selected method. Always 0 for an FSTD session. Computed by the server on create.
         picTime:
           type: integer
           minimum: 0
-          readOnly: true
-          example: 150
-          description: Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+          description: Independent pic credit in integer minutes, bounded by totalTime. Omit for crew-based calculation. May overlap the other explicitly entered credit.
         dualTime:
           type: integer
           minimum: 0
-          readOnly: true
-          example: 0
-          description: Dual instruction time in minutes. Computed by server — equals totalTime when isDual is true, 0 otherwise.
+          description: Independent dual credit in integer minutes, bounded by totalTime. Omit for crew-based calculation. May overlap the other explicitly entered credit.
         ifrTime:
           type: integer
           minimum: 0
@@ -8037,6 +8089,55 @@ components:
     FlightUpdate:
       type: object
       properties:
+        clockTimePolicy:
+          type: string
+          enum: [preserve, recalculate]
+          description: Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
+        picTime:
+          type: [integer, 'null']
+          minimum: 0
+          description: Independent pic credit in minutes; null restores crew-based calculation. Each credit is bounded by totalTime and may overlap the other explicitly entered credit.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        dualTime:
+          type: [integer, 'null']
+          minimum: 0
+          description: Independent dual credit in minutes; null restores crew-based calculation. Each credit is bounded by totalTime and may overlap the other explicitly entered credit.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        manualTotalTime:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 2147483647
+          description: Explicit recorded duration in integer minutes; null restores calculation from the saved source.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        flightTimeMethod:
+          $ref: '#/components/schemas/FlightTimeMethod'
+        hobbsStartTenths:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 99999999
+          description: Hobbs start reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        hobbsEndTenths:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 99999999
+          description: Hobbs end reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
+          x-go-type: nullable.Nullable[int]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         date:
           type: string
           format: date
@@ -10224,6 +10325,14 @@ components:
         - onBlockTime
         - departureTime
         - arrivalTime
+        - flightTimeMethod
+        - picTime
+        - dualTime
+        - picTimeOverride
+        - dualTimeOverride
+        - manualTotalTime
+        - hobbsStart
+        - hobbsEnd
         - totalTime
         - isPic
         - isDual
@@ -10252,7 +10361,14 @@ components:
         - person6
         - ignore
       description: |
-        Target flight log field for column mapping.
+        Target flight log field for column mapping. hobbsStart and hobbsEnd
+        accept decimal meter hours with at most one decimal place (dot or comma).
+        A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
+        defaults it to manual; otherwise an omitted method means block, independent
+        of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
+        manualTotalTime, picTime and dualTime accept duration values. Optional
+        picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
+        false ignores the corresponding value, true retains even an explicit zero.
 
         A `nightTime` or `crossCountryTime` column is stored as the pilot's
         own value with the matching override flag set (capped at block time)
@@ -10360,6 +10476,14 @@ components:
           type: string
           description: Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
           example: '2006-01-02'
+        durationUnit:
+          type: string
+          enum: [auto, decimal_hours, minutes]
+          description: Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+        totalTimePolicy:
+          type: string
+          enum: [review, recorded, calculated]
+          description: Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
         timeFormat:
           type: string
           description: Time parsing format. Only relevant for time fields.
@@ -11221,6 +11345,23 @@ components:
         - createdAt
         - updatedAt
       properties:
+        picTimeOverride:
+          type: boolean
+          description: True when picTime is independently entered; otherwise derived from crew roles.
+        dualTimeOverride:
+          type: boolean
+          description: True when dualTime is independently entered; otherwise derived from crew roles.
+        manualTotalTime:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+        flightTimeMethod:
+          $ref: '#/components/schemas/FlightTimeMethod'
+        hobbsStartTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
+        hobbsEndTenths:
+          $ref: '#/components/schemas/HobbsReadingTenths'
         id:
           type: string
           format: uuid

@@ -262,38 +262,48 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 		return
 	}
 
+	if req.FlightTimeMethod == nil {
+		method := generated.FlightTimeMethodBlock
+		if !isSimulatorCreate(&req) && h.authService != nil {
+			user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+			if err != nil {
+				h.sendError(c, http.StatusInternalServerError, "Failed to load flight time preference")
+				return
+			}
+			method = generated.FlightTimeMethod(models.EffectiveFlightTimeMethod(user.DefaultFlightTimeMethod))
+		}
+		req.FlightTimeMethod = &method
+	}
 	if err := validateCreateShape(&req); err != nil {
 		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	flight := models.Flight{
-		UserID:       userID,
-		Date:         flightDate,
-		AircraftType: req.AircraftType,
-		IsSimulator:  isSimulatorCreate(&req),
+		UserID:           userID,
+		Date:             flightDate,
+		AircraftType:     req.AircraftType,
+		IsSimulator:      isSimulatorCreate(&req),
+		FlightTimeMethod: string(*req.FlightTimeMethod),
+		HobbsStartTenths: req.HobbsStartTenths,
+		HobbsEndTenths:   req.HobbsEndTenths,
+		ManualTotalTime:  req.ManualTotalTime,
 	}
 
 	if !flight.IsSimulator {
-		// Compute totalTime from off-block and on-block times
-		totalTime, err := calculateBlockTime(*req.OffBlockTime, *req.OnBlockTime)
+		flight.DepartureICAO = req.DepartureIcao
+		flight.ArrivalICAO = req.ArrivalIcao
+		flight.AircraftReg = *req.AircraftReg
+		flight.OffBlockTime = req.OffBlockTime
+		flight.OnBlockTime = req.OnBlockTime
+		flight.DepartureTime = req.DepartureTime
+		flight.ArrivalTime = req.ArrivalTime
+		totalTime, err := selectedFlightMinutes(&flight)
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, "Invalid block times format")
+			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		departureIcao := *req.DepartureIcao
-		arrivalIcao := *req.ArrivalIcao
-		offBlockTime := *req.OffBlockTime
-		onBlockTime := *req.OnBlockTime
-
-		flight.AircraftReg = *req.AircraftReg
-		flight.DepartureICAO = &departureIcao
-		flight.ArrivalICAO = &arrivalIcao
-		flight.OffBlockTime = &offBlockTime
-		flight.OnBlockTime = &onBlockTime
-		flight.DepartureTime = req.DepartureTime
-		flight.ArrivalTime = req.ArrivalTime
 		flight.TotalTime = totalTime
 		flight.AllLandings = *req.Landings
 		flight.IFRTime = getIntOrDefault(req.IfrTime, 0)
@@ -333,6 +343,10 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 	// New fields: instructor, comments, advanced times
 	flight.InstructorName = req.InstructorName
 	flight.InstructorComments = req.InstructorComments
+	flight.PICTime = getIntOrDefault(req.PicTime, 0)
+	flight.PICTimeOverride = req.PicTime != nil
+	flight.DualTime = getIntOrDefault(req.DualTime, 0)
+	flight.DualTimeOverride = req.DualTime != nil
 	flight.SICTime = getIntOrDefault(req.SicTime, 0)
 	flight.SICTimeOverride = req.SicTime != nil
 	flight.DualGivenTime = getIntOrDefault(req.DualGivenTime, 0)
@@ -495,6 +509,10 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		return
 	}
 
+	if err := reviewClockRemoval(flight, &req); err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	// Apply updates
 	if req.Date != nil {
 		flightDate, err := time.Parse("2006-01-02", req.Date.String())
@@ -535,6 +553,8 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 	// New fields
 	applyNullable(&flight.InstructorName, req.InstructorName)
 	applyNullable(&flight.InstructorComments, req.InstructorComments)
+	applyOverride(&flight.PICTime, &flight.PICTimeOverride, req.PicTime)
+	applyOverride(&flight.DualTime, &flight.DualTimeOverride, req.DualTime)
 	applyOverride(&flight.SICTime, &flight.SICTimeOverride, req.SicTime)
 	if req.DualGivenTime != nil {
 		flight.DualGivenTime = *req.DualGivenTime
@@ -613,27 +633,9 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 		}
 	}
 
-	// Recalculate totalTime from block times if either was updated
-	if req.OffBlockTime.IsSpecified() || req.OnBlockTime.IsSpecified() {
-		offBlock := ""
-		onBlock := ""
-		if flight.OffBlockTime != nil {
-			offBlock = *flight.OffBlockTime
-		}
-		if flight.OnBlockTime != nil {
-			onBlock = *flight.OnBlockTime
-		}
-		if offBlock != "" && onBlock != "" {
-			totalTime, err := calculateBlockTime(offBlock, onBlock)
-			if err != nil {
-				h.sendError(c, http.StatusBadRequest, "Invalid block times format")
-				return
-			}
-			flight.TotalTime = totalTime
-		}
-	} else if req.TotalTime != nil {
-		// Allow direct totalTime override only if block times are not being updated
-		flight.TotalTime = *req.TotalTime
+	if err := applyFlightTimeUpdate(flight, &req); err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	userName := h.getUserNameFromContext(c)
@@ -780,6 +782,7 @@ func withDisplayPICName(gf generated.Flight, f *models.Flight, userName string) 
 }
 
 func convertToGeneratedFlight(f *models.Flight) generated.Flight {
+	method := generated.FlightTimeMethod(models.EffectiveFlightTimeMethod(f.FlightTimeMethod))
 	flight := generated.Flight{
 		Id:               openapi_types.UUID(f.ID),
 		UserId:           openapi_types.UUID(f.UserID),
@@ -789,6 +792,10 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		IsSimulator:      f.IsSimulator,
 		IsPassenger:      f.IsPassenger,
 		TotalTime:        f.TotalTime,
+		FlightTimeMethod: &method,
+		HobbsStartTenths: f.HobbsStartTenths,
+		HobbsEndTenths:   f.HobbsEndTenths,
+		ManualTotalTime:  f.ManualTotalTime,
 		IsPic:            f.IsPIC,
 		IsDual:           f.IsDual,
 		PicTime:          f.PICTime,
@@ -812,6 +819,8 @@ func convertToGeneratedFlight(f *models.Flight) generated.Flight {
 		TakeoffsNightOverride:    f.TakeoffsNightOverride,
 		LandingsDayOverride:      f.LandingsDayOverride,
 		LandingsNightOverride:    f.LandingsNightOverride,
+		PicTimeOverride:          &f.PICTimeOverride,
+		DualTimeOverride:         &f.DualTimeOverride,
 		SicTimeOverride:          f.SICTimeOverride,
 		MultiPilotTimeOverride:   f.MultiPilotTimeOverride,
 	}

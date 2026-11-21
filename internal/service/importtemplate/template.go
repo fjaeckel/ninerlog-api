@@ -158,6 +158,9 @@ func (t *Template) Suggest(headers []string) []Mapping {
 			// "TotalTime" all resolve even when only one spelling is listed.
 			field, ok = t.looseColumns()[looseKey(key)]
 		}
+		if !ok {
+			field, ok = map[string]Field{"manualtotaltime": FieldManualTotalTime, "pictime": FieldPICTime, "dualtime": FieldDualTime, "pictimeoverride": FieldPICTimeOverride, "dualtimeoverride": FieldDualTimeOverride, "flighttimemethod": FieldFlightTimeMethod, "hobbsstart": FieldHobbsStart, "hobbsend": FieldHobbsEnd}[looseKey(key)]
+		}
 		if !ok || field == FieldIgnore {
 			continue
 		}

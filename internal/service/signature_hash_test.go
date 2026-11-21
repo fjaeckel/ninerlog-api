@@ -225,3 +225,19 @@ func TestSignatureService_CompleteFromTokenFieldsHash(t *testing.T) {
 		})
 	}
 }
+
+func TestSignedFieldsHash_HobbsAndLegacyCompatibility(t *testing.T) {
+	f, crew := hashFixture()
+	const legacy = "50f3879f8d70e072bd023d397b820749c11920ccd03c7e0a566f8f52a20ee4ec"
+	assert.Equal(t, legacy, SignedFieldsHash(f, crew))
+	f.FlightTimeMethod = models.FlightTimeBlock
+	assert.Equal(t, legacy, SignedFieldsHash(f, crew))
+	start, end := 15234, 15249
+	f.FlightTimeMethod = models.FlightTimeHobbs
+	f.HobbsStartTenths, f.HobbsEndTenths = &start, &end
+	signed := SignedFieldsHash(f, crew)
+	assert.NotEqual(t, legacy, signed)
+	start++
+	end++
+	assert.NotEqual(t, signed, SignedFieldsHash(f, crew))
+}

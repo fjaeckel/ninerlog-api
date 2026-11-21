@@ -90,6 +90,10 @@ func (s *FlightService) CreateFlightWith(ctx context.Context, flight *models.Fli
 		return err
 	}
 
+	if err := flight.ValidateFlightTimeSource(); err != nil {
+		return err
+	}
+
 	// Validate basic fields
 	if !flight.IsValid() {
 		return ErrInvalidFlight
@@ -164,6 +168,10 @@ func (s *FlightService) UpdateFlightWith(ctx context.Context, flight *models.Fli
 
 	// Validate text field lengths
 	if err := models.ValidateFlightTextFields(flight); err != nil {
+		return err
+	}
+
+	if err := flight.ValidateFlightTimeSource(); err != nil {
 		return err
 	}
 

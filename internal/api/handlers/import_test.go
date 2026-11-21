@@ -34,11 +34,11 @@ func isForeFlight(headers []string) bool {
 }
 
 func suggestForeFlight() []generated.ImportColumnMapping {
-	return toGeneratedMappings(importtemplate.ByID("FOREFLIGHT_CSV").Suggest(foreFlightExportColumns))
+	return calculatedFixtureTotals(toGeneratedMappings(importtemplate.ByID("FOREFLIGHT_CSV").Suggest(foreFlightExportColumns)))
 }
 
 func suggestGenericCSV(headers []string) []generated.ImportColumnMapping {
-	return toGeneratedMappings(importtemplate.Suggest(nil, headers))
+	return calculatedFixtureTotals(toGeneratedMappings(importtemplate.Suggest(nil, headers)))
 }
 
 func TestParseCSV_ForeFlightFormat(t *testing.T) {
@@ -263,7 +263,7 @@ func TestSuggestGenericCSV_CanonicalFieldAliases(t *testing.T) {
 		"aircraftReg":    "aircraftReg",
 		"Day Landings":   "landingsDay",
 		"Night Landings": "landingsNight",
-		"PIC":            "isPic",
+		"PIC":            "picTime",
 		"Total Time":     "totalTime",
 		"Departure ICAO": "departureIcao",
 		"Arrival ICAO":   "arrivalIcao",
@@ -1268,4 +1268,17 @@ func TestCollectAircraftFromRows_TypeMissingEverywhere(t *testing.T) {
 	if typeCode, ok := got["D-EABC"]; !ok || typeCode != "" {
 		t.Errorf("got %v, want D-EABC with an empty type", got)
 	}
+}
+
+// These fixtures test the pre-existing calculated-clock path after a pilot
+// explicitly chooses calculated totals. Separate tests cover unresolved conflicts.
+func calculatedFixtureTotals(mappings []generated.ImportColumnMapping) []generated.ImportColumnMapping {
+	out := append([]generated.ImportColumnMapping(nil), mappings...)
+	for i := range out {
+		if out[i].TargetField == "totalTime" && out[i].TotalTimePolicy == nil {
+			policy := generated.Calculated
+			out[i].TotalTimePolicy = &policy
+		}
+	}
+	return out
 }

@@ -269,6 +269,7 @@ func TestExportImportRoundTrip_HeaderOnlyExportIsRecognised(t *testing.T) {
 // --- helpers ---
 
 func toMappingLookup(mappings []generated.ImportColumnMapping) map[string]generated.ImportColumnMapping {
+	mappings = calculatedFixtureTotals(mappings)
 	out := make(map[string]generated.ImportColumnMapping, len(mappings))
 	for _, m := range mappings {
 		out[m.SourceColumn] = m

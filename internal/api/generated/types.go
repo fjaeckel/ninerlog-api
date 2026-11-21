@@ -878,16 +878,16 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 
 // Defines values for CustomCurrencyThresholdUnit.
 const (
-	Hours   CustomCurrencyThresholdUnit = "hours"
-	Minutes CustomCurrencyThresholdUnit = "minutes"
+	CustomCurrencyThresholdUnitHours   CustomCurrencyThresholdUnit = "hours"
+	CustomCurrencyThresholdUnitMinutes CustomCurrencyThresholdUnit = "minutes"
 )
 
 // Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
 func (e CustomCurrencyThresholdUnit) Valid() bool {
 	switch e {
-	case Hours:
+	case CustomCurrencyThresholdUnitHours:
 		return true
-	case Minutes:
+	case CustomCurrencyThresholdUnitMinutes:
 		return true
 	default:
 		return false
@@ -1461,6 +1461,87 @@ func (e FlightSignatureStatus) Valid() bool {
 	}
 }
 
+// Defines values for FlightTimeMethod.
+const (
+	FlightTimeMethodBlock  FlightTimeMethod = "block"
+	FlightTimeMethodHobbs  FlightTimeMethod = "hobbs"
+	FlightTimeMethodManual FlightTimeMethod = "manual"
+)
+
+// Valid indicates whether the value is a known member of the FlightTimeMethod enum.
+func (e FlightTimeMethod) Valid() bool {
+	switch e {
+	case FlightTimeMethodBlock:
+		return true
+	case FlightTimeMethodHobbs:
+		return true
+	case FlightTimeMethodManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FlightUpdateClockTimePolicy.
+const (
+	Preserve    FlightUpdateClockTimePolicy = "preserve"
+	Recalculate FlightUpdateClockTimePolicy = "recalculate"
+)
+
+// Valid indicates whether the value is a known member of the FlightUpdateClockTimePolicy enum.
+func (e FlightUpdateClockTimePolicy) Valid() bool {
+	switch e {
+	case Preserve:
+		return true
+	case Recalculate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingDurationUnit.
+const (
+	ImportColumnMappingDurationUnitAuto         ImportColumnMappingDurationUnit = "auto"
+	ImportColumnMappingDurationUnitDecimalHours ImportColumnMappingDurationUnit = "decimal_hours"
+	ImportColumnMappingDurationUnitMinutes      ImportColumnMappingDurationUnit = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingDurationUnit enum.
+func (e ImportColumnMappingDurationUnit) Valid() bool {
+	switch e {
+	case ImportColumnMappingDurationUnitAuto:
+		return true
+	case ImportColumnMappingDurationUnitDecimalHours:
+		return true
+	case ImportColumnMappingDurationUnitMinutes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingTotalTimePolicy.
+const (
+	Calculated ImportColumnMappingTotalTimePolicy = "calculated"
+	Recorded   ImportColumnMappingTotalTimePolicy = "recorded"
+	Review     ImportColumnMappingTotalTimePolicy = "review"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingTotalTimePolicy enum.
+func (e ImportColumnMappingTotalTimePolicy) Valid() bool {
+	switch e {
+	case Calculated:
+		return true
+	case Recorded:
+		return true
+	case Review:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImportField.
 const (
 	ImportFieldActualInstrumentTime    ImportField = "actualInstrumentTime"
@@ -1474,6 +1555,11 @@ const (
 	ImportFieldDepartureIcao           ImportField = "departureIcao"
 	ImportFieldDepartureTime           ImportField = "departureTime"
 	ImportFieldDualGivenTime           ImportField = "dualGivenTime"
+	ImportFieldDualTime                ImportField = "dualTime"
+	ImportFieldDualTimeOverride        ImportField = "dualTimeOverride"
+	ImportFieldFlightTimeMethod        ImportField = "flightTimeMethod"
+	ImportFieldHobbsEnd                ImportField = "hobbsEnd"
+	ImportFieldHobbsStart              ImportField = "hobbsStart"
 	ImportFieldHolds                   ImportField = "holds"
 	ImportFieldIfrTime                 ImportField = "ifrTime"
 	ImportFieldIgnore                  ImportField = "ignore"
@@ -1486,6 +1572,7 @@ const (
 	ImportFieldLandingsDay             ImportField = "landingsDay"
 	ImportFieldLandingsNight           ImportField = "landingsNight"
 	ImportFieldLandingsTotal           ImportField = "landingsTotal"
+	ImportFieldManualTotalTime         ImportField = "manualTotalTime"
 	ImportFieldNightTime               ImportField = "nightTime"
 	ImportFieldOffBlockTime            ImportField = "offBlockTime"
 	ImportFieldOnBlockTime             ImportField = "onBlockTime"
@@ -1495,6 +1582,8 @@ const (
 	ImportFieldPerson4                 ImportField = "person4"
 	ImportFieldPerson5                 ImportField = "person5"
 	ImportFieldPerson6                 ImportField = "person6"
+	ImportFieldPicTime                 ImportField = "picTime"
+	ImportFieldPicTimeOverride         ImportField = "picTimeOverride"
 	ImportFieldRemarks                 ImportField = "remarks"
 	ImportFieldRoute                   ImportField = "route"
 	ImportFieldSimulatedInstrumentTime ImportField = "simulatedInstrumentTime"
@@ -1526,6 +1615,16 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldDualGivenTime:
 		return true
+	case ImportFieldDualTime:
+		return true
+	case ImportFieldDualTimeOverride:
+		return true
+	case ImportFieldFlightTimeMethod:
+		return true
+	case ImportFieldHobbsEnd:
+		return true
+	case ImportFieldHobbsStart:
+		return true
 	case ImportFieldHolds:
 		return true
 	case ImportFieldIfrTime:
@@ -1550,6 +1649,8 @@ func (e ImportField) Valid() bool {
 		return true
 	case ImportFieldLandingsTotal:
 		return true
+	case ImportFieldManualTotalTime:
+		return true
 	case ImportFieldNightTime:
 		return true
 	case ImportFieldOffBlockTime:
@@ -1567,6 +1668,10 @@ func (e ImportField) Valid() bool {
 	case ImportFieldPerson5:
 		return true
 	case ImportFieldPerson6:
+		return true
+	case ImportFieldPicTime:
+		return true
+	case ImportFieldPicTimeOverride:
 		return true
 	case ImportFieldRemarks:
 		return true
@@ -4154,6 +4259,9 @@ type BackupFlight struct {
 	// Example: 0
 	DualTime int `json:"dualTime"`
 
+	// DualTimeOverride True when dualTime is independently entered; otherwise derived from crew roles.
+	DualTimeOverride *bool `json:"dualTimeOverride,omitempty"`
+
 	// Endorsements Instructor endorsements, skill test references, examiner notes. EASA AMC1 FCL.050 Col 24 / FAA §61.51(h). Separate from pilot remarks.
 	//
 	// Example: Skill test passed
@@ -4164,6 +4272,9 @@ type BackupFlight struct {
 	// Example: 0
 	ExaminerTime int `json:"examinerTime"`
 
+	// FlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	FlightTimeMethod *FlightTimeMethod `json:"flightTimeMethod,omitempty"`
+
 	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
 	//
 	// Example: FNPT II
@@ -4173,6 +4284,16 @@ type BackupFlight struct {
 	//
 	// Example: 0
 	GroundTrainingTime int `json:"groundTrainingTime"`
+
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
+
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
 
 	// Holds Number of holding procedures performed
 	//
@@ -4268,6 +4389,9 @@ type BackupFlight struct {
 	// Example: winch
 	LaunchMethod *BackupFlightLaunchMethod `json:"launchMethod,omitempty"`
 
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
+
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
 	//
 	// Example: 0
@@ -4307,6 +4431,9 @@ type BackupFlight struct {
 	//
 	// Example: 150
 	PicTime int `json:"picTime"`
+
+	// PicTimeOverride True when picTime is independently entered; otherwise derived from crew roles.
+	PicTimeOverride *bool `json:"picTimeOverride,omitempty"`
 
 	// PicusTime PIC under supervision (PICUS) time in minutes (EASA FCL.030, Part-FCL). Declared by the pilot, never auto-calculated; carved out of the derived function time. Counts toward PIC experience requirements (e.g. unfreezing an ATPL) but is kept distinct from PIC and SIC time.
 	//
@@ -5821,6 +5948,9 @@ type Flight struct {
 	// Example: 0
 	DualTime int `json:"dualTime"`
 
+	// DualTimeOverride True when dualTime is independently entered; otherwise derived from crew roles.
+	DualTimeOverride *bool `json:"dualTimeOverride,omitempty"`
+
 	// Endorsements Instructor endorsements, skill test references, examiner notes. EASA AMC1 FCL.050 Col 24 / FAA §61.51(h). Separate from pilot remarks.
 	//
 	// Example: Skill test passed
@@ -5831,6 +5961,9 @@ type Flight struct {
 	// Example: 0
 	ExaminerTime *int `json:"examinerTime,omitempty"`
 
+	// FlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	FlightTimeMethod *FlightTimeMethod `json:"flightTimeMethod,omitempty"`
+
 	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320", "FTD Level 5", "BATD", "AATD"). Required by EASA AMC1 FCL.050 Col 22 and FAA §61.51(b)(1)(iv).
 	//
 	// Example: FNPT II
@@ -5840,6 +5973,16 @@ type Flight struct {
 	//
 	// Example: 0
 	GroundTrainingTime *int `json:"groundTrainingTime,omitempty"`
+
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
+
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
 
 	// Holds Number of holding procedures performed
 	//
@@ -5935,6 +6078,9 @@ type Flight struct {
 	// Example: winch
 	LaunchMethod *FlightLaunchMethod `json:"launchMethod,omitempty"`
 
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
+
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10). Time operated on multi-pilot aircraft.
 	//
 	// Example: 0
@@ -5974,6 +6120,9 @@ type Flight struct {
 	//
 	// Example: 150
 	PicTime int `json:"picTime"`
+
+	// PicTimeOverride True when picTime is independently entered; otherwise derived from crew roles.
+	PicTimeOverride *bool `json:"picTimeOverride,omitempty"`
 
 	// PicusTime PIC under supervision (PICUS) time in minutes (EASA FCL.030, Part-FCL). Declared by the pilot, never auto-calculated; carved out of the derived function time. Counts toward PIC experience requirements (e.g. unfreezing an ATPL) but is kept distinct from PIC and SIC time.
 	//
@@ -6210,8 +6359,11 @@ type FlightBaselineInput struct {
 // FlightCreate Creates either a flight or an FSTD (simulator) session.
 //
 // For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-// omitting any of them returns 400.
+// `arrivalIcao` and `landings` are required. Block flights also require
+// `offBlockTime` and `onBlockTime`; Hobbs flights require `hobbsStartTenths`
+// and `hobbsEndTenths` instead. Manual flights require `manualTotalTime`.
+// Block timestamps are optional for Hobbs and manual flights.
+// Missing required fields or invalid readings return 400.
 //
 // For an FSTD session (`isSimulator: true`) they must be omitted — a training
 // device is not flown between places and has no block times. The session
@@ -6271,9 +6423,7 @@ type FlightCreate struct {
 	Distance      *float32 `json:"distance,omitempty"`
 	DualGivenTime *int     `json:"dualGivenTime,omitempty"`
 
-	// DualTime Dual instruction time in minutes. Computed by server — equals totalTime when isDual is true, 0 otherwise.
-	//
-	// Example: 0
+	// DualTime Independent dual credit in integer minutes, bounded by totalTime. Omit for crew-based calculation. May overlap the other explicitly entered credit.
 	DualTime *int `json:"dualTime,omitempty"`
 
 	// Endorsements Instructor endorsements, skill test references
@@ -6282,10 +6432,23 @@ type FlightCreate struct {
 	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
 	ExaminerTime *int `json:"examinerTime,omitempty"`
 
+	// FlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	FlightTimeMethod *FlightTimeMethod `json:"flightTimeMethod,omitempty"`
+
 	// FstdType FSTD type designation (e.g., "FNPT II", "FFS A320"). Required when isSimulator is true.
 	FstdType           *string `json:"fstdType,omitempty"`
 	GroundTrainingTime *int    `json:"groundTrainingTime,omitempty"`
-	Holds              *int    `json:"holds,omitempty"`
+
+	// HobbsEndTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsEndTenths *HobbsReadingTenths `json:"hobbsEndTenths,omitempty"`
+
+	// HobbsStartTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+	//
+	// Example: 15234
+	HobbsStartTenths *HobbsReadingTenths `json:"hobbsStartTenths,omitempty"`
+	Holds            *int                `json:"holds,omitempty"`
 
 	// IfrTime Example: 60
 	IfrTime            *int    `json:"ifrTime,omitempty"`
@@ -6304,18 +6467,21 @@ type FlightCreate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod *FlightCreateLaunchMethod `json:"launchMethod,omitempty"`
 
+	// ManualTotalTime Explicit recorded duration in integer minutes. Required for manual entries; when present on block or Hobbs entries, overrides calculation until explicitly cleared. Original source observations are retained.
+	ManualTotalTime *int `json:"manualTotalTime,omitempty"`
+
 	// MultiPilotTime Multi-pilot time in minutes (EASA AMC1 FCL.050 Col 10)
 	MultiPilotTime *int `json:"multiPilotTime,omitempty"`
 
 	// NightTime Night time in minutes. Provide to override auto-calculation from civil twilight; omit to auto-calculate. Cannot exceed total time.
 	NightTime *int `json:"nightTime,omitempty"`
 
-	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for a flight, rejected for an FSTD session.
+	// OffBlockTime Off-block time (chocks off / engine start) in UTC. Required for block flights, optional for Hobbs/manual flights, rejected for an FSTD session.
 	//
 	// Example: 14:15:00
 	OffBlockTime *string `json:"offBlockTime,omitempty"`
 
-	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Required for a flight, rejected for an FSTD session.
+	// OnBlockTime On-block time (chocks on / engine shutdown) in UTC. Required for block flights, optional for Hobbs/manual flights, rejected for an FSTD session.
 	//
 	// Example: 16:55:00
 	OnBlockTime *string `json:"onBlockTime,omitempty"`
@@ -6323,9 +6489,7 @@ type FlightCreate struct {
 	// PicName Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
 	PicName *string `json:"picName,omitempty"`
 
-	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
-	//
-	// Example: 150
+	// PicTime Independent pic credit in integer minutes, bounded by totalTime. Omit for crew-based calculation. May overlap the other explicitly entered credit.
 	PicTime *int `json:"picTime,omitempty"`
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time; the declared function times together with the derived ones must not exceed totalTime.
@@ -6363,7 +6527,7 @@ type FlightCreate struct {
 	// Example: 0
 	TakeoffsNight *int `json:"takeoffsNight,omitempty"`
 
-	// TotalTime Total block time in minutes calculated from offBlockTime and onBlockTime. Always 0 for an FSTD session. This field is computed by the server and should not be provided by the client.
+	// TotalTime Recorded total flight time in integer minutes, calculated from the selected method. Always 0 for an FSTD session. Computed by the server on create.
 	//
 	// Example: 150
 	TotalTime *int `json:"totalTime,omitempty"`
@@ -6618,6 +6782,9 @@ type FlightSignatureMethod string
 // FlightSignatureStatus defines model for FlightSignature.Status.
 type FlightSignatureStatus string
 
+// FlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+type FlightTimeMethod string
+
 // FlightTotals Column sums over every flight matching the request's filters, not just the returned page. updatedSince is a filter too, so a delta request sums only the changed flights. Times are in minutes.
 type FlightTotals struct {
 	// ActualInstrumentTime Minutes
@@ -6711,6 +6878,9 @@ type FlightUpdate struct {
 	// ArrivalTime Landing time in UTC
 	ArrivalTime nullable.Nullable[string] `json:"arrivalTime,omitempty"`
 
+	// ClockTimePolicy Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
+	ClockTimePolicy *FlightUpdateClockTimePolicy `json:"clockTimePolicy,omitempty"`
+
 	// CorrectionReason Why the entry is corrected. Required when a strict-mode edit is a correction; ignored otherwise.
 	CorrectionReason *string `json:"correctionReason,omitempty"`
 
@@ -6726,15 +6896,27 @@ type FlightUpdate struct {
 	DepartureTime nullable.Nullable[string] `json:"departureTime,omitempty"`
 	DualGivenTime *int                      `json:"dualGivenTime,omitempty"`
 
+	// DualTime Independent dual credit in minutes; null restores crew-based calculation. Each credit is bounded by totalTime and may overlap the other explicitly entered credit.
+	DualTime nullable.Nullable[int] `json:"dualTime,omitempty"`
+
 	// Endorsements Instructor endorsements, skill test references
 	Endorsements nullable.Nullable[string] `json:"endorsements,omitempty"`
 
 	// ExaminerTime Time conducting a check as examiner, in minutes. Overlays function time; bounded by totalTime.
 	ExaminerTime *int `json:"examinerTime,omitempty"`
 
+	// FlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	FlightTimeMethod *FlightTimeMethod `json:"flightTimeMethod,omitempty"`
+
 	// FstdType FSTD type designation
 	FstdType           nullable.Nullable[string] `json:"fstdType,omitempty"`
 	GroundTrainingTime *int                      `json:"groundTrainingTime,omitempty"`
+
+	// HobbsEndTenths Hobbs end reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
+	HobbsEndTenths nullable.Nullable[int] `json:"hobbsEndTenths,omitempty"`
+
+	// HobbsStartTenths Hobbs start reading in tenths of an hour; null explicitly clears the observation. Method changes alone retain it.
+	HobbsStartTenths   nullable.Nullable[int]    `json:"hobbsStartTenths,omitempty"`
 	Holds              *int                      `json:"holds,omitempty"`
 	IfrTime            *int                      `json:"ifrTime,omitempty"`
 	InstructorComments nullable.Nullable[string] `json:"instructorComments,omitempty"`
@@ -6750,6 +6932,9 @@ type FlightUpdate struct {
 	Landings     *int                      `json:"landings,omitempty"`
 	LaunchMethod nullable.Nullable[string] `json:"launchMethod,omitempty"`
 
+	// ManualTotalTime Explicit recorded duration in integer minutes; null restores calculation from the saved source.
+	ManualTotalTime nullable.Nullable[int] `json:"manualTotalTime,omitempty"`
+
 	// MultiPilotTime Multi-pilot time in minutes. A number declares the time; null returns the field to derivation from the crew list and aircraft.
 	MultiPilotTime nullable.Nullable[int] `json:"multiPilotTime,omitempty"`
 
@@ -6764,6 +6949,9 @@ type FlightUpdate struct {
 
 	// PicName Name of the PIC
 	PicName nullable.Nullable[string] `json:"picName,omitempty"`
+
+	// PicTime Independent pic credit in minutes; null restores crew-based calculation. Each credit is bounded by totalTime and may overlap the other explicitly entered credit.
+	PicTime nullable.Nullable[int] `json:"picTime,omitempty"`
 
 	// PicusTime PIC under supervision time in minutes. Carved out of the derived function time.
 	PicusTime *int `json:"picusTime,omitempty"`
@@ -6791,6 +6979,14 @@ type FlightUpdate struct {
 	TotalTime     *int                   `json:"totalTime,omitempty"`
 }
 
+// FlightUpdateClockTimePolicy Required when removing clock evidence from a non-block entry. Preserve explicitly retains recorded night and event splits; recalculate resets only automatic values.
+type FlightUpdateClockTimePolicy string
+
+// HobbsReadingTenths Original Hobbs meter reading in integer tenths of an hour (15234 means 1523.4 hours). Hobbs calculation requires both readings and end greater than start. Total minutes equal (end minus start) times 6 unless an explicit manualTotalTime override is present. Observations survive method changes. Optional block timestamps never override a Hobbs total.
+//
+// Example: 15234
+type HobbsReadingTenths = int
+
 // ImportColumnMapping defines model for ImportColumnMapping.
 type ImportColumnMapping struct {
 	// DateFormat Date parsing format (Go / strftime-style). Only relevant when targetField is `date`.
@@ -6798,12 +6994,22 @@ type ImportColumnMapping struct {
 	// Example: 2006-01-02
 	DateFormat *string `json:"dateFormat,omitempty"`
 
+	// DurationUnit Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+	DurationUnit *ImportColumnMappingDurationUnit `json:"durationUnit,omitempty"`
+
 	// SourceColumn Column header name from the uploaded file
 	//
 	// Example: Date
 	SourceColumn string `json:"sourceColumn"`
 
-	// TargetField Target flight log field for column mapping.
+	// TargetField Target flight log field for column mapping. hobbsStart and hobbsEnd
+	// accept decimal meter hours with at most one decimal place (dot or comma).
+	// A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
+	// defaults it to manual; otherwise an omitted method means block, independent
+	// of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
+	// manualTotalTime, picTime and dualTime accept duration values. Optional
+	// picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
+	// false ignores the corresponding value, true retains even an explicit zero.
 	//
 	// A `nightTime` or `crossCountryTime` column is stored as the pilot's
 	// own value with the matching override flag set (capped at block time)
@@ -6830,11 +7036,20 @@ type ImportColumnMapping struct {
 	// Example: 15:04
 	TimeFormat *string `json:"timeFormat,omitempty"`
 
+	// TotalTimePolicy Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
+	TotalTimePolicy *ImportColumnMappingTotalTimePolicy `json:"totalTimePolicy,omitempty"`
+
 	// TrueValue String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
 	//
 	// Example: X
 	TrueValue *string `json:"trueValue,omitempty"`
 }
+
+// ImportColumnMappingDurationUnit Explicit units for numeric duration cells. Auto preserves legacy parsing; meter readings always use decimal hours.
+type ImportColumnMappingDurationUnit string
+
+// ImportColumnMappingTotalTimePolicy Resolve a supplied total that differs from its source. Review rejects conflicts; recorded retains it as an explicit override; calculated explicitly uses the source.
+type ImportColumnMappingTotalTimePolicy string
 
 // ImportConfirmRequest defines model for ImportConfirmRequest.
 type ImportConfirmRequest struct {
@@ -6854,7 +7069,14 @@ type ImportConfirmRequest struct {
 	UploadToken string `json:"uploadToken"`
 }
 
-// ImportField Target flight log field for column mapping.
+// ImportField Target flight log field for column mapping. hobbsStart and hobbsEnd
+// accept decimal meter hours with at most one decimal place (dot or comma).
+// A pair of readings defaults the imported row to Hobbs; a mapped manualTotalTime
+// defaults it to manual; otherwise an omitted method means block, independent
+// of the user's entry preference. Conflicting supplied totals require an explicit totalTimePolicy decision. Source observations survive method changes.
+// manualTotalTime, picTime and dualTime accept duration values. Optional
+// picTimeOverride/dualTimeOverride flags retain automatic-versus-entered state;
+// false ignores the corresponding value, true retains even an explicit zero.
 //
 // A `nightTime` or `crossCountryTime` column is stored as the pilot's
 // own value with the matching override flag set (capped at block time)
@@ -6989,8 +7211,11 @@ type ImportPreviewFlight struct {
 	// Flight Creates either a flight or an FSTD (simulator) session.
 	//
 	// For a flight (`isSimulator` absent or false) `aircraftReg`, `departureIcao`,
-	// `arrivalIcao`, `offBlockTime`, `onBlockTime` and `landings` are all required;
-	// omitting any of them returns 400.
+	// `arrivalIcao` and `landings` are required. Block flights also require
+	// `offBlockTime` and `onBlockTime`; Hobbs flights require `hobbsStartTenths`
+	// and `hobbsEndTenths` instead. Manual flights require `manualTotalTime`.
+	// Block timestamps are optional for Hobbs and manual flights.
+	// Missing required fields or invalid readings return 400.
 	//
 	// For an FSTD session (`isSimulator: true`) they must be omitted — a training
 	// device is not flown between places and has no block times. The session
@@ -8181,6 +8406,9 @@ type User struct {
 	// Example: comma
 	DecimalSeparator *UserDecimalSeparator `json:"decimalSeparator,omitempty"`
 
+	// DefaultFlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	DefaultFlightTimeMethod *FlightTimeMethod `json:"defaultFlightTimeMethod,omitempty"`
+
 	// Email Example: pilot@example.com
 	Email openapi_types.Email `json:"email"`
 
@@ -9003,7 +9231,10 @@ type UpdateCurrentUserJSONBody struct {
 
 	// DecimalSeparator Preferred decimal separator for number display
 	DecimalSeparator *UpdateCurrentUserJSONBodyDecimalSeparator `json:"decimalSeparator,omitempty"`
-	Email            *openapi_types.Email                       `json:"email,omitempty"`
+
+	// DefaultFlightTimeMethod Source of a flight's recorded total. Block uses off/on-block timestamps; Hobbs uses meter readings; manual uses manualTotalTime in integer minutes. An omitted method on create uses the user's default; an omitted method on update keeps the flight's saved method. Legacy records without a method are block flights. Preference changes never recalculate existing flights. FSTD sessions use block and reject Hobbs or manual flight time sources.
+	DefaultFlightTimeMethod *FlightTimeMethod    `json:"defaultFlightTimeMethod,omitempty"`
+	Email                   *openapi_types.Email `json:"email,omitempty"`
 
 	// FlightListColumnMode Whether the flights list picks its optional columns from the data ("auto") or uses flightListColumns ("custom")
 	FlightListColumnMode *UpdateCurrentUserJSONBodyFlightListColumnMode `json:"flightListColumnMode,omitempty"`
