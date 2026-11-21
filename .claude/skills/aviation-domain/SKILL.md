@@ -90,7 +90,10 @@ privileges and carry passengers?
 Validation is layered and lives **below the handler**:
 
 1. `internal/models/flight.go` — `IsValid()` (required fields) and `ValidateTimeDistribution()`
-   (component times must be coherent with total time).
+   (component times must be coherent with total time). `IsPIC` and `IsDual` may both be set
+   — PIC while receiving instruction, FAA §61.51(e)(1)(i) — and the overlap
+   (`PICDualOverlap`) counts once; anything summing PIC and dual minutes must subtract it
+   (see DOMAIN.md "PIC while receiving instruction").
 2. `internal/models/validation.go` — maximum lengths for every free-text field.
 3. `internal/service/flight.go` — ownership checks and orchestration.
 
