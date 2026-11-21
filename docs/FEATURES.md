@@ -79,7 +79,9 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   `ClassType` enum and `ExpiryDate` drive currency and notifications.
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
-  flights are credited toward.
+  flights are credited toward. A registration reissued to another airframe gets one fleet
+  entry per airframe, each with its `validFrom`/`validTo` dates; a flight takes its class
+  and fleet facts from the entry valid on its date.
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.

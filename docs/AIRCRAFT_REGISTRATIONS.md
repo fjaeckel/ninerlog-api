@@ -90,6 +90,40 @@ Two consequences worth knowing:
   locked (`ErrFlightLocked`) and keeps its original spelling, exactly as it keeps
   every other field. Void the signature to normalise it.
 
+## One registration, several airframes
+
+A registration is not a permanent identity: a state can reissue it to a different
+aircraft once the old one is deregistered. N123AB may have been a C172 in 2015
+and a PA-16 in 2022, and a pilot who flew both needs both in the fleet with their
+own class, equipment flags and `isMultiPilot`.
+
+Each fleet entry therefore carries `validFrom` / `validTo` (inclusive, `null` is
+open-ended). The rules:
+
+- **No overlap.** Entries with the same registration may not have overlapping
+  ranges — enforced by `AircraftService` and, as the backstop, by the exclusion
+  constraint `aircraft_registration_validity_excl`. Two entries with no dates at
+  all overlap, so a second entry for a registration needs dates on both. A
+  conflict is a `409`.
+- **Flights resolve by date.** A flight still stores only `aircraft_reg` and
+  `aircraft_type`. Every SQL join to `aircraft` (reports, analytics, currency,
+  custom currency rules) also requires the flight date to fall inside the
+  entry's range, and the Go-side lookups (auto-calculation facts, import type
+  fill-in, flight sessions, EASA PDF classes, the logbook class scope) use
+  `service.FleetIndex.Resolve(registration, date)`. Because ranges cannot
+  overlap, a flight joins at most one entry and is never counted twice.
+- **Gaps are honest.** A flight dated outside every range of its registration
+  matches no fleet entry, exactly like a flight in an aircraft that is not in the
+  fleet: it keeps its totals but has no class for currency.
+- **Renames stay inside the range.** `PATCH` with `renameFlights: true` only
+  repoints flights dated within the entry's range, so renaming the PA-16 does
+  not drag the C172's flights along.
+- **Per-registration statistics stay per registration.** `GET /aircraft/stats`
+  groups flights by `aircraft_reg`, so both airframes share one row there; the
+  per-type breakdown next to it separates them.
+
+An entry with no dates behaves exactly as before the dates existed.
+
 ## Fixing existing data
 
 `POST /flights/recalculate` is the migration path. It canonicalises the fleet

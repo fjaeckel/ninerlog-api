@@ -115,7 +115,7 @@ func buildRestorePlan(userID uuid.UUID, p *Payload) (*restorePlan, error) {
 }
 
 func (pl *restorePlan) planAircraft(p *Payload) error {
-	seen := make(map[string]bool, len(p.Aircraft))
+	seen := make(map[string][]*models.Aircraft, len(p.Aircraft))
 	for i, src := range p.Aircraft {
 		if src == nil {
 			return invalidEntry("aircraft", i, nil)
@@ -124,7 +124,7 @@ func (pl *restorePlan) planAircraft(p *Payload) error {
 		a.ID = uuid.Nil
 		a.UserID = pl.userID
 		a.Registration = registration.Canonical(a.Registration)
-		if seen[a.Registration] {
+		if overlapsAny(&a, seen[a.Registration]) {
 			pl.aircraftSkipped++
 			continue
 		}
@@ -137,10 +137,20 @@ func (pl *restorePlan) planAircraft(p *Payload) error {
 		if err := a.Validate(); err != nil {
 			pl.warnings.add("aircraft", i, "restored although it no longer passes validation: %s", err)
 		}
-		seen[a.Registration] = true
+		seen[a.Registration] = append(seen[a.Registration], &a)
 		pl.aircraft = append(pl.aircraft, &a)
 	}
 	return nil
+}
+
+// overlapsAny reports whether a's validity range overlaps any of kept.
+func overlapsAny(a *models.Aircraft, kept []*models.Aircraft) bool {
+	for _, k := range kept {
+		if a.ValidityOverlaps(k) {
+			return true
+		}
+	}
+	return false
 }
 
 func (pl *restorePlan) planLicenses(p *Payload) error {
