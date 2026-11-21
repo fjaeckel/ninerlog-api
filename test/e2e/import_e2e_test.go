@@ -488,3 +488,129 @@ func TestImportEdgeCases(t *testing.T) {
 
 // Ensure unused import is consumed
 var _ = time.Now
+
+// C1/H1: a decimal-hour FAA logbook imports whole-number totals as hours
+// (issue #297), and an explicit durationFormat overrides the inference.
+func TestImportCSV_DecimalHours(t *testing.T) {
+	c := NewE2EClient(t)
+	registerAndLogin(t, c, uniqueEmail("import-decimal"), "SecurePass123!", "Tom Decimal")
+
+	csv := "Date,Tail,From,To,Total,XC\n" +
+		fmt.Sprintf("%s,N734TB,KFDK,KHGR,1.3,1.3\n", pastDate(3)) +
+		fmt.Sprintf("%s,N734TB,KFDK,KMRB,2,2\n", pastDate(2)) +
+		fmt.Sprintf("%s,N734TB,KFDK,KFDK,0.8,\n", pastDate(1))
+
+	mappings := func(totalFormat string) []map[string]interface{} {
+		total := map[string]interface{}{"sourceColumn": "Total", "targetField": "totalTime"}
+		if totalFormat != "" {
+			total["durationFormat"] = totalFormat
+		}
+		return []map[string]interface{}{
+			{"sourceColumn": "Date", "targetField": "date"},
+			{"sourceColumn": "Tail", "targetField": "aircraftReg"},
+			{"sourceColumn": "From", "targetField": "departureIcao"},
+			{"sourceColumn": "To", "targetField": "arrivalIcao"},
+			total,
+			{"sourceColumn": "XC", "targetField": "crossCountryTime"},
+		}
+	}
+
+	previewTotals := func(t *testing.T, token, totalFormat string) (map[int]int, map[int]string) {
+		t.Helper()
+		pr := c.POST("/imports/preview", map[string]interface{}{"uploadToken": token, "mappings": mappings(totalFormat)})
+		requireStatus(t, pr, http.StatusOK)
+		var p struct {
+			Flights []struct {
+				RowIndex int `json:"rowIndex"`
+				Flight   struct {
+					TotalTime *int `json:"totalTime"`
+				} `json:"flight"`
+				Errors []struct {
+					Field string `json:"field"`
+				} `json:"errors"`
+			} `json:"flights"`
+		}
+		pr.MustJSON(t, &p)
+		totals := make(map[int]int)
+		errFields := make(map[int]string)
+		for _, f := range p.Flights {
+			if f.Flight.TotalTime != nil {
+				totals[f.RowIndex] = *f.Flight.TotalTime
+			}
+			for _, e := range f.Errors {
+				errFields[f.RowIndex] = e.Field
+			}
+		}
+		return totals, errFields
+	}
+
+	up := uploadCSV(t, c, "faa-logbook.csv", csv)
+	requireStatus(t, up, http.StatusOK)
+	var u struct {
+		UploadToken       string `json:"uploadToken"`
+		SuggestedMappings []struct {
+			SourceColumn   string  `json:"sourceColumn"`
+			TargetField    string  `json:"targetField"`
+			DurationFormat *string `json:"durationFormat"`
+		} `json:"suggestedMappings"`
+	}
+	up.MustJSON(t, &u)
+	suggestedTotal := false
+	for _, m := range u.SuggestedMappings {
+		if m.SourceColumn == "Total" && m.TargetField == "totalTime" {
+			suggestedTotal = true
+			if m.DurationFormat == nil || *m.DurationFormat != "decimal" {
+				t.Errorf("suggested Total durationFormat = %v, want decimal", m.DurationFormat)
+			}
+		}
+	}
+	if !suggestedTotal {
+		t.Errorf("no totalTime suggestion for Total: %s", string(up.Body))
+	}
+
+	t.Run("explicit minutes keeps a whole number as minutes and rejects a fraction", func(t *testing.T) {
+		got, errFields := previewTotals(t, u.UploadToken, "minutes")
+		if got[2] != 2 {
+			t.Errorf("row 2 totalTime = %d, want 2", got[2])
+		}
+		for _, row := range []int{1, 3} {
+			if errFields[row] != "totalTime" {
+				t.Errorf("row %d error field = %q, want totalTime", row, errFields[row])
+			}
+		}
+	})
+
+	t.Run("auto reads a decimal-hour column as hours", func(t *testing.T) {
+		got, errFields := previewTotals(t, u.UploadToken, "")
+		if len(errFields) != 0 {
+			t.Fatalf("preview errors = %v", errFields)
+		}
+		want := map[int]int{1: 78, 2: 120, 3: 48}
+		for row, mins := range want {
+			if got[row] != mins {
+				t.Errorf("row %d totalTime = %d, want %d", row, got[row], mins)
+			}
+		}
+	})
+
+	t.Run("confirmed flights sum to the logbook total", func(t *testing.T) {
+		requireStatus(t, c.POST("/imports/preview", map[string]interface{}{
+			"uploadToken": u.UploadToken, "mappings": mappings("decimal"),
+		}), http.StatusOK)
+		requireStatus(t, c.POST("/imports/confirm", map[string]interface{}{"uploadToken": u.UploadToken}), http.StatusCreated)
+		list := c.GET("/flights")
+		requireStatus(t, list, http.StatusOK)
+		var lr struct {
+			Data []map[string]interface{} `json:"data"`
+		}
+		list.MustJSON(t, &lr)
+		sum := 0
+		for _, f := range lr.Data {
+			sum += gi(f, "totalTime")
+			if gi(f, "totalTime") == 120 {
+				assertInt(t, "crossCountryTime", gi(f, "crossCountryTime"), 120)
+			}
+		}
+		assertInt(t, "sum totalTime", sum, 246)
+	})
+}
