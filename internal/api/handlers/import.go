@@ -484,23 +484,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 				model_ = typeCode
 			}
 
-			// Map ForeFlight class to aircraft class
-			var aircraftClass *string
-			ffClass := strings.ToLower(strings.TrimSpace(acRow["Class"]))
-			switch ffClass {
-			case "airplane_single_engine_land":
-				c := "SEP_LAND"
-				aircraftClass = &c
-			case "airplane_single_engine_sea":
-				c := "SEP_SEA"
-				aircraftClass = &c
-			case "airplane_multi_engine_land":
-				c := "MEP_LAND"
-				aircraftClass = &c
-			case "airplane_multi_engine_sea":
-				c := "MEP_SEA"
-				aircraftClass = &c
-			}
+			aircraftClass := foreFlightAircraftClass(acRow["Class"], acRow["EngineType"])
 
 			newAircraft := &models.Aircraft{
 				UserID:        userID,

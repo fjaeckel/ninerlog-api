@@ -241,3 +241,89 @@ func TestEASA_PPL_SEPOnly_TMGNotCounted(t *testing.T) {
 		t.Errorf("countedClasses = %v, want absent", rc["countedClasses"])
 	}
 }
+
+// ─── FAA airplane class pools — 14 CFR 61.57(a)/(b), #303 ───────────────────
+
+// TestFAA_MEPSea_CountsTwinOtterOnFloats — an AMES holder's landings in a
+// MET_SEA Twin Otter count toward the MEP_SEA rating and its passenger currency.
+func TestFAA_MEPSea_CountsTwinOtterOnFloats(t *testing.T) {
+	c := setupCurrencyUser(t, "faa-mes-twotter")
+	createAircraftCur(t, c, "C-GTWO", "DHC6", "MET_SEA")
+
+	licID := createLicenseCur(t, c, "FAA", "Commercial")
+	createRatingCur(t, c, licID, "MEP_SEA", nil)
+
+	for i := 0; i < 3; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(10 + i*20), "aircraftReg": "C-GTWO", "aircraftType": "DHC6",
+			"departureIcao": "KJFK", "arrivalIcao": "KLGA",
+			"offBlockTime": "14:00", "onBlockTime": "15:00",
+			"landings": 1,
+		})
+	}
+
+	result := getCurrencyStatus(t, c)
+	rc := findRatingCur(result, "MEP_SEA")
+	if rc == nil {
+		t.Fatal("FAA MEP_SEA not found")
+	}
+	assertStr(t, "status", rc["status"], "expiring")
+	progress, _ := rc["progress"].(map[string]interface{})
+	assertInt(t, "progress.landings", gi(progress, "landings"), 3)
+	counted := countedClassesCur(rc)
+	if !containsStr(counted, "MEP_SEA") || !containsStr(counted, "MET_SEA") || containsStr(counted, "MET_LAND") {
+		t.Errorf("countedClasses = %v, want MEP_SEA and MET_SEA", counted)
+	}
+
+	pc := findPaxCur(result, "MEP_SEA")
+	if pc == nil {
+		t.Fatal("FAA MEP_SEA passenger currency not found")
+	}
+	assertStr(t, "pax dayStatus", pc["dayStatus"], "current")
+}
+
+// TestFAA_SEPLand_IgnoresTwinTurboprop — engine count still separates classes.
+func TestFAA_SEPLand_IgnoresTwinTurboprop(t *testing.T) {
+	c := setupCurrencyUser(t, "faa-asel-kingair")
+	createAircraftCur(t, c, "N350KA", "BE35", "MET_LAND")
+
+	licID := createLicenseCur(t, c, "FAA", "Private")
+	createRatingCur(t, c, licID, "SEP_LAND", nil)
+
+	for i := 0; i < 3; i++ {
+		createFlightCur(t, c, map[string]interface{}{
+			"date": pastDate(10 + i*20), "aircraftReg": "N350KA", "aircraftType": "BE35",
+			"departureIcao": "KJFK", "arrivalIcao": "KLGA",
+			"offBlockTime": "14:00", "onBlockTime": "15:00",
+			"landings": 1,
+		})
+	}
+
+	rc := findRatingCur(getCurrencyStatus(t, c), "SEP_LAND")
+	if rc == nil {
+		t.Fatal("FAA SEP_LAND not found")
+	}
+	assertStr(t, "status", rc["status"], "expired")
+}
+
+// TestEASA_MEP_IgnoresTurbopropClass — EASA keeps MET_LAND out of an MEP class rating.
+func TestEASA_MEP_IgnoresTurbopropClass(t *testing.T) {
+	c := setupCurrencyUser(t, "easa-mep-met")
+	createAircraftCur(t, c, "D-IKAI", "BE20", "MET_LAND")
+
+	licID := createLicenseCur(t, c, "EASA", "PPL(A)")
+	expiry := futureDate(60)
+	createRatingCur(t, c, licID, "MEP_LAND", &expiry)
+
+	createRecencyFlightsCur(t, c, "D-IKAI", "BE20")
+
+	rc := findRatingCur(getCurrencyStatus(t, c), "MEP_LAND")
+	if rc == nil {
+		t.Fatal("EASA MEP_LAND not found")
+	}
+	progress, _ := rc["progress"].(map[string]interface{})
+	assertInt(t, "progress.flights", gi(progress, "flights"), 0)
+	if counted := countedClassesCur(rc); len(counted) != 0 {
+		t.Errorf("countedClasses = %v, want none", counted)
+	}
+}

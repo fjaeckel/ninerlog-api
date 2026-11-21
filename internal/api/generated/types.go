@@ -2952,7 +2952,7 @@ type AdminUser struct {
 
 // Aircraft defines model for Aircraft.
 type Aircraft struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+	// AircraftClass Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
 	//
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
@@ -3072,7 +3072,7 @@ type AircraftUlKind string
 
 // AircraftCreate defines model for AircraftCreate.
 type AircraftCreate struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+	// AircraftClass Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
 	//
 	// Example: SEP_LAND
 	AircraftClass *string `json:"aircraftClass,omitempty"`
@@ -3263,7 +3263,7 @@ type AircraftTypeStats struct {
 
 // AircraftUpdate defines model for AircraftUpdate.
 type AircraftUpdate struct {
-	// AircraftClass Aircraft class (e.g., SEP_LAND, MEP_LAND, TMG, GLIDER, ULTRALIGHT, or any custom value). Matched case-insensitively against class rating types for currency.
+	// AircraftClass Aircraft class, free text. Well-known values are SEP_LAND, SEP_SEA, MEP_LAND and MEP_SEA (piston); SET_LAND, SET_SEA, MET_LAND and MET_SEA (turboprop); SEJ_LAND and MEJ_LAND (jet); TMG, GLIDER, ULTRALIGHT and GYROPLANE. Any other value is kept as a custom class. Matched case-insensitively against class rating types for currency. A class starting with ME is logged as single-pilot multi-engine time.
 	//
 	// Example: SEP_LAND
 	AircraftClass nullable.Nullable[string] `json:"aircraftClass,omitempty"`
@@ -4697,11 +4697,14 @@ type ClassRatingCurrency struct {
 	// than the rating's own class — EASA LAPL(A) pools every aeroplane class and TMG
 	// (FCL.140.A); a license holding both SEP_LAND and TMG ratings pools those two
 	// (FCL.740.A(b)(1)); a GLIDER rating and an SPL TMG rating count flight time on
-	// GLIDER and TMG (SFCL.160(a)(1), (b)(1)).
+	// GLIDER and TMG (SFCL.160(a)(1), (b)(1)); an FAA airplane class rating counts piston,
+	// turboprop and jet aircraft of the same engine count and surface (14 CFR 61.57(a)/(b)), so
+	// SEP_LAND also counts SET_LAND and SEJ_LAND, and MEP_SEA also counts MET_SEA. Items are
+	// aircraft classes, which need not be class rating types.
 	//
 	//
 	// Example: ["SEP_LAND","TMG"]
-	CountedClasses *[]ClassType `json:"countedClasses,omitempty"`
+	CountedClasses *[]string `json:"countedClasses,omitempty"`
 
 	// CreditedUltralightKinds Ultralight kinds whose flights also count toward this rating, present only when any do.
 	// EASA LAPL(A) recency and SEP/TMG revalidation credit THREE_AXIS (as SEP_LAND) and

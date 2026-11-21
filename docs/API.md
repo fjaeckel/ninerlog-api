@@ -541,8 +541,11 @@ hide the affected UI rather than discovering the `403` by trying.
 `GET /currency` (all ratings) and `GET /licenses/{id}/currency`.
 
 Each `ClassRatingCurrency` in `GET /currency` carries `countedClasses` when flights on more
-than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pooling — see
-[DOMAIN.md](./DOMAIN.md#credited-classes)); the field is absent otherwise. It carries
+than the rating's own class count toward it (EASA LAPL(A) and SEP(land)+TMG pooling, and the
+FAA airplane class pools that join piston, turboprop and jet aircraft of one engine count and
+surface — see [DOMAIN.md](./DOMAIN.md#credited-classes)); the field is absent otherwise. Its
+items are aircraft classes, so they may include `MET_LAND`, `MET_SEA`, `SEJ_LAND` and
+`MEJ_LAND`, which are not class rating types. It carries
 `creditedUltralightKinds` when ultralight flights count too: `THREE_AXIS` /
 `THREE_AXIS_MOTORGLIDER` toward EASA SEP/TMG and LAPL(A) time and landings (FCL.035(a)(4)), or
 the kinds a German `ULTRALIGHT` rating covers. A German ultralight passenger currency entry

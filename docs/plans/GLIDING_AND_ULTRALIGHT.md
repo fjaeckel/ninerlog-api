@@ -59,7 +59,7 @@ legal when they are not:
 | C4 | FAA §61.57(a) passenger currency is reported as the glider *rating* status, so "Expired" shows for a pilot who may legally fly solo. | `faa.go:162-200` | §61.57(a) governs passengers only |
 | C5 | An FAA Private licence with a glider rating gets a night requirement. | `faa.go:230` | Glider night passenger rule does not apply |
 | C6 | The licence-filtered PDF compares the raw `aircraft_class` case-sensitively, ignores the UL kind, and drops SEP flights that were credited toward §45(2). | `internal/api/handlers/export_pdf.go:555-581` | — |
-| C7 | `SET*` classes land in the SP-ME column. | `internal/service/flightrules/display.go:197` | AMC1 FCL.050 |
+| C7 | `SET*` classes land in the SP-ME column. **Fixed (#303):** SP-SE/SP-ME now follow the engine count. | `internal/service/flightrules/display.go:197` | AMC1 FCL.050 |
 | C8 | The LAPL(A) training flight has the same cumulative pattern as C1, for every LAPL(A) holder. | `easa.go:357` (`easaLAPLRule`, `mInstructorMinutes`) | FCL.140.A(a)(1): "one refresher training flight of at least 1 hour total flight time with an instructor" |
 
 Checked and **not** a finding: §45(2) allows the 12 h to be flown on three-axis UL, TMG or SEP.
@@ -126,7 +126,7 @@ Every WP's definition of done:
 
 - The licence-filtered PDF uses the normalised class (trimmed, upper-case), filters ULs by
   kind, and includes credited SEP/TMG flights under a "credited" marker.
-- `SET*` goes to SP-SE.
+- `SET*` goes to SP-SE. (Done in #303.)
 - Tests: handler tests plus `export_formats_e2e_test.go`.
 - Closes C6 and C7.
 
