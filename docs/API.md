@@ -365,10 +365,18 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 /licenses/{id}/ratings`, without the aircraft-only `THREE_AXIS_MOTORGLIDER`.
 `maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
 (`Invalid maximum take-off mass`).
+`validFrom` / `validTo` (calendar dates, inclusive, nullable = open-ended) record when the
+registration identified this airframe, so one registration can appear on several fleet
+entries — N123AB as a C172 until 2019, as a PA-16 since. `POST` and `PATCH` return `409` when
+another entry with the same registration has an overlapping range (two open-ended entries
+always overlap), and `400` when `validFrom` is after `validTo`. On `PATCH`, JSON `null` reopens
+a bound. `renameFlights` repoints only the flights dated inside the entry's range. Flights are
+matched to the fleet entry whose range covers the flight date, for auto-calculation, reports
+and currency alike.
 
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
-`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+`registration ASC, validFrom ASC` (open-ended first) and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
 plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
 fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.

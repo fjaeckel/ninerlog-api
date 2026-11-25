@@ -29,7 +29,7 @@ import (
 //   - Top-level keys: exportedAt, version, format, flights, aircraft,
 //     licenses, credentials.
 //   - Flights are sorted chronologically (date, then off-block/departure).
-//   - Aircraft are sorted by registration.
+//   - Aircraft are sorted by registration, then validFrom (open-ended first).
 //   - Licenses are sorted by id; class ratings are sorted by id.
 //   - Credentials are sorted by id.
 //   - The exportedAt field is excluded from the SHA-256 fingerprint used for

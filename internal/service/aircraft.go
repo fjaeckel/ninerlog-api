@@ -14,7 +14,7 @@ import (
 var (
 	ErrAircraftNotFound      = errors.New("aircraft not found")
 	ErrUnauthorizedAircraft  = errors.New("unauthorized access to aircraft")
-	ErrDuplicateRegistration = errors.New("aircraft registration already exists")
+	ErrDuplicateRegistration = errors.New("an aircraft with this registration already exists for an overlapping period")
 )
 
 const (
@@ -45,11 +45,33 @@ func (s *AircraftService) CreateAircraft(ctx context.Context, aircraft *models.A
 	if err := models.ValidateAircraftTextFields(aircraft); err != nil {
 		return err
 	}
+	if err := s.checkValidityOverlap(ctx, aircraft); err != nil {
+		return err
+	}
 	err := s.aircraftRepo.Create(ctx, aircraft)
 	if errors.Is(err, repository.ErrDuplicateRegistration) {
 		return ErrDuplicateRegistration
 	}
 	return err
+}
+
+// checkValidityOverlap returns ErrDuplicateRegistration when another aircraft
+// of the same user and registration has a validity range overlapping
+// aircraft's.
+func (s *AircraftService) checkValidityOverlap(ctx context.Context, aircraft *models.Aircraft) error {
+	fleet, err := s.aircraftRepo.GetByUserID(ctx, aircraft.UserID, nil)
+	if err != nil {
+		return err
+	}
+	for _, other := range fleet {
+		if other == nil || other.ID == aircraft.ID || other.Registration != aircraft.Registration {
+			continue
+		}
+		if aircraft.ValidityOverlaps(other) {
+			return ErrDuplicateRegistration
+		}
+	}
+	return nil
 }
 
 func (s *AircraftService) GetAircraft(ctx context.Context, id, userID uuid.UUID) (*models.Aircraft, error) {
@@ -124,6 +146,9 @@ func (s *AircraftService) UpdateAircraft(ctx context.Context, aircraft *models.A
 		return 0, err
 	}
 	if err := models.ValidateAircraftTextFields(aircraft); err != nil {
+		return 0, err
+	}
+	if err := s.checkValidityOverlap(ctx, aircraft); err != nil {
 		return 0, err
 	}
 

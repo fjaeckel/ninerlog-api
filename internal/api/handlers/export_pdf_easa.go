@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/fjaeckel/ninerlog-api/internal/models"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
@@ -89,11 +89,11 @@ type easaRow struct {
 	picName, remarks             string
 }
 
-func buildEASARows(page []*models.Flight, regToClass map[string]string, userName string, remarksMax int, strict *strictExport) []easaRow {
+func buildEASARows(page []*models.Flight, classes aircraftClassLookup, userName string, remarksMax int, strict *strictExport) []easaRow {
 	rows := make([]easaRow, len(page))
 	for i, f := range page {
 		rd := easaRow{f: f}
-		acClass := regToClass[strings.ToUpper(f.AircraftReg)]
+		acClass := classOf(classes, f)
 		rd.spSE, rd.spME, rd.mp = flightrules.RowTimes(f, acClass)
 		rd.ifr = flightrules.EffectiveIFRTime(f)
 		rd.fstdDate, rd.fstdType, _ = flightrules.FSTDFields(f, "02.01", fmtDec)
@@ -201,41 +201,35 @@ func easaSingleTotCells(t easaTotals) []string {
 
 func generateEASAPDF(flights []*models.Flight, g pageGeometry, h *APIHandler, c *gin.Context, userID uuid.UUID, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature, strict *strictExport) *fpdf.Fpdf {
 	aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-	regToClass := make(map[string]string)
-	for _, ac := range aircraftList {
-		if ac.AircraftClass != nil {
-			regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
-		}
-	}
 	userName := h.getUserNameFromContext(c)
-	return renderEASAWith(flights, g, regToClass, userName, layout, b, sigs, strict)
+	return renderEASAWith(flights, g, fleetClasses{service.NewFleetIndex(aircraftList)}, userName, layout, b, sigs, strict)
 }
 
 // renderEASA performs the actual EASA PDF rendering. Extracted so tests can
 // invoke it without a full APIHandler. `sigs` carries the instructor sign-off
 // of each signed flight, keyed by flight ID.
-func renderEASA(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
-	return renderEASAWith(flights, g, regToClass, userName, layout, b, sigs, nil)
+func renderEASA(flights []*models.Flight, g pageGeometry, classes aircraftClassLookup, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature) *fpdf.Fpdf {
+	return renderEASAWith(flights, g, classes, userName, layout, b, sigs, nil)
 }
 
 // renderEASAWith renders the EASA PDF with the audit trail of a strict-mode
 // export; a nil strict renders the standard document.
-func renderEASAWith(flights []*models.Flight, g pageGeometry, regToClass map[string]string, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature, strict *strictExport) *fpdf.Fpdf {
+func renderEASAWith(flights []*models.Flight, g pageGeometry, classes aircraftClassLookup, userName, layout string, b *models.FlightBaseline, sigs map[uuid.UUID]*models.FlightSignature, strict *strictExport) *fpdf.Fpdf {
 	d := newDoc(g, easaRegulation, userName, certEASA)
 	d.note = joinNotes(baselineFooterNote(b), strict.footerNote())
 	d.sigs = sigs
 	d.strict = strict
 	if layout == layoutSingle {
-		renderEASASingle(d, flights, regToClass, userName, b)
+		renderEASASingle(d, flights, classes, userName, b)
 	} else {
-		renderEASASpread(d, flights, regToClass, userName, b)
+		renderEASASpread(d, flights, classes, userName, b)
 	}
 	addGrandSummaryPage(d, flights, b)
 	d.drawStrictAppendix(flights)
 	return d.pdf
 }
 
-func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string, b *models.FlightBaseline) {
+func renderEASASpread(d *pdfDoc, flights []*models.Flight, classes aircraftClassLookup, userName string, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	leftW := scaleWidths(easaLeftBaseW, g.usableWidth())
 	rightW := scaleWidths(easaRightBaseW, g.usableWidth())
@@ -259,7 +253,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			endIdx = len(flights)
 		}
 		spreadNum++
-		rows := buildEASARows(flights[startIdx:endIdx], regToClass, userName, 38, d.strict)
+		rows := buildEASARows(flights[startIdx:endIdx], classes, userName, 38, d.strict)
 
 		var pt easaTotals
 		for _, rd := range rows {
@@ -323,7 +317,7 @@ func renderEASASpread(d *pdfDoc, flights []*models.Flight, regToClass map[string
 	}
 }
 
-func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string]string, userName string, b *models.FlightBaseline) {
+func renderEASASingle(d *pdfDoc, flights []*models.Flight, classes aircraftClassLookup, userName string, b *models.FlightBaseline) {
 	g, pdf := d.g, d.pdf
 	colW := scaleWidths(easaSingleBaseW, g.usableWidth())
 
@@ -341,7 +335,7 @@ func renderEASASingle(d *pdfDoc, flights []*models.Flight, regToClass map[string
 			endIdx = len(flights)
 		}
 		pageNum++
-		rows := buildEASARows(flights[startIdx:endIdx], regToClass, userName, 26, d.strict)
+		rows := buildEASARows(flights[startIdx:endIdx], classes, userName, 26, d.strict)
 
 		d.startPage(fmt.Sprintf("Logbook Page %d of %d", pageNum, totalPages))
 		d.drawHeader(colW, easaSingleGroups, easaSingleSub)
