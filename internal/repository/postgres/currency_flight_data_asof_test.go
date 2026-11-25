@@ -22,7 +22,7 @@ func TestCurrencyDataProvider_AsOfBindsUntilDay(t *testing.T) {
 
 	mock.ExpectQuery(regexp.QuoteMeta("f.date <= $3::date")).
 		WithArgs(userID, since, until).
-		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(1, 60, 60, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0))
+		WillReturnRows(sqlmock.NewRows(progressColumns).AddRow(1, 60, 60, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0))
 
 	bounded, ok := currency.FlightDataProvider(p).(currency.AsOfProvider)
 	if !ok {

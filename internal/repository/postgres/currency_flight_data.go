@@ -53,7 +53,8 @@ const progressSelect = `
 			COALESCE(SUM(f.holds), 0) as holds,
 			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
-			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
+			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes,
+			COALESCE(SUM(LEAST(f.pic_time, f.dual_time)) FILTER (WHERE f.is_pic AND f.is_dual), 0) as pic_dual_overlap_minutes`
 
 // ulKindFilter matches ULTRALIGHT aircraft a whose kind is in $2, or unset when
 // $3, with an MTOM of at least $4 kg when $4 is not 0.
@@ -80,6 +81,7 @@ func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query str
 		&progress.Launches,
 		&progress.TrainingFlights,
 		&progress.LongestTrainingFlightMinutes,
+		&progress.PICDualOverlapMinutes,
 	)
 	if err != nil {
 		return nil, err

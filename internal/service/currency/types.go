@@ -76,8 +76,11 @@ type Progress struct {
 	TrainingFlights int `json:"trainingFlights"`
 	// LongestTrainingFlightMinutes is the longest total time of a flight with dual time received.
 	LongestTrainingFlightMinutes int `json:"longestTrainingFlightMinutes"`
-	RequiredMinutes              int `json:"requiredMinutes,omitempty"`
-	RequiredLandings             int `json:"requiredLandings,omitempty"`
+	// PICDualOverlapMinutes is the time logged as both PIC and dual received,
+	// included in both PICMinutes and InstructorMinutes.
+	PICDualOverlapMinutes int `json:"-"`
+	RequiredMinutes       int `json:"requiredMinutes,omitempty"`
+	RequiredLandings      int `json:"requiredLandings,omitempty"`
 }
 
 // Requirement represents a single currency requirement with progress

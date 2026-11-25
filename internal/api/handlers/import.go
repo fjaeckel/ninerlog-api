@@ -896,6 +896,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 	var instructorName string
 	var dualReceivedVal float64
 	var dualGivenVal float64
+	var picLogged bool
 	// landingsTotal is tracked separately from the day/night split so the two
 	// can be reconciled after the loop. Map iteration order is random, so
 	// neither may overwrite the other as it is read.
@@ -952,7 +953,12 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "isPic":
-			// Auto-calculated from crew; ignore imported value
+			// Kept only as a PIC-while-dual declaration; PIC is derived from crew
+			if mins, err := importDuration(val, mapping); err == nil {
+				picLogged = mins > 0
+			} else {
+				picLogged = parseBoolish(val, mapping.TrueValue)
+			}
 		case "isDual":
 			// Track DualReceived for crew role inference
 			if mins, err := importDuration(val, mapping); err == nil {
@@ -1158,6 +1164,10 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			Name: m.Name,
 			Role: generated.CrewRole(m.Role),
 		})
+	}
+
+	if picLogged && dualReceivedVal > 0 {
+		flight.IsPic = &picLogged
 	}
 
 	if len(crewMembers) > 0 {
@@ -1366,6 +1376,7 @@ func buildImportedFlight(userID uuid.UUID, flight generated.FlightCreate, extras
 	if flight.IsFlightReview != nil {
 		newFlight.IsFlightReview = *flight.IsFlightReview
 	}
+	declarePICWhileDual(&newFlight, flight.IsPic)
 	if flight.Route != nil {
 		newFlight.Route = flight.Route
 	}

@@ -178,23 +178,43 @@ func TestCreateFlight(t *testing.T) {
 	}
 }
 
+func TestCreateFlightPICWhileDual(t *testing.T) {
+	flightRepo := newMockFlightRepo()
+	service := NewFlightService(flightRepo, nil)
+	ctx := context.Background()
+
+	flight := &models.Flight{
+		UserID:       uuid.New(),
+		Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
+		AircraftReg:  "N734TB",
+		AircraftType: "C182",
+		TotalTime:    96,
+		IsPIC:        true,
+		IsDual:       true,
+		PICTime:      96,
+		DualTime:     96,
+		LandingsDay:  3,
+	}
+
+	if err := service.CreateFlight(ctx, flight); err != nil {
+		t.Fatalf("CreateFlight() = %v, want nil", err)
+	}
+}
+
 func TestCreateFlightInvalidTimeDistribution(t *testing.T) {
 	flightRepo := newMockFlightRepo()
 	service := NewFlightService(flightRepo, nil)
 	ctx := context.Background()
 
-	userID := uuid.New()
-
-	// Create invalid flight (isPic and isDual both true — mutually exclusive)
-	flightDate := time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
-		UserID:       userID,
-		Date:         flightDate,
+		UserID:       uuid.New(),
+		Date:         time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC),
 		AircraftReg:  "D-EFGH",
 		AircraftType: "C172",
-		TotalTime:    2.0,
+		TotalTime:    90,
 		IsPIC:        true,
-		IsDual:       true, // Cannot be both PIC and Dual
+		PICTime:      45,
+		DualTime:     45,
 		LandingsDay:  3,
 	}
 

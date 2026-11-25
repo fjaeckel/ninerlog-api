@@ -4,7 +4,7 @@ import "errors"
 
 var (
 	// Flight validation errors
-	ErrInvalidTimeDistribution = errors.New("PIC and dual time are mutually exclusive")
+	ErrInvalidTimeDistribution = errors.New("PIC and dual time overlap only on a flight logged as both PIC and dual")
 	ErrInvalidNightTime        = errors.New("night time exceeds total time")
 	ErrInvalidIFRTime          = errors.New("IFR time exceeds total time")
 	ErrInvalidCrossCountryTime = errors.New("cross-country time exceeds total time")
