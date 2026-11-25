@@ -164,14 +164,12 @@ func (f *Flight) IsValid() bool {
 // examiner time overlay the function time rather than adding to it — an
 // instructor logs it alongside PIC time, or alone when the student acts as
 // PIC — so each is bounded by TotalTime only.
+//
+// A flight logged as both PIC and dual received (14 CFR §61.51(e)(1)(i))
+// counts the minutes the two columns share once.
 func (f *Flight) ValidateTimeDistribution() error {
 	if f.IsSimulator {
 		return f.validateSessionTimes()
-	}
-
-	// isPic and isDual are mutually exclusive
-	if f.IsPIC && f.IsDual {
-		return ErrInvalidTimeDistribution
 	}
 
 	// All times must be non-negative
@@ -196,8 +194,13 @@ func (f *Flight) ValidateTimeDistribution() error {
 		return ErrInvalidCrossCountryTime
 	}
 
+	// PIC and dual time share minutes only on a flight logged as both
+	if f.PICTime > 0 && f.DualTime > 0 && !f.IsPICWhileDual() {
+		return ErrInvalidTimeDistribution
+	}
+
 	// Pilot function time decomposes total time
-	if f.PICTime+f.PICUSTime+f.SPICTime+f.SICTime+f.DualTime+f.ReliefTime > f.TotalTime {
+	if f.PICTime+f.PICUSTime+f.SPICTime+f.SICTime+f.DualTime+f.ReliefTime-f.PICDualOverlap() > f.TotalTime {
 		return ErrInvalidFunctionTime
 	}
 
@@ -225,6 +228,21 @@ func (f *Flight) ValidateTimeDistribution() error {
 	}
 
 	return nil
+}
+
+// IsPICWhileDual reports whether the flight is logged as both PIC and dual
+// received.
+func (f *Flight) IsPICWhileDual() bool {
+	return f.IsPIC && f.IsDual
+}
+
+// PICDualOverlap returns the minutes logged in both the PIC and the dual
+// received column, or 0 unless the flight is logged as both.
+func (f *Flight) PICDualOverlap() int {
+	if !f.IsPICWhileDual() {
+		return 0
+	}
+	return min(f.PICTime, f.DualTime)
 }
 
 // validateSessionTimes enforces the FSTD invariants: a session carries a

@@ -4,7 +4,7 @@ import "errors"
 
 var (
 	// Flight validation errors
-	ErrInvalidTimeDistribution = errors.New("PIC and dual time are mutually exclusive")
+	ErrInvalidTimeDistribution = errors.New("PIC and dual time overlap only on a flight logged as both PIC and dual")
 	ErrInvalidNightTime        = errors.New("night time exceeds total time")
 	ErrInvalidIFRTime          = errors.New("IFR time exceeds total time")
 	ErrInvalidCrossCountryTime = errors.New("cross-country time exceeds total time")
@@ -25,6 +25,7 @@ var (
 	ErrAircraftTypeRequired         = errors.New("aircraft type is required")
 	ErrAircraftMakeRequired         = errors.New("aircraft make is required")
 	ErrAircraftModelRequired        = errors.New("aircraft model is required")
+	ErrInvalidAircraftValidity      = errors.New("aircraft validFrom must not be after validTo")
 	ErrInvalidULKind                = errors.New("invalid ultralight kind")
 	ErrInvalidAircraftMTOM          = errors.New("maximum take-off mass must be between 1 and 1000000 kg")
 	ErrAircraftInvalidEngineType    = errors.New("invalid engine type")

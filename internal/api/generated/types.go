@@ -878,16 +878,16 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 
 // Defines values for CustomCurrencyThresholdUnit.
 const (
-	Hours   CustomCurrencyThresholdUnit = "hours"
-	Minutes CustomCurrencyThresholdUnit = "minutes"
+	CustomCurrencyThresholdUnitHours   CustomCurrencyThresholdUnit = "hours"
+	CustomCurrencyThresholdUnitMinutes CustomCurrencyThresholdUnit = "minutes"
 )
 
 // Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
 func (e CustomCurrencyThresholdUnit) Valid() bool {
 	switch e {
-	case Hours:
+	case CustomCurrencyThresholdUnitHours:
 		return true
-	case Minutes:
+	case CustomCurrencyThresholdUnitMinutes:
 		return true
 	default:
 		return false
@@ -1455,6 +1455,27 @@ func (e FlightSignatureStatus) Valid() bool {
 	case FlightSignatureStatusRevoked:
 		return true
 	case FlightSignatureStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingDurationFormat.
+const (
+	ImportColumnMappingDurationFormatAuto    ImportColumnMappingDurationFormat = "auto"
+	ImportColumnMappingDurationFormatDecimal ImportColumnMappingDurationFormat = "decimal"
+	ImportColumnMappingDurationFormatMinutes ImportColumnMappingDurationFormat = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingDurationFormat enum.
+func (e ImportColumnMappingDurationFormat) Valid() bool {
+	switch e {
+	case ImportColumnMappingDurationFormatAuto:
+		return true
+	case ImportColumnMappingDurationFormatDecimal:
+		return true
+	case ImportColumnMappingDurationFormatMinutes:
 		return true
 	default:
 		return false
@@ -3051,6 +3072,16 @@ type Aircraft struct {
 
 	// UserId Example: 550e8400-e29b-41d4-a716-446655440000
 	UserId openapi_types.UUID `json:"userId"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom *openapi_types.Date `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo *openapi_types.Date `json:"validTo,omitempty"`
 }
 
 // AircraftUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
@@ -3146,6 +3177,16 @@ type AircraftCreate struct {
 	//
 	// Example: THREE_AXIS
 	UlKind *AircraftCreateUlKind `json:"ulKind,omitempty"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom *openapi_types.Date `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo *openapi_types.Date `json:"validTo,omitempty"`
 }
 
 // AircraftCreateUlKind Ultralight kind (German "Luftsportgeräteart"), kept only when aircraftClass is
@@ -3312,7 +3353,7 @@ type AircraftUpdate struct {
 	// Registration Example: D-EFGH
 	Registration *string `json:"registration,omitempty"`
 
-	// RenameFlights When true and the registration is being changed, logged flights that reference the old registration are updated to the new one.
+	// RenameFlights When true and the registration is being changed, logged flights that reference the old registration and are dated within this aircraft's validFrom/validTo range are updated to the new one.
 	//
 	// Example: false
 	RenameFlights *bool `json:"renameFlights,omitempty"`
@@ -3337,6 +3378,16 @@ type AircraftUpdate struct {
 	//
 	// Example: THREE_AXIS
 	UlKind nullable.Nullable[string] `json:"ulKind,omitempty"`
+
+	// ValidFrom First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+	//
+	// Example: 2019-04-01
+	ValidFrom nullable.Nullable[openapi_types.Date] `json:"validFrom,omitempty"`
+
+	// ValidTo Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+	//
+	// Example: 2023-12-31
+	ValidTo nullable.Nullable[openapi_types.Date] `json:"validTo,omitempty"`
 }
 
 // Airport defines model for Airport.
@@ -5863,7 +5914,7 @@ type Flight struct {
 	// InstructorName Name of the instructor for this flight
 	InstructorName *string `json:"instructorName,omitempty"`
 
-	// IsDual Whether this flight was logged as dual instruction received. Mutually exclusive with isPic.
+	// IsDual Whether this flight was logged as dual instruction received. May be true together with isPic (PIC while receiving instruction, 14 CFR §61.51(e)(1)(i)).
 	//
 	// Example: false
 	IsDual bool `json:"isDual"`
@@ -5891,7 +5942,7 @@ type Flight struct {
 	// Example: false
 	IsPassenger bool `json:"isPassenger"`
 
-	// IsPic Whether this flight was logged as pilot-in-command. Mutually exclusive with isDual.
+	// IsPic Whether this flight was logged as pilot-in-command. True together with isDual when the pilot logged PIC time while receiving instruction (14 CFR §61.51(e)(1)(i)); picTime and dualTime then cover the same minutes and count once toward the function-time total.
 	//
 	// Example: true
 	IsPic bool `json:"isPic"`
@@ -6296,7 +6347,10 @@ type FlightCreate struct {
 	InstructorName     *string `json:"instructorName,omitempty"`
 	IsFlightReview     *bool   `json:"isFlightReview,omitempty"`
 	IsIpc              *bool   `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool   `json:"isProficiencyCheck,omitempty"`
+
+	// IsPic Declares PIC time on a flight flown while receiving instruction (14 CFR §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of the controls). Only takes effect when the crew makes the flight dual received (a third-party Instructor or Examiner); the flight is then logged with isPic and isDual both true and picTime equal to dualTime, counted once toward total time. On any other flight PIC is derived from the crew and this field is ignored.
+	IsPic              *bool `json:"isPic,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Marks this entry as an FSTD (simulator) session rather than a flight.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
@@ -6326,7 +6380,7 @@ type FlightCreate struct {
 	// PicName Name of the PIC. Auto-set to "Self" when isPic=true, or to instructorName when isDual=true.
 	PicName *string `json:"picName,omitempty"`
 
-	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise.
+	// PicTime Pilot-in-command time in minutes. Computed by server — equals totalTime when isPic is true, 0 otherwise. On a flight logged as both PIC and dual it equals dualTime.
 	//
 	// Example: 150
 	PicTime *int `json:"picTime,omitempty"`
@@ -6744,7 +6798,10 @@ type FlightUpdate struct {
 	InstructorName     nullable.Nullable[string] `json:"instructorName,omitempty"`
 	IsFlightReview     *bool                     `json:"isFlightReview,omitempty"`
 	IsIpc              *bool                     `json:"isIpc,omitempty"`
-	IsProficiencyCheck *bool                     `json:"isProficiencyCheck,omitempty"`
+
+	// IsPic Declares PIC time on a flight flown while receiving instruction (14 CFR §61.51(e)(1)(i): a pilot rated for the aircraft acting as sole manipulator of the controls). Only takes effect when the crew makes the flight dual received (a third-party Instructor or Examiner); the flight is then logged with isPic and isDual both true and picTime equal to dualTime, counted once toward total time. On any other flight PIC is derived from the crew and this field is ignored. Omitted, the stored declaration is kept; false removes it.
+	IsPic              *bool `json:"isPic,omitempty"`
+	IsProficiencyCheck *bool `json:"isProficiencyCheck,omitempty"`
 
 	// IsSimulator Switches the entry between flight and FSTD session. Changing it clears the columns that do not apply to the new kind.
 	IsSimulator *bool `json:"isSimulator,omitempty"`
@@ -6801,6 +6858,28 @@ type ImportColumnMapping struct {
 	// Example: 2006-01-02
 	DateFormat *string `json:"dateFormat,omitempty"`
 
+	// DurationFormat How a bare number in a duration column is read. Only relevant for
+	// duration fields (`totalTime`, `isDual`, `nightTime`,
+	// `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+	// `simulatedInstrumentTime`, `dualGivenTime`).
+	// `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+	// same under every option.
+	// - `decimal`: decimal hours; a whole number is whole hours ("2" is
+	//   120 minutes, "1.3" is 78, "1,5" is 90)
+	// - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+	//   error
+	// - `auto` (default): when every non-empty cell in the column is a
+	//   bare number and at least one has a fraction, the column is read
+	//   as `decimal`; otherwise a whole number is minutes and a fraction
+	//   is decimal hours
+	//
+	// The upload response suggests `decimal` for a duration column whose
+	// cells match that pattern across the whole file.
+	//
+	//
+	// Example: decimal
+	DurationFormat *ImportColumnMappingDurationFormat `json:"durationFormat,omitempty"`
+
 	// SourceColumn Column header name from the uploaded file
 	//
 	// Example: Date
@@ -6838,6 +6917,27 @@ type ImportColumnMapping struct {
 	// Example: X
 	TrueValue *string `json:"trueValue,omitempty"`
 }
+
+// ImportColumnMappingDurationFormat How a bare number in a duration column is read. Only relevant for
+// duration fields (`totalTime`, `isDual`, `nightTime`,
+// `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+// `simulatedInstrumentTime`, `dualGivenTime`).
+// `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+// same under every option.
+//   - `decimal`: decimal hours; a whole number is whole hours ("2" is
+//     120 minutes, "1.3" is 78, "1,5" is 90)
+//   - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+//     error
+//   - `auto` (default): when every non-empty cell in the column is a
+//     bare number and at least one has a fraction, the column is read
+//     as `decimal`; otherwise a whole number is minutes and a fraction
+//     is decimal hours
+//
+// The upload response suggests `decimal` for a duration column whose
+// cells match that pattern across the whole file.
+//
+// Example: decimal
+type ImportColumnMappingDurationFormat string
 
 // ImportConfirmRequest defines model for ImportConfirmRequest.
 type ImportConfirmRequest struct {

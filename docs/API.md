@@ -365,10 +365,18 @@ see [AIRCRAFT_REGISTRATIONS.md](./AIRCRAFT_REGISTRATIONS.md). `ulKind` is kept o
 /licenses/{id}/ratings`, without the aircraft-only `THREE_AXIS_MOTORGLIDER`.
 `maxTakeoffMassKg` (1–1,000,000, nullable) records the aircraft's MTOM; out of range is a `400`
 (`Invalid maximum take-off mass`).
+`validFrom` / `validTo` (calendar dates, inclusive, nullable = open-ended) record when the
+registration identified this airframe, so one registration can appear on several fleet
+entries — N123AB as a C172 until 2019, as a PA-16 since. `POST` and `PATCH` return `409` when
+another entry with the same registration has an overlapping range (two open-ended entries
+always overlap), and `400` when `validFrom` is after `validTo`. On `PATCH`, JSON `null` reopens
+a bound. `renameFlights` repoints only the flights dated inside the entry's range. Flights are
+matched to the fleet entry whose range covers the flight date, for auto-calculation, reports
+and currency alike.
 
 `pageSize` defaults to 20 and accepts up to **500**; a larger value is clamped rather than
 rejected, and `pagination.pageSize` echoes the value actually applied. Pages are ordered by
-`registration ASC` and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
+`registration ASC, validFrom ASC` (open-ended first) and bounded in SQL (`LIMIT`/`OFFSET`), so a page costs one bounded query
 plus one `COUNT`, not a scan of the whole fleet. Clients that need the complete fleet — the
 fleet list, an aircraft picker — must page until `pagination.page` reaches
 `pagination.totalPages`; a single request returns at most one page, whatever the fleet size.
@@ -432,6 +440,14 @@ currency window. Clients never send it; it is derived on save. Sending `sicTime`
 explicitly declares the co-pilot seat and is honoured on any aircraft. Mark the aircraft
 with `isMultiPilot` (on `POST`/`PATCH /aircraft`) and re-run `POST /flights/recalculate` to
 re-derive existing flights. See [DOMAIN.md](./DOMAIN.md#who-may-log-co-pilot-time).
+
+Create and update accept `isPic: true` to declare PIC time on a flight flown while
+receiving instruction (14 CFR §61.51(e)(1)(i)). When the crew makes the flight dual
+received (a third-party `Instructor` or `Examiner`), the flight responds with `isPic` and
+`isDual` both `true` and `picTime` equal to `dualTime`; the shared minutes count once
+against `totalTime`. On any other flight PIC is derived from the crew and `isPic` changes
+nothing. On `PUT`, omitting `isPic` keeps the stored declaration and `false` removes it.
+See [DOMAIN.md](./DOMAIN.md#pic-while-receiving-instruction-faa).
 
 Create and update accept the declared function times `picusTime` (PIC under supervision),
 `spicTime` (student PIC), `examinerTime` and `reliefTime`, all integer minutes. They are
@@ -674,6 +690,12 @@ columns read from template-known columns, and override flags — are in
 `sicTime`, `multiPilotTime`, `takeoffsDay` and `takeoffsNight`; a confirm whose flight was
 created but whose crew could not be saved reports a `crewMembers` row error and the status
 `partial`.
+
+`ImportColumnMapping.durationFormat` (`auto` default, `decimal`, `minutes`) sets how a bare
+number in a duration column is read; `decimal` reads `2` as 120 minutes. `auto` reads a
+column as `decimal` when its cells are all bare numbers and at least one has a fraction.
+`POST /imports/upload` suggests `decimal` for such columns, and the preview's flights carry
+the converted minutes.
 
 ### My data: `/users/me/data`
 

@@ -53,7 +53,8 @@ const progressSelect = `
 			COALESCE(SUM(f.holds), 0) as holds,
 			COALESCE(SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)), 0) as launches,
 			COUNT(*) FILTER (WHERE f.dual_time > 0) as training_flights,
-			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes`
+			COALESCE(MAX(f.total_time) FILTER (WHERE f.dual_time > 0), 0) as longest_training_flight_minutes,
+			COALESCE(SUM(LEAST(f.pic_time, f.dual_time)) FILTER (WHERE f.is_pic AND f.is_dual), 0) as pic_dual_overlap_minutes`
 
 // ulKindFilter matches ULTRALIGHT aircraft a whose kind is in $2, or unset when
 // $3, with an MTOM of at least $4 kg when $4 is not 0.
@@ -80,6 +81,7 @@ func (p *currencyFlightDataProvider) scanProgress(ctx context.Context, query str
 		&progress.Launches,
 		&progress.TrainingFlights,
 		&progress.LongestTrainingFlightMinutes,
+		&progress.PICDualOverlapMinutes,
 	)
 	if err != nil {
 		return nil, err
@@ -92,6 +94,7 @@ func (p *currencyFlightDataProvider) GetProgressByAircraftClass(ctx context.Cont
 		SELECT` + progressSelect + `
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.date >= $3
 			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 			AND ($5::date IS NULL OR f.date <= $5::date)
@@ -104,6 +107,7 @@ func (p *currencyFlightDataProvider) GetProgressByULKind(ctx context.Context, us
 		SELECT` + progressSelect + `
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 			AND ($7::date IS NULL OR f.date <= $7::date)
@@ -115,6 +119,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheckByULKind(ctx context
 	query := `
 		SELECT f.date FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.is_proficiency_check = true AND f.date >= $5
 			AND ($6::date IS NULL OR f.date <= $6::date)
 		ORDER BY f.date DESC
@@ -139,6 +144,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByULKind(ctx context.Context,
 			COALESCE(SUM(f.landings_night), 0) as night_landings
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND ` + ulKindFilter + ` AND f.date >= $5
 			AND ($6 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 			AND ($7::date IS NULL OR f.date <= $7::date)
@@ -201,6 +207,7 @@ func (p *currencyFlightDataProvider) GetLastProficiencyCheck(ctx context.Context
 		query = `
 			SELECT f.date FROM flights f
 			INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = ANY($2) AND f.is_proficiency_check = true AND f.date >= $3
 				AND (upper(trim(a.aircraft_class)) = 'GLIDER' OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 				AND ($4::date IS NULL OR f.date <= $4::date)
@@ -229,6 +236,7 @@ func (p *currencyFlightDataProvider) GetLandingDaysByAircraftClass(ctx context.C
 			COALESCE(SUM(f.landings_night), 0) as night_landings
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 			AND ($4 OR COALESCE(f.launch_method, '') NOT IN ` + towedLaunches + `)
 			AND (NOT $5 OR f.pic_time > 0)
@@ -265,6 +273,7 @@ func (p *currencyFlightDataProvider) GetLaunchCounts(ctx context.Context, userID
 		SELECT f.launch_method, SUM(GREATEST(f.takeoffs_day + f.takeoffs_night, 1)) as launches
 		FROM flights f
 		INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1 AND NOT f.is_simulator AND NOT f.is_passenger AND upper(trim(a.aircraft_class)) = $2 AND f.date >= $3
 			AND f.launch_method IS NOT NULL AND f.launch_method != ''
 			AND ($4::date IS NULL OR f.date <= $4::date)

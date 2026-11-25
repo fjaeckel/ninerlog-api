@@ -196,6 +196,7 @@ func (r *reportsRepository) StatsByClass(ctx context.Context, userID uuid.UUID, 
 			COALESCE(SUM(f.landings_day + f.landings_night), 0) as landings
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1`+s.filter+`
 		GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
 		ORDER BY minutes DESC
@@ -225,14 +226,17 @@ func (r *reportsRepository) StatsByCategory(ctx context.Context, userID uuid.UUI
 		FROM (
 			SELECT f.pic_time, f.dual_time, 'Tailwheel' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_tailwheel`+s.filter+`
 			UNION ALL
 			SELECT f.pic_time, f.dual_time, 'Complex' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_complex`+s.filter+`
 			UNION ALL
 			SELECT f.pic_time, f.dual_time, 'High Performance' as category
 			FROM flights f JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_high_performance`+s.filter+`
 		) sub
 		GROUP BY category
@@ -432,7 +436,7 @@ func (r *reportsRepository) ByAircraft(ctx context.Context, userID uuid.UUID, mo
 		// flown under more than one type designation.
 		subLabel = `COALESCE(NULLIF(TRIM(CONCAT_WS(' ', MIN(a.make), MIN(a.model))), ''), MIN(f.aircraft_type))`
 	}
-	join := " LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id"
+	join := " LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)"
 
 	args, limitPh := s.withLimit(limit)
 	rows, err := r.db.QueryContext(ctx, `
@@ -500,6 +504,7 @@ func (r *reportsRepository) ByClass(ctx context.Context, userID uuid.UUID, month
 			COALESCE(SUM(f.landings_day + f.landings_night), 0)
 		FROM flights f
 		LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 		WHERE f.user_id = $1`+s.filter+`
 		GROUP BY COALESCE(a.aircraft_class, 'Unclassified')
 		ORDER BY 3 DESC`,
@@ -527,18 +532,21 @@ func (r *reportsRepository) ByCategory(ctx context.Context, userID uuid.UUID, mo
 			       f.landings_day + f.landings_night AS landings
 			FROM flights f
 			JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_tailwheel`+s.filter+`
 			UNION ALL
 			SELECT 'Complex', f.total_time, f.pic_time, f.dual_time,
 			       f.landings_day + f.landings_night
 			FROM flights f
 			JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_complex`+s.filter+`
 			UNION ALL
 			SELECT 'High Performance', f.total_time, f.pic_time, f.dual_time,
 			       f.landings_day + f.landings_night
 			FROM flights f
 			JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+			AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 			WHERE f.user_id = $1 AND a.is_high_performance`+s.filter+`
 		) sub
 		GROUP BY label

@@ -35,7 +35,7 @@ func TestGenerateExportDemoPDF(t *testing.T) {
 	flights := buildPICNameVariations(userName)
 	t.Logf("generated %d demo flights", len(flights))
 
-	regToClass := map[string]string{
+	regToClass := regClasses{
 		"D-EABC": "SEP",
 		"D-EXYZ": "SEP",
 		"N12345": "SEP",

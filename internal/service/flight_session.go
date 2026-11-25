@@ -264,11 +264,12 @@ func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.
 		totalMinutes = 1
 	}
 
+	date := time.Date(offBlock.Year(), offBlock.Month(), offBlock.Day(), 0, 0, 0, 0, time.UTC)
 	flight := &models.Flight{
 		UserID:        session.UserID,
-		Date:          time.Date(offBlock.Year(), offBlock.Month(), offBlock.Day(), 0, 0, 0, 0, time.UTC),
+		Date:          date,
 		AircraftReg:   *session.AircraftReg,
-		AircraftType:  s.lookupAircraftType(ctx, session.UserID, *session.AircraftReg),
+		AircraftType:  s.lookupAircraftType(ctx, session.UserID, *session.AircraftReg, date),
 		DepartureICAO: session.DepartureICAO,
 		ArrivalICAO:   session.ArrivalICAO,
 		OffBlockTime:  timeOfDay(offBlock),
@@ -281,19 +282,17 @@ func (s *FlightSessionService) buildFlight(ctx context.Context, session *models.
 	}
 
 	flightcalc.ApplyAutoCalculations(flight, userName,
-		AircraftFactsFor(ctx, s.aircraftRepo, session.UserID, *session.AircraftReg))
+		AircraftFactsFor(ctx, s.aircraftRepo, session.UserID, *session.AircraftReg, date))
 	return flight
 }
 
 // lookupAircraftType resolves the aircraft type from the user's aircraft
-// list by registration, falling back to "UNKNOWN".
-func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uuid.UUID, reg string) string {
+// list by registration and date, falling back to "UNKNOWN".
+func (s *FlightSessionService) lookupAircraftType(ctx context.Context, userID uuid.UUID, reg string, date time.Time) string {
 	aircraft, err := s.aircraftRepo.GetByUserID(ctx, userID, nil)
 	if err == nil {
-		for _, a := range aircraft {
-			if strings.EqualFold(a.Registration, reg) {
-				return a.Type
-			}
+		if a := NewFleetIndex(aircraft).Resolve(reg, date); a != nil {
+			return a.Type
 		}
 	}
 	return "UNKNOWN"

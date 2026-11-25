@@ -10,6 +10,7 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/api/generated"
 	"github.com/fjaeckel/ninerlog-api/internal/models"
 	"github.com/fjaeckel/ninerlog-api/internal/repository"
+	"github.com/fjaeckel/ninerlog-api/internal/service"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pdf/fpdf"
@@ -644,15 +645,10 @@ func (h *APIHandler) ExportFlightsPDF(c *gin.Context, params generated.ExportFli
 				allowedClasses[string(cr.ClassType)] = true
 			}
 			aircraftList, _ := h.aircraftService.ListAircraft(c.Request.Context(), userID)
-			regToClass := make(map[string]string)
-			for _, ac := range aircraftList {
-				if ac.AircraftClass != nil {
-					regToClass[strings.ToUpper(ac.Registration)] = *ac.AircraftClass
-				}
-			}
+			classes := fleetClasses{service.NewFleetIndex(aircraftList)}
 			var filtered []*models.Flight
 			for _, f := range flights {
-				acClass := regToClass[strings.ToUpper(f.AircraftReg)]
+				acClass := classOf(classes, f)
 				if acClass != "" && allowedClasses[acClass] {
 					filtered = append(filtered, f)
 				}
