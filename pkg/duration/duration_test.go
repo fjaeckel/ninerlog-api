@@ -167,3 +167,73 @@ func TestParseDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDurationAs(t *testing.T) {
+	tests := []struct {
+		input   string
+		unit    Unit
+		want    int
+		wantErr bool
+	}{
+		// Conversion table from issue #297.
+		{"0.1", UnitDecimalHours, 6, false},
+		{"0.5", UnitDecimalHours, 30, false},
+		{"1.3", UnitDecimalHours, 78, false},
+		{"1.5", UnitDecimalHours, 90, false},
+		{"2.0", UnitDecimalHours, 120, false},
+		{"10.2", UnitDecimalHours, 612, false},
+		{"2", UnitDecimalHours, 120, false},
+		{"1,5", UnitDecimalHours, 90, false},
+		{"0", UnitDecimalHours, 0, false},
+		{"1:18", UnitDecimalHours, 78, false},
+		{"1h 18m", UnitDecimalHours, 78, false},
+
+		{"90", UnitMinutes, 90, false},
+		{"2", UnitMinutes, 2, false},
+		{"1:30", UnitMinutes, 90, false},
+		{"1.5", UnitMinutes, 0, true},
+
+		{"2", UnitAuto, 2, false},
+		{"1.5", UnitAuto, 90, false},
+		{"2", "", 2, false},
+
+		{"-1", UnitDecimalHours, 0, true},
+		{"abc", UnitDecimalHours, 0, true},
+		{"", UnitDecimalHours, 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.unit)+"/"+tt.input, func(t *testing.T) {
+			got, err := ParseDurationAs(tt.input, tt.unit)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseDurationAs(%q, %q) error = %v, wantErr %v", tt.input, tt.unit, err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("ParseDurationAs(%q, %q) = %d, want %d", tt.input, tt.unit, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInferUnit(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []string
+		want   Unit
+	}{
+		{"decimal hours with whole numbers", []string{"1.3", "2", "", "0.8"}, UnitDecimalHours},
+		{"comma decimal", []string{"1,5", "2"}, UnitDecimalHours},
+		{"integers only", []string{"90", "45", "2"}, UnitAuto},
+		{"colon form", []string{"1:30", "2"}, UnitAuto},
+		{"mixed colon and decimal", []string{"1:30", "1.5"}, UnitAuto},
+		{"suffixed hours", []string{"1.5h", "2"}, UnitAuto},
+		{"empty", []string{"", " "}, UnitAuto},
+		{"nil", nil, UnitAuto},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InferUnit(tt.values); got != tt.want {
+				t.Errorf("InferUnit(%q) = %q, want %q", tt.values, got, tt.want)
+			}
+		})
+	}
+}

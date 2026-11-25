@@ -20,7 +20,13 @@ Conversion and formatting live in `pkg/duration`:
 | `FormatHM(min) string` | `"1h 23m"` |
 | `FormatColonHM(min) string` | `"1:23"` |
 | `FormatDecimal(min) string` | decimal-hours string |
-| `ParseDuration(input) (int, error)` | parse user input (`HH:MM`, decimal, etc.) → minutes |
+| `ParseDuration(input) (int, error)` | parse user input (`HH:MM`, decimal, etc.) → minutes; a bare integer is minutes |
+| `ParseDurationAs(input, unit) (int, error)` | `ParseDuration` with a bare number read in `unit`: `UnitDecimalHours` (`"2"` → 120), `UnitMinutes`, or `UnitAuto` |
+| `InferUnit(values) Unit` | `UnitDecimalHours` when every non-empty value is a bare number and at least one has a fraction, else `UnitAuto` |
+
+CSV import reads each duration column through `ParseDurationAs` with the mapping's
+`durationFormat`; under `auto` the column's unit comes from `InferUnit` over every row of
+the file (see FEATURES.md, import templates).
 
 Block/event times of day (`OffBlockTime`, `OnBlockTime`, `DepartureTime`, `ArrivalTime`)
 are stored as `HH:MM:SS` strings in **UTC**, because they are wall-clock instants, not
