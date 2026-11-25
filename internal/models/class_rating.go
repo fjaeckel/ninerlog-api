@@ -24,6 +24,14 @@ const (
 	ClassTypeGyro    ClassType = "GYROPLANE"
 )
 
+// Aircraft classes with no class rating of the same name; not in ValidClassTypes.
+const (
+	AircraftClassMETLand ClassType = "MET_LAND"
+	AircraftClassMETSea  ClassType = "MET_SEA"
+	AircraftClassSEJLand ClassType = "SEJ_LAND"
+	AircraftClassMEJLand ClassType = "MEJ_LAND"
+)
+
 // ValidClassTypes returns all valid class types
 func ValidClassTypes() []ClassType {
 	return []ClassType{
