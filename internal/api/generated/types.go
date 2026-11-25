@@ -878,16 +878,16 @@ func (e CustomCurrencyThresholdMetric) Valid() bool {
 
 // Defines values for CustomCurrencyThresholdUnit.
 const (
-	Hours   CustomCurrencyThresholdUnit = "hours"
-	Minutes CustomCurrencyThresholdUnit = "minutes"
+	CustomCurrencyThresholdUnitHours   CustomCurrencyThresholdUnit = "hours"
+	CustomCurrencyThresholdUnitMinutes CustomCurrencyThresholdUnit = "minutes"
 )
 
 // Valid indicates whether the value is a known member of the CustomCurrencyThresholdUnit enum.
 func (e CustomCurrencyThresholdUnit) Valid() bool {
 	switch e {
-	case Hours:
+	case CustomCurrencyThresholdUnitHours:
 		return true
-	case Minutes:
+	case CustomCurrencyThresholdUnitMinutes:
 		return true
 	default:
 		return false
@@ -1455,6 +1455,27 @@ func (e FlightSignatureStatus) Valid() bool {
 	case FlightSignatureStatusRevoked:
 		return true
 	case FlightSignatureStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportColumnMappingDurationFormat.
+const (
+	ImportColumnMappingDurationFormatAuto    ImportColumnMappingDurationFormat = "auto"
+	ImportColumnMappingDurationFormatDecimal ImportColumnMappingDurationFormat = "decimal"
+	ImportColumnMappingDurationFormatMinutes ImportColumnMappingDurationFormat = "minutes"
+)
+
+// Valid indicates whether the value is a known member of the ImportColumnMappingDurationFormat enum.
+func (e ImportColumnMappingDurationFormat) Valid() bool {
+	switch e {
+	case ImportColumnMappingDurationFormatAuto:
+		return true
+	case ImportColumnMappingDurationFormatDecimal:
+		return true
+	case ImportColumnMappingDurationFormatMinutes:
 		return true
 	default:
 		return false
@@ -6798,6 +6819,28 @@ type ImportColumnMapping struct {
 	// Example: 2006-01-02
 	DateFormat *string `json:"dateFormat,omitempty"`
 
+	// DurationFormat How a bare number in a duration column is read. Only relevant for
+	// duration fields (`totalTime`, `isDual`, `nightTime`,
+	// `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+	// `simulatedInstrumentTime`, `dualGivenTime`).
+	// `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+	// same under every option.
+	// - `decimal`: decimal hours; a whole number is whole hours ("2" is
+	//   120 minutes, "1.3" is 78, "1,5" is 90)
+	// - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+	//   error
+	// - `auto` (default): when every non-empty cell in the column is a
+	//   bare number and at least one has a fraction, the column is read
+	//   as `decimal`; otherwise a whole number is minutes and a fraction
+	//   is decimal hours
+	//
+	// The upload response suggests `decimal` for a duration column whose
+	// cells match that pattern across the whole file.
+	//
+	//
+	// Example: decimal
+	DurationFormat *ImportColumnMappingDurationFormat `json:"durationFormat,omitempty"`
+
 	// SourceColumn Column header name from the uploaded file
 	//
 	// Example: Date
@@ -6835,6 +6878,27 @@ type ImportColumnMapping struct {
 	// Example: X
 	TrueValue *string `json:"trueValue,omitempty"`
 }
+
+// ImportColumnMappingDurationFormat How a bare number in a duration column is read. Only relevant for
+// duration fields (`totalTime`, `isDual`, `nightTime`,
+// `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+// `simulatedInstrumentTime`, `dualGivenTime`).
+// `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+// same under every option.
+//   - `decimal`: decimal hours; a whole number is whole hours ("2" is
+//     120 minutes, "1.3" is 78, "1,5" is 90)
+//   - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+//     error
+//   - `auto` (default): when every non-empty cell in the column is a
+//     bare number and at least one has a fraction, the column is read
+//     as `decimal`; otherwise a whole number is minutes and a fraction
+//     is decimal hours
+//
+// The upload response suggests `decimal` for a duration column whose
+// cells match that pattern across the whole file.
+//
+// Example: decimal
+type ImportColumnMappingDurationFormat string
 
 // ImportConfirmRequest defines model for ImportConfirmRequest.
 type ImportConfirmRequest struct {

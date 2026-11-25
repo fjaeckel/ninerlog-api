@@ -27,7 +27,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
-	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -236,6 +235,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 			return
 		}
 		detected, format, suggested = detectImportFormat(columns)
+		suggestDurationFormats(suggested, rows)
 	} else {
 		h.sendError(c, http.StatusBadRequest, "Unsupported file format. Please upload a CSV file.")
 		return
@@ -335,6 +335,7 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 	auxColumns := sessionAuxColumns(session)
+	resolveDurationFormats(mappingLookup, auxColumns, session.rows)
 
 	for i, row := range session.rows {
 		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
@@ -455,6 +456,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 	}
 	auxColumns := sessionAuxColumns(session)
+	resolveDurationFormats(mappingLookup, auxColumns, session.rows)
 	multiPilotRegs := collectMultiPilotRegistrations(session.rows, mappingLookup, auxColumns, isSelected)
 
 	aircraftCreated := 0
@@ -917,7 +919,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
 		case "totalTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.TotalTime = &mins
 			} else {
 				errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Invalid duration '%s'", val)})
@@ -926,35 +928,35 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			// Auto-calculated from crew; ignore imported value
 		case "isDual":
 			// Track DualReceived for crew role inference
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				dualReceivedVal = float64(mins)
 			}
 		case "nightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.NightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"nightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "crossCountryTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.CrossCountryTime = &mins
 			} else {
 				errs = append(errs, fieldError{"crossCountryTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "ifrTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.IfrTime = &mins
 			} else {
 				errs = append(errs, fieldError{"ifrTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "actualInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.ActualInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"actualInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "simulatedInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.SimulatedInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
@@ -1014,13 +1016,13 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.FstdType = &t
 			}
 		case "simulatedFlightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.SimulatedFlightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedFlightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "dualGivenTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.DualGivenTime = &mins
 				dualGivenVal = float64(mins)
 			} else {
@@ -1054,7 +1056,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		}
 		switch field {
 		case importtemplate.AuxSICTime, importtemplate.AuxMultiPilotTime:
-			mins, err := duration.ParseDuration(normalizeDecimalSeparator(val))
+			mins, err := importDuration(val, mappings[col])
 			if err != nil || mins < 0 {
 				continue
 			}

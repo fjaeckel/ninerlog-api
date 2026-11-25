@@ -672,6 +672,12 @@ columns read from template-known columns, and override flags — are in
 created but whose crew could not be saved reports a `crewMembers` row error and the status
 `partial`.
 
+`ImportColumnMapping.durationFormat` (`auto` default, `decimal`, `minutes`) sets how a bare
+number in a duration column is read; `decimal` reads `2` as 120 minutes. `auto` reads a
+column as `decimal` when its cells are all bare numbers and at least one has a fraction.
+`POST /imports/upload` suggests `decimal` for such columns, and the preview's flights carry
+the converted minutes.
+
 ### My data: `/users/me/data`
 
 One resource holds every operation on a pilot's own data. Tag `Users`, bearer auth.
