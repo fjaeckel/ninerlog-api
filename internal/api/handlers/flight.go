@@ -410,7 +410,7 @@ func (h *APIHandler) CreateFlight(c *gin.Context) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg, flight.Date)
 
 	declarePICWhileDual(&flight, req.IsPic)
 
@@ -640,7 +640,7 @@ func (h *APIHandler) UpdateFlight(c *gin.Context, flightId generated.FlightId) {
 
 	userName := h.getUserNameFromContext(c)
 
-	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg)
+	facts := h.aircraftService.AircraftFactsFor(c.Request.Context(), userID, flight.AircraftReg, flight.Date)
 
 	// Stored crew for an update without a crewMembers key
 	if req.CrewMembers == nil {

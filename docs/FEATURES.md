@@ -79,7 +79,9 @@ migration and troubleshooting: [OIDC.md](./OIDC.md).
   `ClassType` enum and `ExpiryDate` drive currency and notifications.
 - **Aircraft** (`internal/service/aircraft.go`) — the pilot's aircraft; the aircraft class
   links flights to the correct currency bucket, and an ultralight's kind decides what its
-  flights are credited toward.
+  flights are credited toward. A registration reissued to another airframe gets one fleet
+  entry per airframe, each with its `validFrom`/`validTo` dates; a flight takes its class
+  and fleet facts from the entry valid on its date.
 - **Credentials** (`internal/service/credential.go`) — medicals, language proficiency,
   security clearances, German radio certificates (BZF II / BZF I / AZF); expiry feeds
   notifications.
@@ -375,6 +377,17 @@ evaluator-registry engine in `internal/service/currency` (handlers in
   as before. Aircraft facts for the auto-calculation are read after the import has
   created its aircraft. A failure to save an imported flight's crew is reported as a row
   error (`crewMembers`) and makes the import `partial`.
+
+  Each duration column carries a `durationFormat` that decides how a bare number is read:
+  `decimal` (decimal hours, so `2` is 120 minutes and `1.3` is 78), `minutes` (whole
+  minutes; a fraction is a row error) or `auto`. `H:MM` and suffixed values (`1:18`,
+  `1h 18m`, `1.3h`) read the same under every option. Under `auto`, a column whose
+  non-empty cells are all bare numbers with at least one fraction is read as decimal hours
+  across the whole file, so a decimal-hour FAA logbook that writes a two-hour flight as `2`
+  imports it as two hours rather than two minutes; any other column reads a whole number as
+  minutes and a fraction as decimal hours, as before. The inference also covers the SIC and
+  multi-pilot auxiliary columns. Upload suggests `decimal` on each duration mapping whose
+  column has that pattern, and the preview shows every value already converted to minutes.
 
   Adding a logbook means adding a `Template` in `importtemplate/sources.go`, the matching
   `ImportFormat` member in `api-spec/openapi.yaml`, and the value in the `import_format`

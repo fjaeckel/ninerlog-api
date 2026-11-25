@@ -168,6 +168,7 @@ SELECT
     COALESCE(SUM(f.landings_night), 0) as night_landings
 FROM flights f
 INNER JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+    AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 WHERE f.user_id = :'sample_user_id'
   AND a.aircraft_class = 'SEP'
   AND f.date >= (CURRENT_DATE - interval '90 days');
@@ -190,6 +191,7 @@ SELECT
     SUM(f.landings_day + f.landings_night) as total_landings
 FROM flights f
 LEFT JOIN aircraft a ON a.registration = f.aircraft_reg AND a.user_id = f.user_id
+    AND f.date BETWEEN COALESCE(a.valid_from, '-infinity'::date) AND COALESCE(a.valid_to, 'infinity'::date)
 WHERE f.user_id = :'sample_user_id'
 GROUP BY COALESCE(a.aircraft_class, 'Unclassified');
 

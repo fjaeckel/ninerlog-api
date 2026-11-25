@@ -21,6 +21,7 @@ func TestErrorMessages(t *testing.T) {
 		{"AircraftMakeRequired", ErrAircraftMakeRequired, "aircraft make is required"},
 		{"AircraftModelRequired", ErrAircraftModelRequired, "aircraft model is required"},
 		{"AircraftInvalidEngineType", ErrAircraftInvalidEngineType, "invalid engine type"},
+		{"InvalidAircraftValidity", ErrInvalidAircraftValidity, "aircraft validFrom must not be after validTo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,6 +45,7 @@ func TestErrorsAreDistinct(t *testing.T) {
 		ErrAircraftMakeRequired,
 		ErrAircraftModelRequired,
 		ErrAircraftInvalidEngineType,
+		ErrInvalidAircraftValidity,
 	}
 	seen := make(map[string]bool)
 	for _, e := range errs {

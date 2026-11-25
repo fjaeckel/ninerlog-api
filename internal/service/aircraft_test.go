@@ -31,7 +31,7 @@ func newMockAircraftRepo() *mockAircraftRepo {
 func (m *mockAircraftRepo) Create(ctx context.Context, aircraft *models.Aircraft) error {
 	// Check for duplicate registration per user
 	for _, a := range m.aircraft {
-		if a.UserID == aircraft.UserID && a.Registration == aircraft.Registration {
+		if a.UserID == aircraft.UserID && a.Registration == aircraft.Registration && a.ValidityOverlaps(aircraft) {
 			return repository.ErrDuplicateRegistration
 		}
 	}
@@ -86,7 +86,7 @@ func (m *mockAircraftRepo) Update(ctx context.Context, aircraft *models.Aircraft
 	}
 	// Check for duplicate registration per user (excluding self)
 	for _, a := range m.aircraft {
-		if a.ID != aircraft.ID && a.UserID == aircraft.UserID && a.Registration == aircraft.Registration {
+		if a.ID != aircraft.ID && a.UserID == aircraft.UserID && a.Registration == aircraft.Registration && a.ValidityOverlaps(aircraft) {
 			return repository.ErrDuplicateRegistration
 		}
 	}
@@ -378,6 +378,88 @@ func TestCreateAircraftDuplicateRegistration(t *testing.T) {
 	err = svc.CreateAircraft(ctx, aircraft2)
 	if !errors.Is(err, service.ErrDuplicateRegistration) {
 		t.Errorf("Expected ErrDuplicateRegistration, got %v", err)
+	}
+}
+
+func validityDay(s string) *time.Time {
+	t, err := time.Parse(time.DateOnly, s)
+	if err != nil {
+		panic(err)
+	}
+	return &t
+}
+
+func TestCreateAircraftReusedRegistration(t *testing.T) {
+	newAC := func(userID uuid.UUID, typ string, from, to *time.Time) *models.Aircraft {
+		return &models.Aircraft{
+			UserID: userID, Registration: "N123AB", Type: typ, Make: "X", Model: "Y",
+			IsActive: true, ValidFrom: from, ValidTo: to,
+		}
+	}
+	tests := []struct {
+		name         string
+		second       func(uuid.UUID) *models.Aircraft
+		wantConflict bool
+	}{
+		{"disjoint ranges", func(u uuid.UUID) *models.Aircraft { return newAC(u, "PA16", validityDay("2020-01-01"), nil) }, false},
+		{"adjacent days", func(u uuid.UUID) *models.Aircraft { return newAC(u, "PA16", validityDay("2019-12-31"), nil) }, false},
+		{"shared boundary day", func(u uuid.UUID) *models.Aircraft { return newAC(u, "PA16", validityDay("2019-12-30"), nil) }, true},
+		{"second open-ended both sides", func(u uuid.UUID) *models.Aircraft { return newAC(u, "PA16", nil, nil) }, true},
+		{"inside first range", func(u uuid.UUID) *models.Aircraft {
+			return newAC(u, "PA16", validityDay("2015-01-01"), validityDay("2016-01-01"))
+		}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := setupAircraftService()
+			ctx := context.Background()
+			userID := uuid.New()
+			if err := svc.CreateAircraft(ctx, newAC(userID, "C172", nil, validityDay("2019-12-30"))); err != nil {
+				t.Fatalf("first CreateAircraft: %v", err)
+			}
+			err := svc.CreateAircraft(ctx, tt.second(userID))
+			if tt.wantConflict && !errors.Is(err, service.ErrDuplicateRegistration) {
+				t.Errorf("err = %v, want ErrDuplicateRegistration", err)
+			}
+			if !tt.wantConflict && err != nil {
+				t.Errorf("err = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCreateAircraftInvertedValidity(t *testing.T) {
+	svc := setupAircraftService()
+	err := svc.CreateAircraft(context.Background(), &models.Aircraft{
+		UserID: uuid.New(), Registration: "N123AB", Type: "C172", Make: "Cessna", Model: "172",
+		ValidFrom: validityDay("2020-01-02"), ValidTo: validityDay("2020-01-01"),
+	})
+	if !errors.Is(err, models.ErrInvalidAircraftValidity) {
+		t.Errorf("err = %v, want ErrInvalidAircraftValidity", err)
+	}
+}
+
+func TestUpdateAircraftValidityIntoOverlap(t *testing.T) {
+	svc := setupAircraftService()
+	ctx := context.Background()
+	userID := uuid.New()
+	cessna := &models.Aircraft{UserID: userID, Registration: "N123AB", Type: "C172", Make: "Cessna", Model: "172", ValidTo: validityDay("2019-12-31")}
+	piper := &models.Aircraft{UserID: userID, Registration: "N123AB", Type: "PA16", Make: "Piper", Model: "Clipper", ValidFrom: validityDay("2020-01-01")}
+	if err := svc.CreateAircraft(ctx, cessna); err != nil {
+		t.Fatalf("create cessna: %v", err)
+	}
+	if err := svc.CreateAircraft(ctx, piper); err != nil {
+		t.Fatalf("create piper: %v", err)
+	}
+
+	piper.ValidFrom = validityDay("2019-06-01")
+	if _, err := svc.UpdateAircraft(ctx, piper, userID, false); !errors.Is(err, service.ErrDuplicateRegistration) {
+		t.Errorf("overlapping update err = %v, want ErrDuplicateRegistration", err)
+	}
+
+	piper.ValidFrom = validityDay("2020-02-01")
+	if _, err := svc.UpdateAircraft(ctx, piper, userID, false); err != nil {
+		t.Errorf("disjoint update err = %v, want nil", err)
 	}
 }
 

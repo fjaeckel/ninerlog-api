@@ -118,3 +118,73 @@ func ParseDuration(input string) (int, error) {
 	}
 	return mins, nil
 }
+
+// Unit is how a bare number in a duration cell is read. Colon ("1:18") and
+// suffixed ("1h 18m") forms parse the same under every unit.
+type Unit string
+
+const (
+	// UnitAuto reads a bare integer as minutes and a fraction as decimal hours.
+	UnitAuto Unit = "auto"
+	// UnitDecimalHours reads every bare number as hours ("2" → 120).
+	UnitDecimalHours Unit = "decimal"
+	// UnitMinutes reads every bare number as whole minutes ("90" → 90).
+	UnitMinutes Unit = "minutes"
+)
+
+// bareNumberRe matches an unsigned bare number with an optional dot fraction.
+var bareNumberRe = regexp.MustCompile(`^\d+(?:\.\d+)?$`)
+
+// ParseDurationAs parses input like ParseDuration, reading a bare number in
+// the given unit.
+func ParseDurationAs(input string, unit Unit) (int, error) {
+	s := strings.TrimSpace(input)
+	if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+		s = strings.Replace(s, ",", ".", 1)
+	}
+	if !bareNumberRe.MatchString(s) {
+		return ParseDuration(input)
+	}
+	switch unit {
+	case UnitDecimalHours:
+		hours, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid decimal duration: %q", input)
+		}
+		return DecimalHoursToMinutes(hours), nil
+	case UnitMinutes:
+		mins, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, fmt.Errorf("invalid minutes duration: %q", input)
+		}
+		return mins, nil
+	default:
+		return ParseDuration(input)
+	}
+}
+
+// InferUnit returns UnitDecimalHours when the values are all bare numbers
+// and at least one has a fraction ("1.3", "1,5"), and UnitAuto otherwise.
+// Empty values are ignored.
+func InferUnit(values []string) Unit {
+	fraction := false
+	for _, v := range values {
+		s := strings.TrimSpace(v)
+		if s == "" {
+			continue
+		}
+		if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+			s = strings.Replace(s, ",", ".", 1)
+		}
+		if !bareNumberRe.MatchString(s) {
+			return UnitAuto
+		}
+		if strings.Contains(s, ".") {
+			fraction = true
+		}
+	}
+	if fraction {
+		return UnitDecimalHours
+	}
+	return UnitAuto
+}

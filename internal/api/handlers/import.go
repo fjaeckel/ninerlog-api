@@ -27,7 +27,6 @@ import (
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightcalc"
 	"github.com/fjaeckel/ninerlog-api/internal/service/flightrules"
 	"github.com/fjaeckel/ninerlog-api/internal/service/importtemplate"
-	"github.com/fjaeckel/ninerlog-api/pkg/duration"
 	"github.com/fjaeckel/ninerlog-api/pkg/registration"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -236,6 +235,7 @@ func (h *APIHandler) UploadImportFile(c *gin.Context) {
 			return
 		}
 		detected, format, suggested = detectImportFormat(columns)
+		suggestDurationFormats(suggested, rows)
 	} else {
 		h.sendError(c, http.StatusBadRequest, "Unsupported file format. Please upload a CSV file.")
 		return
@@ -315,19 +315,14 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	existingFlights, _ := h.flightService.ListFlights(c.Request.Context(), userID, nil)
 
 	// Build a registration → type lookup from the user's fleet.
-	aircraftTypes := make(map[string]string)
-	if existingAircraft, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
-		for _, a := range existingAircraft {
-			aircraftTypes[registration.Canonical(a.Registration)] = a.Type
-		}
-	}
+	aircraftTypes := h.newImportTypeLookup(c, userID)
 	// Also seed from the ForeFlight Aircraft Table in this upload session.
 	for _, acRow := range session.aircraft {
 		reg := registration.Canonical(acRow["AircraftID"])
 		typeCode := strings.ToUpper(strings.TrimSpace(acRow["TypeCode"]))
 		if reg != "" && typeCode != "" {
-			if _, exists := aircraftTypes[reg]; !exists {
-				aircraftTypes[reg] = typeCode
+			if !aircraftTypes.has(reg) {
+				aircraftTypes.extra[reg] = typeCode
 			}
 		}
 	}
@@ -335,6 +330,7 @@ func (h *APIHandler) PreviewImport(c *gin.Context) {
 	var flights []generated.ImportPreviewFlight
 	validCount, dupCount, errCount := 0, 0, 0
 	auxColumns := sessionAuxColumns(session)
+	resolveDurationFormats(mappingLookup, auxColumns, session.rows)
 
 	for i, row := range session.rows {
 		flight, _, errs := mapImportRow(row, mappingLookup, auxColumns, aircraftTypes)
@@ -455,6 +451,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 	}
 	auxColumns := sessionAuxColumns(session)
+	resolveDurationFormats(mappingLookup, auxColumns, session.rows)
 	multiPilotRegs := collectMultiPilotRegistrations(session.rows, mappingLookup, auxColumns, isSelected)
 
 	aircraftCreated := 0
@@ -532,18 +529,13 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 
 	// Build a registration → type lookup from the user's now-augmented fleet;
 	// runs AFTER the ForeFlight Aircraft Table auto-create block above.
-	aircraftTypes := make(map[string]string)
-	if fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
-		for _, a := range fleet {
-			aircraftTypes[registration.Canonical(a.Registration)] = a.Type
-		}
-	}
+	aircraftTypes := h.newImportTypeLookup(c, userID)
 
 	// Auto-create fleet entries for registrations that appear in the file but
 	// are not in the user's fleet yet. Rows that will be skipped as duplicates
 	// still count here; rows the user deselected do not.
 	for reg, typeCode := range collectAircraftFromRows(session.rows, mappingLookup, isSelected) {
-		if _, exists := aircraftTypes[reg]; exists {
+		if aircraftTypes.has(reg) {
 			continue
 		}
 		if typeCode == "" {
@@ -567,7 +559,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 			continue
 		}
 		aircraftCreated++
-		aircraftTypes[reg] = typeCode
+		aircraftTypes.extra[reg] = typeCode
 	}
 
 	// Fleet facts, including the aircraft created above.
@@ -614,7 +606,7 @@ func (h *APIHandler) ConfirmImport(c *gin.Context) {
 		}
 
 		newFlight := buildImportedFlight(userID, flight, extras)
-		facts := fleet[service.NormalizeRegistrationKey(newFlight.AircraftReg)]
+		facts := fleet.For(newFlight.AircraftReg, newFlight.Date)
 		flightcalc.ApplyAutoCalculations(&newFlight, userName, facts)
 
 		if strictState != nil {
@@ -824,11 +816,48 @@ type fieldError struct {
 	message string
 }
 
+// importTypeLookup resolves a registration and flight date to an aircraft
+// type: the fleet entry valid on that date first, then registrations seeded
+// during the import.
+type importTypeLookup struct {
+	fleet service.FleetIndex
+	extra map[string]string
+}
+
+// newImportTypeLookup builds the type lookup from the user's current fleet.
+func (h *APIHandler) newImportTypeLookup(c *gin.Context, userID uuid.UUID) *importTypeLookup {
+	l := &importTypeLookup{extra: make(map[string]string)}
+	if fleet, err := h.aircraftService.ListAircraft(c.Request.Context(), userID); err == nil {
+		l.fleet = service.NewFleetIndex(fleet)
+	}
+	return l
+}
+
+// has reports whether reg is in the fleet or was seeded during the import.
+func (l *importTypeLookup) has(reg string) bool {
+	if l == nil {
+		return false
+	}
+	_, seeded := l.extra[registration.Canonical(reg)]
+	return seeded || l.fleet.Has(reg)
+}
+
+// typeFor returns the aircraft type for reg on date, or "".
+func (l *importTypeLookup) typeFor(reg string, date time.Time) string {
+	if l == nil {
+		return ""
+	}
+	if a := l.fleet.Resolve(reg, date); a != nil {
+		return a.Type
+	}
+	return l.extra[registration.Canonical(reg)]
+}
+
 // mapRowToFlight maps a CSV/JSON row to a FlightCreate using the provided field mappings.
-// aircraftTypes is an optional lookup (uppercase registration → aircraft type) used to
-// resolve the aircraft type when the source row does not provide one. When the lookup
-// has no entry, the registration is used as the type as a last-resort fallback.
-func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, aircraftTypes map[string]string) (generated.FlightCreate, []fieldError) {
+// aircraftTypes is an optional lookup used to resolve the aircraft type when the source
+// row does not provide one. When the lookup has no entry, the registration is used as the
+// type as a last-resort fallback.
+func mapRowToFlight(row map[string]string, mappings map[string]generated.ImportColumnMapping, aircraftTypes *importTypeLookup) (generated.FlightCreate, []fieldError) {
 	flight, _, errs := mapImportRow(row, mappings, nil, aircraftTypes)
 	return flight, errs
 }
@@ -847,7 +876,7 @@ type importRowExtras struct {
 // importtemplate.AuxColumns) and the values FlightCreate cannot carry. An
 // auxiliary column the mappings assign to a target field is not read as
 // auxiliary.
-func mapImportRow(row map[string]string, mappings map[string]generated.ImportColumnMapping, aux map[string]importtemplate.AuxField, aircraftTypes map[string]string) (generated.FlightCreate, importRowExtras, []fieldError) {
+func mapImportRow(row map[string]string, mappings map[string]generated.ImportColumnMapping, aux map[string]importtemplate.AuxField, aircraftTypes *importTypeLookup) (generated.FlightCreate, importRowExtras, []fieldError) {
 	var extras importRowExtras
 	// The conditionally-required flight fields are optional in the schema;
 	// a mapped row always fills them, so they start non-nil here.
@@ -918,49 +947,49 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 			s := normalizeTime(val)
 			flight.ArrivalTime = &s
 		case "totalTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.TotalTime = &mins
 			} else {
 				errs = append(errs, fieldError{"totalTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "isPic":
 			// Kept only as a PIC-while-dual declaration; PIC is derived from crew
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				picLogged = mins > 0
 			} else {
 				picLogged = parseBoolish(val, mapping.TrueValue)
 			}
 		case "isDual":
 			// Track DualReceived for crew role inference
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				dualReceivedVal = float64(mins)
 			}
 		case "nightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.NightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"nightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "crossCountryTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.CrossCountryTime = &mins
 			} else {
 				errs = append(errs, fieldError{"crossCountryTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "ifrTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.IfrTime = &mins
 			} else {
 				errs = append(errs, fieldError{"ifrTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "actualInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.ActualInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"actualInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "simulatedInstrumentTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.SimulatedInstrumentTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedInstrumentTime", fmt.Sprintf("Invalid duration '%s'", val)})
@@ -1020,13 +1049,13 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 				flight.FstdType = &t
 			}
 		case "simulatedFlightTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.SimulatedFlightTime = &mins
 			} else {
 				errs = append(errs, fieldError{"simulatedFlightTime", fmt.Sprintf("Invalid duration '%s'", val)})
 			}
 		case "dualGivenTime":
-			if mins, err := duration.ParseDuration(normalizeDecimalSeparator(val)); err == nil {
+			if mins, err := importDuration(val, mapping); err == nil {
 				flight.DualGivenTime = &mins
 				dualGivenVal = float64(mins)
 			} else {
@@ -1060,7 +1089,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 		}
 		switch field {
 		case importtemplate.AuxSICTime, importtemplate.AuxMultiPilotTime:
-			mins, err := duration.ParseDuration(normalizeDecimalSeparator(val))
+			mins, err := importDuration(val, mappings[col])
 			if err != nil || mins < 0 {
 				continue
 			}
@@ -1191,7 +1220,7 @@ func mapImportRow(row map[string]string, mappings map[string]generated.ImportCol
 	if flight.AircraftType == "" {
 		// Try to resolve the type from the user's aircraft fleet by registration.
 		if *flight.AircraftReg != "" && aircraftTypes != nil {
-			if t, ok := aircraftTypes[registration.Canonical(*flight.AircraftReg)]; ok && t != "" {
+			if t := aircraftTypes.typeFor(*flight.AircraftReg, flight.Date.Time); t != "" {
 				flight.AircraftType = t
 			}
 		}

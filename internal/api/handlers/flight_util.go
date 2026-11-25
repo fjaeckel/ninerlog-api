@@ -49,7 +49,7 @@ func (h *APIHandler) RecalculateFlights(c *gin.Context) {
 				flight.CrewMembers = crew
 			}
 		}
-		flightcalc.ApplyAutoCalculations(flight, userName, fleet[service.NormalizeRegistrationKey(flight.AircraftReg)])
+		flightcalc.ApplyAutoCalculations(flight, userName, fleet.For(flight.AircraftReg, flight.Date))
 		// UpdateFlight canonicalises AircraftReg; signed flights are rejected
 		// as locked and counted as errors.
 		if err := h.flightService.UpdateFlightWith(c.Request.Context(), flight, userID, service.FlightWriteOptions{

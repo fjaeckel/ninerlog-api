@@ -2611,7 +2611,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: Aircraft registration already exists
+          description: An aircraft with this registration already exists for an overlapping period
           content:
             application/json:
               schema:
@@ -2702,6 +2702,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: An aircraft with this registration already exists for an overlapping period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     delete:
       tags:
@@ -7128,6 +7134,16 @@ components:
           maxLength: 100
           example: LSZH
           description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+        validFrom:
+          type: [string, 'null']
+          format: date
+          example: '2019-04-01'
+          description: First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+        validTo:
+          type: [string, 'null']
+          format: date
+          example: '2023-12-31'
+          description: Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
         createdAt:
           type: string
           format: date-time
@@ -7225,6 +7241,16 @@ components:
           maxLength: 100
           example: LSZH
           description: Default arrival location (ICAO code or free-text place name) prefilled when logging a flight with this aircraft
+        validFrom:
+          type: [string, 'null']
+          format: date
+          example: '2019-04-01'
+          description: First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+        validTo:
+          type: [string, 'null']
+          format: date
+          example: '2023-12-31'
+          description: Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
 
     AircraftUpdate:
       type: object
@@ -7322,13 +7348,32 @@ components:
           x-go-type-import:
             path: github.com/oapi-codegen/nullable
           x-go-type-skip-optional-pointer: true
+        validFrom:
+          type: [string, 'null']
+          format: date
+          example: '2019-04-01'
+          description: First day the registration identified this aircraft, inclusive; null is open-ended. Set it when a registration was reissued to a different airframe or type. Ranges of fleet entries with the same registration may not overlap, so each flight date resolves to one aircraft.
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
+        validTo:
+          type: [string, 'null']
+          format: date
+          example: '2023-12-31'
+          description: Last day the registration identified this aircraft, inclusive; null is open-ended. Must not be before validFrom.
+          x-go-type: nullable.Nullable[openapi_types.Date]
+          x-go-type-import:
+            path: github.com/oapi-codegen/nullable
+          x-go-type-skip-optional-pointer: true
         renameFlights:
           type: boolean
           default: false
           example: false
           description: >-
             When true and the registration is being changed, logged flights
-            that reference the old registration are updated to the new one.
+            that reference the old registration and are dated within this
+            aircraft's validFrom/validTo range are updated to the new one.
 
     AircraftStats:
       type: object
@@ -10391,6 +10436,29 @@ components:
           type: string
           description: Time parsing format. Only relevant for time fields.
           example: '15:04'
+        durationFormat:
+          type: string
+          enum: [auto, decimal, minutes]
+          default: auto
+          description: |
+            How a bare number in a duration column is read. Only relevant for
+            duration fields (`totalTime`, `isDual`, `nightTime`,
+            `crossCountryTime`, `ifrTime`, `actualInstrumentTime`,
+            `simulatedInstrumentTime`, `dualGivenTime`).
+            `H:MM` ("1:18") and suffixed ("1h 18m", "1.3h") values read the
+            same under every option.
+            - `decimal`: decimal hours; a whole number is whole hours ("2" is
+              120 minutes, "1.3" is 78, "1,5" is 90)
+            - `minutes`: whole minutes ("90" is 90 minutes); a fraction is an
+              error
+            - `auto` (default): when every non-empty cell in the column is a
+              bare number and at least one has a fraction, the column is read
+              as `decimal`; otherwise a whole number is minutes and a fraction
+              is decimal hours
+
+            The upload response suggests `decimal` for a duration column whose
+            cells match that pattern across the whole file.
+          example: decimal
         trueValue:
           type: string
           description: String value that maps to boolean `true` (e.g. "Yes", "X", "1"). Only relevant for isPic / isDual.
